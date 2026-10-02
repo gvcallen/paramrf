@@ -77,6 +77,10 @@ def fit_minimize(
         :class:`pmrf.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
+
+        An MSE that starts very small (e.g. fitting a feature that barely moves) can
+        fall below SciPy's absolute `gtol` and `ftol` before the fit moves; tighten them
+        via ``ScipyMinimize(options=...)``.
     likelihood : str | Callable, optional
         A likelihood model representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
