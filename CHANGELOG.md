@@ -117,6 +117,15 @@ longer recompiles a model's RF methods.
 
 ## Unreleased
 
+- **Breaking (#245):** a frequentist fit with neither `loss` nor `likelihood`
+  now minimises the mean squared error (`MSELoss`) instead of the RMSE. MSE is
+  smooth in the residuals, pools every output's residuals equally rather than
+  averaging per-output RMSEs, and matches the fixed-noise Gaussian likelihood
+  of the Bayesian path. Fits relying on the default stop at slightly different
+  points and report loss values on a squared scale; pass `loss=RMSELoss()` for
+  the old objective. SciPy's default `gtol`, and its `ftol` (absolute below an
+  objective of 1), can now stop a fit whose MSE is already tiny before it
+  moves: tighten them through `ScipyMinimize(options=...)`.
 - Complete Tesche coaxial conductor physics across the low-frequency regime,
   and pass evaluated material properties to pure coaxial formulations.
 - Correct microstrip results by enabling Kirschning--Jansen modal dispersion by

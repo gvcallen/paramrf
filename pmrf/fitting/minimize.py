@@ -17,7 +17,7 @@ from pmrf.problems import SummedTerms, PriorPenalized
 from pmrf.terms import as_terms
 from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.losses import RMSELoss
+from pmrf.losses import MSELoss
 from pmrf.parameters import Random
 from pmrf.distributions import Uniform
 
@@ -74,16 +74,20 @@ def fit_minimize(
         Can be a function or a callable PyTree with optional parameters.
         Used to internally create a :class:`pmrf.evaluators.TargetLoss` evaluator.
         Mutually exclusive with `likelihood`. If neither `loss` nor `likelihood` is passed,
-        :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
+        :class:`pmrf.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
+
+        An MSE that starts very small (e.g. fitting a feature that barely moves) can
+        fall below SciPy's absolute `gtol` and `ftol` before the fit moves; tighten them
+        via ``ScipyMinimize(options=...)``.
     likelihood : str | Callable, optional
         A likelihood model representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
         Used to internally create a :class:`pmrf.evaluators.MarginalLogLikelihood`,
         wrapped in a :class:`pmrf.evaluators.Negated` evaluator.
         Mutually exclusive with `loss`. If neither `loss` nor `likelihood` is passed,
-        :class:`pmrf.losses.RMSELoss` is used for `loss` if `inference` is 'frequentist',
+        :class:`pmrf.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
         otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
         See :mod:`pmrf.losses` for common losses.
     noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
@@ -135,7 +139,7 @@ def fit_minimize(
     # Resolve defaults e.g. loss vs MLE vs MAP optimization
     if loss is None and likelihood is None:
         if inference == 'frequentist':
-            loss = RMSELoss()
+            loss = MSELoss()
         else:
             if noise is None:
                 # Lower bound kept strictly positive: at noise=0 the Gaussian likelihood
