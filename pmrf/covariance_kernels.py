@@ -387,32 +387,32 @@ class AutoCrossKernel(AbstractCovarianceKernel):
 
 class SharedIndependentKernel(AbstractCovarianceKernel):
     """
-    Evaluates a base kernel and broadcasts its output to represent 
-    multiple independent dimensions (e.g., real and imaginary parts) 
-    withed share hyperparameters.
+    Shares a base kernel across trailing independent batch axes (e.g. the real
+    and imaginary parts), so that every element on those axes uses the same
+    hyperparameters.
+
+    The shared axes are appended to the base kernel's output as size-1 axes
+    rather than materialized. A base output of shape ``batch_shape`` becomes
+    ``(*batch_shape, 1, ..., 1)``, which broadcasts to any size along the
+    shared axes, so a batched base kernel (e.g. :class:`AutoCrossKernel`)
+    keeps routing along its own leading axes.
 
     Parameters
     ----------
-    base_kernel : CovarianceKernel
+    base_kernel : AbstractCovarianceKernel
         The underlying kernel whose parameters are shared.
-    output_shape : tuple
-        The shape of the independent outputs to broadcast to.
+    num_shared_axes : int, default=1
+        The number of trailing batch axes the base kernel is shared across.
     """
     #: The base kernel.
     base_kernel: AbstractCovarianceKernel
 
-    #: The output shape.
-    output_shape: tuple = field(static=True)
+    #: The number of trailing shared axes.
+    num_shared_axes: int = field(default=1, static=True)
 
     def __call__(self, x1, x2, key=None):
-        # Evaluate the underlying shared kernel
-        val = self.base_kernel(x1, x2, key=key)
-        
-        # Broadcast the evaluation to the target shape.
-        # By appending the output_shape to the end of val.shape, 
-        # this safely handles both scalar evaluations and already-batched evaluations.
-        target_shape = val.shape + self.output_shape
-        return jnp.broadcast_to(val, target_shape)
+        val = jnp.asarray(self.base_kernel(x1, x2, key=key))
+        return val.reshape(val.shape + (1,) * self.num_shared_axes)
     
 
 class ZeroKernel(AbstractCovarianceKernel):
