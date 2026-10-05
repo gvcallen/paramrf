@@ -7,10 +7,11 @@ for more details.
 from abc import abstractmethod
 from collections.abc import Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from pmrf.utils import field
+from pmrf.utils import field, unwrap
 from pmrf.types import ArrayLike
 from pmrf.modules.base import Module
 
@@ -51,6 +52,12 @@ def gram(
         The Gram matrix, of shape ``(*batch_shape, N, N)``, where
         ``batch_shape`` is the shape returned by the kernel for a single pair.
     """
+    # Unwrap the hyperparameters to their values once, behind a barrier. Otherwise
+    # XLA can fuse each one's raw-to-value bijector chain into the elementwise loop
+    # that builds the matrix and recompute it per entry.
+    leaves, structure = eqx.partition(unwrap(kernel), eqx.is_array)
+    kernel = eqx.combine(jax.lax.optimization_barrier(leaves), structure)
+
     x = jnp.asarray(x)
     if x.ndim == 1:
         x_feat = x[:, None]
