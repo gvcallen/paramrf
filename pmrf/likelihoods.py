@@ -92,6 +92,43 @@ class GaussianLikelihood(AbstractLikelihood):
             )
         return var
 
+    def _constant_variance(self, y_event: jnp.ndarray) -> jnp.ndarray | None:
+        """Return the noise variance over the batch shape if it is constant along the event axis.
+
+        The variance is interpreted exactly as in :meth:`__call__`, and kept at its own
+        shape, which broadcasts to the non-event batch shape of ``y_event``.
+
+        Returns
+        -------
+        jnp.ndarray | None
+            The variance, or ``None`` if it varies along the event axis or does not
+            broadcast to ``y_event``.
+        """
+        var = self._event_variance(y_event)
+        try:
+            broadcast_shape = jnp.broadcast_shapes(var.shape, y_event.shape)
+        except ValueError:
+            return None
+        if broadcast_shape != y_event.shape:
+            return None
+        if var.ndim == 0:
+            return var
+        if var.shape[-1] != 1:
+            return None
+        return var[..., 0]
+
+    def _event_variance(self, y_event: jnp.ndarray) -> jnp.ndarray:
+        """The noise variance with the event as its last axis, broadcastable to ``y_event``.
+
+        A variance of exactly the batch shape is per batch entry; any other shape
+        aligns its trailing axis with the event axis.
+        """
+        var = self.noise(y_event) if callable(self.noise) else self.noise
+        var = jnp.asarray(var)
+        if var.shape == y_event.shape[:-1]:
+            var = var[..., None]
+        return var
+
     def __call__(self, y_event: jnp.ndarray | AbstractDistribution) -> AbstractDistribution:
         # If y_event is an array, the prediction is deterministic
         # and we can simply use a regular gaussian likelihood.
@@ -101,15 +138,7 @@ class GaussianLikelihood(AbstractLikelihood):
         is_dist = isinstance(y_event, AbstractDistribution)
         y_mean = y_event.mean() if is_dist else y_event
         
-        # Evaluate noise
-        var = self.noise(y_mean) if callable(self.noise) else self.noise
-        var = jnp.asarray(var)
-        
-        # Broadcast noise onto y_mean
-        batch_shape = y_mean.shape[:-1]
-        if var.shape == batch_shape:
-            var = var[..., None]
-        mapped_var = jnp.broadcast_to(var, y_mean.shape)
+        mapped_var = jnp.broadcast_to(self._event_variance(y_mean), y_mean.shape)
         num_batch_dims = y_mean.ndim - 1
 
         if not is_dist:

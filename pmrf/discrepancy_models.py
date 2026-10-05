@@ -6,7 +6,10 @@ Useful for modeling discrepancy of RF models during fitting.
 from collections.abc import Callable
 from abc import abstractmethod
 
+import math
+
 import equinox as eqx
+import jax
 import jax.scipy as jsp
 import jax.numpy as jnp
 import parax.distributions as dist
@@ -49,6 +52,44 @@ class AbstractDiscrepancyModel(Module):
         """        
         raise NotImplementedError
 
+
+@jax.custom_vjp
+def _gaussian_log_prob(M: jnp.ndarray, R: jnp.ndarray) -> jnp.ndarray:
+    """Sum the zero-mean Gaussian log densities of the columns of ``R`` under ``M``.
+
+    ``M`` has shape ``(*batch, N, N)`` and ``R`` has shape ``(*batch, N, k)``: the
+    ``k`` residuals in ``R[b]`` share the covariance ``M[b]`` and are solved together.
+    """
+    return _gaussian_log_prob_fwd(M, R)[0]
+
+
+def _gaussian_log_prob_fwd(M, R):
+    L = jnp.linalg.cholesky(M)
+    A = jsp.linalg.cho_solve((L, True), R)
+    n, k = R.shape[-2:]
+    num_matrices = math.prod(M.shape[:-2])
+    logdet = 2 * jnp.sum(jnp.log(jnp.diagonal(L, axis1=-2, axis2=-1)))
+    value = -0.5 * (
+        jnp.sum(R * A) + k * logdet + k * num_matrices * n * jnp.log(2 * jnp.pi)
+    )
+    return value, (L, A)
+
+
+def _gaussian_log_prob_bwd(residuals, g):
+    # With alpha = M^-1 r, d/dM = (sum alpha alpha^T - k M^-1) / 2 and d/dr = -alpha.
+    # JAX has no potri, so M^-1 = L^-T L^-1 from one triangular solve and a matmul.
+    L, A = residuals
+    n, k = A.shape[-2:]
+    identity = jnp.broadcast_to(jnp.eye(n, dtype=L.dtype), L.shape)
+    L_inv = jsp.linalg.solve_triangular(L, identity, lower=True)
+    M_inv = jnp.swapaxes(L_inv, -1, -2) @ L_inv
+    dM = 0.5 * g * (A @ jnp.swapaxes(A, -1, -2) - k * M_inv)
+    return dM, -g * A
+
+
+_gaussian_log_prob.defvjp(_gaussian_log_prob_fwd, _gaussian_log_prob_bwd)
+
+
 class GaussianProcess(AbstractDiscrepancyModel):
     """
     Gaussian process discrepancy model with a covariance kernel.
@@ -81,6 +122,65 @@ class GaussianProcess(AbstractDiscrepancyModel):
     
     #: The added jitter.
     jitter: float = field(default=1e-10, static=True)
+
+    def log_prob(
+        self,
+        y_event: jnp.ndarray,
+        observed: jnp.ndarray,
+        x: jnp.ndarray,
+        noise_variance: jnp.ndarray,
+    ) -> jnp.ndarray:
+        r"""Evaluate the summed log density of ``observed`` under the GP plus Gaussian noise.
+
+        Each batch entry of ``observed`` is distributed as
+        $\mathcal{N}(y, K + \sigma^2 I)$. Equal to the log probability of the
+        distribution built by :meth:`__call__` and
+        :class:`pmrf.likelihoods.GaussianLikelihood`, summed over the batch.
+
+        ``M = K + sigma^2 I`` is formed and factorized at the broadcast shape of the
+        kernel's Gram batch and ``noise_variance``, rather than the full batch shape,
+        and the residuals sharing each ``M`` are solved together.
+
+        Parameters
+        ----------
+        y_event : jnp.ndarray
+            The model prediction in event space, with shape ``(*batch_shape, N)``.
+        observed : jnp.ndarray
+            The observation in event space, broadcastable to ``y_event``.
+        x : jnp.ndarray
+            The frequency points, with shape ``(N,)``.
+        noise_variance : jnp.ndarray
+            The noise variance, constant along the event axis and broadcastable to
+            ``batch_shape``.
+
+        Returns
+        -------
+        jnp.ndarray
+            The scalar log density, summed over the batch.
+        """
+        # Materialize K before forming M. Otherwise XLA on CPU fuses the Gram
+        # construction into the transpose to LAPACK's column-major layout, and that
+        # strided build nearly doubles the value's cost at N = 1000.
+        K = jax.lax.optimization_barrier(gram(self.kernel, x, jitter=self.jitter))
+        variance = jnp.asarray(noise_variance)
+        batch_shape = y_event.shape[:-1]
+        n = y_event.shape[-1]
+        M = K + variance[..., None, None] * jnp.eye(n, dtype=K.dtype)
+        if jnp.broadcast_shapes(M.shape[:-2], batch_shape) != batch_shape:
+            raise ValueError(
+                f"The kernel's batch shape {K.shape[:-2]} and noise variance shape "
+                f"{variance.shape} do not broadcast to the event batch shape {batch_shape}."
+            )
+        matrix_batch = (1,) * (len(batch_shape) - (M.ndim - 2)) + M.shape[:-2]
+        # Batch axes along which M is shared become extra right-hand sides.
+        matrix_axes = [i for i, size in enumerate(matrix_batch) if size == batch_shape[i]]
+        shared_axes = [i for i in range(len(batch_shape)) if i not in matrix_axes]
+        residual = jnp.broadcast_to(observed - y_event, y_event.shape)
+        R = jnp.transpose(residual, matrix_axes + [len(batch_shape)] + shared_axes)
+        matrix_shape = tuple(batch_shape[i] for i in matrix_axes)
+        R = R.reshape(matrix_shape + (n, -1))
+        M = M.reshape(matrix_shape + (n, n))
+        return _gaussian_log_prob(M, R)
 
     def orthogonal_log_prob(
         self,
