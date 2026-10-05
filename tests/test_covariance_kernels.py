@@ -11,9 +11,14 @@ from pmrf.covariance_kernels import (
     Matern52Kernel,
     ConstantKernel,
     CosineKernel,
+    AutoCrossKernel,
     SharedIndependentKernel,
 )
 from pmrf.discrepancy_models import GaussianProcess
+from pmrf.evaluators import Feature, MarginalLogLikelihood
+from pmrf.frequency import Frequency
+from pmrf.likelihoods import GaussianLikelihood
+from pmrf.models.base import Model
 
 
 @pytest.fixture
@@ -89,15 +94,14 @@ def test_gram_batched_jitter_hits_every_batch_diagonal(x):
 
 
 def test_gram_nested_batching(x):
-    """Multi-axis kernel batching is preserved as leading axes of the Gram."""
+    """Shared axes are size-1 leading axes of the Gram, broadcasting to any size."""
     kernel = SharedIndependentKernel(
         base_kernel=RBFKernel(lengthscale=0.5),
-        output_shape=(2, 4),
+        num_shared_axes=2,
     )
     K = gram(kernel, x)
-    assert K.shape == (2, 4, 6, 6)
-    # Every batch element is the same shared kernel.
-    assert jnp.allclose(K, jnp.broadcast_to(gram(RBFKernel(lengthscale=0.5), x), (2, 4, 6, 6)))
+    assert K.shape == (1, 1, 6, 6)
+    assert jnp.array_equal(K[0, 0], gram(RBFKernel(lengthscale=0.5), x))
 
 
 def test_gram_accepts_multidimensional_features():
@@ -198,3 +202,61 @@ def test_cosine_kernel_under_jit_and_vmap(x_periods):
     vmapped = jax.vmap(lambda p: CosineKernel(period=p).gram(x_periods))(periods)
     assert jnp.allclose(jitted, CosineKernel(period=3.0).gram(x_periods))
     assert jnp.allclose(vmapped, CosineKernel(period=periods).gram(x_periods))
+
+
+_AUTO = RBFKernel(lengthscale=0.3)
+_CROSS = Matern32Kernel(lengthscale=2.0) * 0.5
+
+
+def _shared_auto_cross():
+    return SharedIndependentKernel(
+        base_kernel=AutoCrossKernel(auto=_AUTO, cross=_CROSS, num_outputs=2),
+        num_shared_axes=1,
+    )
+
+
+def _auto_where_ports_match(auto, cross):
+    """Stack per-event (i, j, ReIm) matrices: `auto` exactly when i == j, else `cross`."""
+    return jnp.stack([
+        jnp.stack([jnp.stack([auto if i == j else cross] * 2) for j in range(2)])
+        for i in range(2)
+    ])
+
+
+def test_shared_independent_appends_shared_axes_to_batched_base(x):
+    """A batched base keeps its axes leading; the shared axis is a trailing size-1 axis."""
+    K = gram(_shared_auto_cross(), x)
+    assert K.shape == (2, 2, 1, 6, 6)
+
+
+def test_shared_independent_routes_auto_cross_per_port(x):
+    """Every (i, j, ReIm) entry gets the auto kernel exactly when i == j."""
+    K = jnp.broadcast_to(gram(_shared_auto_cross(), x), (2, 2, 2, 6, 6))
+    assert jnp.array_equal(K, _auto_where_ports_match(gram(_AUTO, x), gram(_CROSS, x)))
+
+
+class _TwoPortModel(Model):
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        return jnp.zeros((freq.npoints, 2, 2), dtype=complex)
+
+
+def test_marginal_log_likelihood_routes_shared_auto_cross():
+    """The predictive covariance of each (i, j, ReIm) event uses auto exactly when i == j."""
+    frequency = Frequency(start=1.0, stop=10.0, npoints=5, unit='GHz')
+    noise = 1e-2
+    gp = GaussianProcess(kernel=_shared_auto_cross(), jitter=1e-8)
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=jnp.zeros((5, 2, 2), dtype=complex),
+        likelihood=GaussianLikelihood(noise=noise),
+        discrepancy=gp,
+    )
+
+    cov = mll.predictive_distribution(_TwoPortModel(), frequency).covariance()
+    f = frequency.f_scaled
+    expected = _auto_where_ports_match(
+        gram(_AUTO, f, jitter=1e-8) + noise * jnp.eye(5),
+        gram(_CROSS, f, jitter=1e-8) + noise * jnp.eye(5),
+    )
+    assert cov.shape == (2, 2, 2, 5, 5)
+    assert jnp.allclose(cov, expected)

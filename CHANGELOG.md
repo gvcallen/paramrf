@@ -126,6 +126,15 @@ longer recompiles a model's RF methods.
   the old objective. SciPy's default `gtol`, and its `ftol` (absolute below an
   objective of 1), can now stop a fit whose MSE is already tiny before it
   moves: tighten them through `ScipyMinimize(options=...)`.
+- **Breaking (#247):** `SharedIndependentKernel` appends its shared axes as
+  size-1 trailing axes instead of materializing them, which fixes its routing
+  over a batched base kernel. Wrapping an `AutoCrossKernel` previously
+  prepended the shared axes, so half the real/imaginary entries got the wrong
+  kernel (S11 Im got cross, S21 Re got auto). Log-likelihoods of every model
+  using this composition change. `output_shape` is replaced by
+  `num_shared_axes` (default 1), since only its length was ever meaningful;
+  `gram` now returns e.g. `(2, 2, 1, N, N)` rather than `(2, 2, 2, N, N)`, and
+  the orthogonal discrepancy path factorizes the smaller batch.
 - Complete Tesche coaxial conductor physics across the low-frequency regime,
   and pass evaluated material properties to pure coaxial formulations.
 - Correct microstrip results by enabling Kirschning--Jansen modal dispersion by
