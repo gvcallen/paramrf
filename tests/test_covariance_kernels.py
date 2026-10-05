@@ -1,7 +1,10 @@
 # tests/test_covariance_kernels.py
 import pytest
+import equinox as eqx
 import jax
 import jax.numpy as jnp
+
+import pmrf as prf
 
 from pmrf.covariance_kernels import (
     gram,
@@ -15,10 +18,12 @@ from pmrf.covariance_kernels import (
     SharedIndependentKernel,
 )
 from pmrf.discrepancy_models import GaussianProcess
+from pmrf.distributions import RelativeTruncatedNormal
 from pmrf.evaluators import Feature, MarginalLogLikelihood
 from pmrf.frequency import Frequency
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.models.base import Model
+from pmrf.utils import unwrap
 
 
 @pytest.fixture
@@ -260,3 +265,56 @@ def test_marginal_log_likelihood_routes_shared_auto_cross():
     )
     assert cov.shape == (2, 2, 2, 5, 5)
     assert jnp.allclose(cov, expected)
+
+
+def _hyperparameter_kernel(random: bool):
+    """A product-and-sum kernel whose hyperparameters are floats or `prf.Random`."""
+    h = lambda v: prf.Random(RelativeTruncatedNormal(v, 0.1)) if random else v
+    return (
+        PeriodicKernel(h(1.2), h(1.5)) * Matern52Kernel(h(3.0)) * h(2e-1)
+        + Matern52Kernel(h(0.4)) * h(3e-1)
+    )
+
+
+def test_gram_random_hyperparameters_match_floats(x):
+    """`Random` hyperparameters give the same Gram as floats with the same values."""
+    K_float = jax.jit(gram)(_hyperparameter_kernel(random=False), x)
+    K_random = eqx.filter_jit(gram)(_hyperparameter_kernel(random=True), x)
+    assert jnp.array_equal(K_random, K_float)
+
+
+def test_gram_gradient_wrt_random_hyperparameters_is_unchanged(x):
+    """Under jit and grad, `gram` differentiates exactly as the plain construction."""
+    kernel = _hyperparameter_kernel(random=True)
+    grad = eqx.filter_jit(eqx.filter_grad(lambda k: gram(k, x).sum()))(kernel)
+    expected = eqx.filter_jit(eqx.filter_grad(
+        lambda k: _gram_reference(unwrap(k), x, 0.0).sum()
+    ))(kernel)
+    grad_leaves, expected_leaves = jax.tree.leaves(grad), jax.tree.leaves(expected)
+    assert len(grad_leaves) == len(expected_leaves)
+    for actual, reference in zip(grad_leaves, expected_leaves):
+        assert jnp.allclose(actual, reference, rtol=1e-12, atol=0.0)
+    # Each of the six hyperparameters' raw values receives a gradient.
+    raw_grads = [p.raw_value for p in prf.params(grad).values()]
+    assert len(raw_grads) == 6
+    assert all(g != 0.0 for g in raw_grads)
+
+
+def test_marginal_log_likelihood_random_hyperparameters_match_floats():
+    """`Random` and float hyperparameters with the same values give the same log-likelihood."""
+    frequency = Frequency(start=1.0, stop=10.0, npoints=20, unit='GHz')
+    observed = jnp.full((20, 2, 2), 0.01 + 0.02j)
+
+    def mll(random):
+        kernel = SharedIndependentKernel(AutoCrossKernel(
+            _hyperparameter_kernel(random), _hyperparameter_kernel(random) * 0.5, num_outputs=2,
+        ))
+        return MarginalLogLikelihood(
+            predictor=Feature('s'),
+            observed=observed,
+            likelihood=GaussianLikelihood(noise=1e-4),
+            discrepancy=GaussianProcess(kernel=kernel, jitter=1e-8),
+        )
+
+    value = eqx.filter_jit(lambda e: e(_TwoPortModel(), frequency))
+    assert value(mll(random=True)) == value(mll(random=False))
