@@ -8,7 +8,9 @@ from pmrf.covariance_kernels import (
     RBFKernel,
     PeriodicKernel,
     Matern32Kernel,
+    Matern52Kernel,
     ConstantKernel,
+    CosineKernel,
     SharedIndependentKernel,
 )
 from pmrf.discrepancy_models import GaussianProcess
@@ -17,6 +19,16 @@ from pmrf.discrepancy_models import GaussianProcess
 @pytest.fixture
 def x():
     return jnp.linspace(0.0, 2.0, 6)
+
+
+@pytest.fixture
+def x_periods():
+    """Points spanning several periods of the cosine kernels below."""
+    return jnp.linspace(0.0, 50.0, 200)
+
+
+def _damped_cosine():
+    return CosineKernel(period=7.3) * Matern52Kernel(lengthscale=20.0) * 2.0
 
 
 def _gram_reference(kernel, x, jitter):
@@ -130,3 +142,59 @@ def test_gaussian_process_batched_kernel_covariance(x):
     cov = gp(y_event, x).covariance()
     assert cov.shape == (3, 6, 6)
     assert jnp.allclose(cov, gram(kernel, x, jitter=1e-8))
+
+
+def test_cosine_kernel_values():
+    """The cosine kernel is cos(2π Δx / period), reaching -1 at half a period."""
+    kernel = CosineKernel(period=4.0)
+    values = jnp.array([kernel(jnp.array([0.0]), jnp.array([x])) for x in [0.0, 1.0, 2.0, 3.0]])
+    assert jnp.allclose(values, jnp.array([1.0, 0.0, -1.0, 0.0]), atol=1e-12)
+
+
+def test_cosine_kernel_sums_multidimensional_differences():
+    """For d > 1 the differences are summed: Δx = (1, 1) is half of a period of 4."""
+    kernel = CosineKernel(period=4.0)
+    # A Euclidean distance would give cos(2π √2 / 4) ≈ -0.61 instead.
+    assert jnp.allclose(kernel(jnp.array([0.0, 0.0]), jnp.array([1.0, 1.0])), -1.0)
+
+
+@pytest.mark.parametrize("kernel", [
+    CosineKernel(period=7.3),
+    _damped_cosine(),
+], ids=["cosine", "damped"])
+def test_cosine_kernel_gram_is_positive_semidefinite(kernel, x_periods):
+    """The Gram matrix has no negative eigenvalues beyond round-off, alone or damped."""
+    eigvals = jnp.linalg.eigvalsh(kernel.gram(x_periods))
+    assert eigvals.min() >= -1e-8 * eigvals.max()
+
+
+def test_damped_cosine_kernel_gives_negative_covariance():
+    """A damped cosine is negatively correlated at half a period."""
+    kernel = _damped_cosine()
+    assert kernel(jnp.array([0.0]), jnp.array([7.3 / 2])) < 0.0
+
+
+def test_cosine_kernel_batched_period(x_periods):
+    """A period of shape (D,) gives a (D, N, N) Gram of the scalar-period kernels."""
+    periods = jnp.array([2.0, 5.0])
+    K = CosineKernel(period=periods).gram(x_periods)
+    assert K.shape == (2, 200, 200)
+    for i, period in enumerate(periods):
+        assert jnp.allclose(K[i], CosineKernel(period=period).gram(x_periods))
+
+
+def test_cosine_kernel_gradients_are_finite(x_periods):
+    """Gradients are finite in the period, and in x1 where x1 == x2."""
+    grad_period = jax.grad(lambda p: CosineKernel(period=p).gram(x_periods).sum())(3.0)
+    grad_x1 = jax.grad(lambda x1: CosineKernel(period=3.0)(x1, jnp.array([1.0])))(jnp.array([1.0]))
+    assert jnp.isfinite(grad_period)
+    assert jnp.all(jnp.isfinite(grad_x1))
+
+
+def test_cosine_kernel_under_jit_and_vmap(x_periods):
+    """jit and vmap over the period reproduce the eager Gram matrices."""
+    periods = jnp.array([2.0, 5.0, 7.3])
+    jitted = jax.jit(lambda p: CosineKernel(period=p).gram(x_periods))(3.0)
+    vmapped = jax.vmap(lambda p: CosineKernel(period=p).gram(x_periods))(periods)
+    assert jnp.allclose(jitted, CosineKernel(period=3.0).gram(x_periods))
+    assert jnp.allclose(vmapped, CosineKernel(period=periods).gram(x_periods))

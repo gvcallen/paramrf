@@ -231,6 +231,40 @@ class PeriodicKernel(AbstractCovarianceKernel):
         return jnp.exp(-2.0 * (sin_term / self.lengthscale)**2)
 
 
+class CosineKernel(AbstractCovarianceKernel):
+    r"""
+    Cosine kernel.
+
+    Models zero-mean oscillatory correlation with a single period, which can be
+    negative. Unlike :class:`PeriodicKernel`, the correlation goes to $-1$ at
+    half a period.
+
+    $$k(x_1, x_2) = \cos\left(\frac{2\pi\, \mathbf{1}^\top (x_1 - x_2)}{p}\right)$$
+
+    where $p$ is the ``period``.
+
+    For $d$-dimensional inputs the oscillation runs along the all-ones direction:
+    the differences are summed, not combined into a Euclidean distance, since
+    $\cos(2\pi \lVert x_1 - x_2 \rVert / p)$ is not positive semi-definite
+    for $d > 1$.
+
+    Its Gram matrix has rank two, so it is singular on its own. Multiply by a
+    decaying kernel (e.g. :class:`Matern52Kernel`) for a damped oscillation,
+    and by a float for its variance.
+
+    Parameters
+    ----------
+    period : ArrayLike
+        The period of the oscillation. A period of shape ``(D,)`` gives ``D``
+        batched kernels, as for :class:`PeriodicKernel`.
+    """
+    #: The period.
+    period: ArrayLike
+
+    def __call__(self, x1, x2, key=None):
+        return jnp.cos(2 * jnp.pi * jnp.sum(x1 - x2) / self.period)
+
+
 class WhiteNoiseKernel(AbstractCovarianceKernel):
     """
     Kernel representing independent Gaussian noise.
