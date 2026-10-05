@@ -9,7 +9,11 @@ import pmrf as prf
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
-from pmrf.covariance_kernels import RBFKernel, gram
+from pmrf.covariance_kernels import (
+    AutoCrossKernel, Matern52Kernel, PeriodicKernel, RBFKernel, SharedIndependentKernel,
+    gram,
+)
+from pmrf.distributions import RelativeTruncatedNormal
 from pmrf.discrepancy_models import GaussianProcess
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.evaluators import (
@@ -651,3 +655,220 @@ def test_negated_accepts_any_evaluator(model, basic_freq):
         loss=lambda t, p: jnp.mean((t - p) ** 2),
     )
     assert Negated(target_loss)(model, basic_freq) == -4.0
+
+
+# ---------------------------------------------------------
+# Closed-form Gaussian-process log-likelihood tests
+# ---------------------------------------------------------
+
+
+class _SlopedTwoPort(Model):
+    """A two-port whose S-parameters vary over frequency with two parameters."""
+    gain: jax.Array
+    delay: jax.Array
+
+    def s(self, freq: Frequency) -> jnp.ndarray:
+        f = jnp.asarray(freq.f_scaled)
+        ports = jnp.array([[0.1, 0.9], [0.8, 0.2]])
+        response = self.gain * jnp.exp(-1j * self.delay * f) + 0.01 * f**2
+        return response[:, None, None] * ports
+
+
+def _sloped_two_port():
+    return _SlopedTwoPort(gain=jnp.array(1.0), delay=jnp.array(0.3))
+
+
+def _observed_two_port(frequency):
+    truth = _SlopedTwoPort(gain=jnp.array(1.05), delay=jnp.array(0.32))
+    f = jnp.asarray(frequency.f_scaled)
+    wiggle = 0.02 * jnp.sin(1.7 * f)[:, None, None] * jnp.array([[1.0, 0.5], [0.5, 1.0]])
+    return truth.s(frequency) + wiggle * (1.0 + 0.5j)
+
+
+def _reference_log_prob(mll, model, frequency):
+    """The log-likelihood through the predictive distribution objects."""
+    obs_dist = mll.predictive_distribution(model, frequency)
+    obs_event = mll.event_transform.forward(mll.observed)
+    log_prob = lambda d, x: d.log_prob(x)
+    for _ in range(obs_event.ndim - 1):
+        log_prob = eqx.filter_vmap(log_prob)
+    return jnp.sum(log_prob(obs_dist, obs_event))
+
+
+def _cholesky_matrix_count(fn, *args):
+    """The number of matrices factorized by Cholesky in the traced program of ``fn``."""
+    def count(jaxpr):
+        total = 0
+        for eqn in jaxpr.eqns:
+            if eqn.primitive.name == 'cholesky':
+                total += int(np.prod(eqn.invars[0].aval.shape[:-2]))
+            for value in eqn.params.values():
+                for sub in value if isinstance(value, (tuple, list)) else (value,):
+                    if isinstance(sub, jax.extend.core.ClosedJaxpr):
+                        total += count(sub.jaxpr)
+                    elif isinstance(sub, jax.extend.core.Jaxpr):
+                        total += count(sub)
+        return total
+    return count(eqx.filter_make_jaxpr(fn)(*args)[0].jaxpr)
+
+
+def _gp_kernel(case, random=False):
+    h = lambda v: prf.Random(RelativeTruncatedNormal(v, 0.1)) if random else v
+    auto = lambda: Matern52Kernel(h(2.0)) * h(1e-2)
+    cross = lambda: Matern52Kernel(h(1.0)) * h(3e-3)
+    if case == 'unbatched':
+        return auto()
+    if case == 'batched':
+        # A period per real/imaginary part, the last event batch axis.
+        return PeriodicKernel(np.array([3.0, 5.0]), h(1.5)) * h(1e-2)
+    if case == 'shared':
+        return SharedIndependentKernel(auto())
+    if case == 'auto_cross':
+        # Routes along the trailing (port, Re/Im) axes, which is shape-valid.
+        return AutoCrossKernel(auto(), cross(), num_outputs=2)
+    if case == 'shared_auto_cross':
+        return SharedIndependentKernel(AutoCrossKernel(auto(), cross(), num_outputs=2))
+    raise ValueError(case)
+
+
+_KERNELS = ['unbatched', 'batched', 'shared', 'auto_cross', 'shared_auto_cross']
+
+_NOISES = {
+    'scalar': lambda: 1e-3,
+    'per_batch': lambda: np.linspace(5e-4, 2e-3, 8).reshape(2, 2, 2),
+    'per_frequency': lambda: np.linspace(5e-4, 2e-3, 7),
+}
+
+_RANDOM_NOISES = {
+    'scalar': lambda: prf.Random(RelativeTruncatedNormal(1e-3, 0.1)),
+    'per_batch': lambda: prf.Random(RelativeTruncatedNormal(_NOISES['per_batch'](), 0.1)),
+}
+
+
+def _gp_mll(frequency, kernel, noise):
+    return MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_observed_two_port(frequency),
+        likelihood=GaussianLikelihood(noise=noise),
+        discrepancy=GaussianProcess(kernel=kernel, jitter=1e-8),
+    )
+
+
+@pytest.fixture
+def gp_freq():
+    return Frequency(start=1.0, stop=10.0, npoints=7, unit='GHz')
+
+
+@pytest.mark.parametrize('noise', ['scalar', 'per_batch'])
+@pytest.mark.parametrize('kernel', _KERNELS)
+def test_gp_log_likelihood_matches_distribution_path(gp_freq, kernel, noise):
+    """Noise constant over frequency takes the closed form, which matches the distributions."""
+    mll = _gp_mll(gp_freq, _gp_kernel(kernel), _NOISES[noise]())
+    model = _sloped_two_port()
+    expected = _reference_log_prob(mll, model, gp_freq)
+    # Measured at 1.2e-15 relative or better across these cases.
+    assert jnp.allclose(mll(model, gp_freq), expected, rtol=1e-10, atol=0.0)
+    compiled = eqx.filter_jit(lambda e, m: e(m, gp_freq))(mll, model)
+    assert jnp.allclose(compiled, expected, rtol=1e-10, atol=0.0)
+
+
+def test_gp_log_likelihood_with_noise_varying_over_frequency(gp_freq):
+    """Noise that varies along frequency falls back to the distribution path."""
+    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES['per_frequency']())
+    model = _sloped_two_port()
+    assert mll(model, gp_freq) == _reference_log_prob(mll, model, gp_freq)
+
+
+@pytest.mark.parametrize('noise, kernel, matrices', [
+    # K is (2, 2, 1): auto and cross for each port pair, shared across Re/Im.
+    ('scalar', 'shared_auto_cross', 4),
+    ('scalar', 'unbatched', 1),
+    ('scalar', 'batched', 2),
+    ('scalar', 'shared', 1),
+    ('scalar', 'auto_cross', 4),
+    # Noise varying across entries that share K needs one matrix per entry.
+    ('per_batch', 'shared_auto_cross', 8),
+])
+def test_gp_log_likelihood_factorizes_smallest_broadcast_shape(gp_freq, noise, kernel, matrices):
+    """Each distinct (kernel block, noise value) pair is factorized once."""
+    mll = _gp_mll(gp_freq, _gp_kernel(kernel), _NOISES[noise]())
+    assert _cholesky_matrix_count(lambda m: mll(m, gp_freq), _sloped_two_port()) == matrices
+
+
+@pytest.mark.parametrize('noise', ['scalar', 'per_batch'])
+@pytest.mark.parametrize('kernel', _KERNELS)
+def test_gp_log_likelihood_gradients_match_distribution_path(gp_freq, kernel, noise):
+    """Gradients wrt model, kernel hyperparameters and noise match under jit and grad."""
+    mll = _gp_mll(gp_freq, _gp_kernel(kernel, random=True), _RANDOM_NOISES[noise]())
+    model = _sloped_two_port()
+
+    def closed_form(pair):
+        evaluator, candidate = pair
+        return evaluator(candidate, gp_freq)
+
+    def reference(pair):
+        evaluator, candidate = pair
+        return _reference_log_prob(evaluator, candidate, gp_freq)
+
+    value, grad = eqx.filter_jit(eqx.filter_value_and_grad(closed_form))((mll, model))
+    expected_value, expected = eqx.filter_jit(eqx.filter_value_and_grad(reference))((mll, model))
+    assert jnp.allclose(value, expected_value, rtol=1e-10, atol=0.0)
+
+    # Every hyperparameter and noise parameter, and both model parameters, has a gradient.
+    evaluator_grad, model_grad = grad
+    raw_grads = [p.raw_value for p in prf.params(evaluator_grad).values() if prf.is_param(p)]
+    assert len(raw_grads) == len(prf.params(mll))
+    assert all(jnp.all(g != 0.0) for g in raw_grads + [model_grad.gain, model_grad.delay])
+
+    leaves, expected_leaves = jax.tree.leaves(grad), jax.tree.leaves(expected)
+    assert len(leaves) == len(expected_leaves)
+    for actual, reference_leaf in zip(leaves, expected_leaves):
+        # Measured at 2e-14 relative or better: summation-order roundoff between the two
+        # backward passes. It grows with N (4e-9 at N = 1000 in #249).
+        assert jnp.allclose(actual, reference_leaf, rtol=1e-10, atol=1e-14)
+
+
+def test_gp_log_likelihood_gradient_under_vmap(gp_freq):
+    """Per-gain gradients under vmap match the distribution path."""
+    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES['per_batch']())
+    model = _sloped_two_port()
+
+    def objective(gain, fn):
+        return fn(eqx.tree_at(lambda m: m.gain, model, gain))
+
+    gains = jnp.array([0.9, 1.0, 1.1])
+    grad = jax.vmap(jax.grad(lambda g: objective(g, lambda m: mll(m, gp_freq))))(gains)
+    expected = jax.vmap(jax.grad(
+        lambda g: objective(g, lambda m: _reference_log_prob(mll, m, gp_freq))
+    ))(gains)
+    # Measured equal to the last bit.
+    assert jnp.allclose(grad, expected, rtol=1e-10, atol=0.0)
+
+
+def test_gp_log_likelihood_hyperparameter_gradient_matches_finite_difference(gp_freq):
+    """The custom gradient through the kernel matches a central difference."""
+    model = _sloped_two_port()
+
+    def objective(lengthscale):
+        kernel = SharedIndependentKernel(AutoCrossKernel(
+            Matern52Kernel(lengthscale) * 1e-2,
+            Matern52Kernel(1.0) * 3e-3,
+            num_outputs=2,
+        ))
+        return _gp_mll(gp_freq, kernel, 1e-3)(model, gp_freq)
+
+    lengthscale = jnp.asarray(2.0)
+    automatic = jax.grad(objective)(lengthscale)
+    step = 1e-5
+    finite_difference = (objective(lengthscale + step) - objective(lengthscale - step)) / (2 * step)
+    # Measured at 3e-10 relative with this step.
+    assert jnp.allclose(automatic, finite_difference, rtol=1e-8, atol=0.0)
+
+
+def test_gp_log_likelihood_random_hyperparameters_match_floats(gp_freq):
+    """`Random` and float hyperparameters with equal values give identical values."""
+    model = _sloped_two_port()
+    value = eqx.filter_jit(lambda e: e(model, gp_freq))
+    random = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross', random=True), 1e-3)
+    floats = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), 1e-3)
+    assert value(random) == value(floats)

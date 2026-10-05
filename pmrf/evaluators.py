@@ -255,6 +255,11 @@ class MarginalLogLikelihood(AbstractEvaluator):
         An optional discrepancy model to cater for model misspecification.
         Can be a function or a PyTree with optional parameters.
         See :class:`pmrf.discrepancy_models` for common discrepancy models.
+        A :class:`~pmrf.discrepancy_models.GaussianProcess` with a
+        :class:`~pmrf.likelihoods.GaussianLikelihood` whose noise is constant along
+        the event axis is evaluated in closed form
+        (:meth:`~pmrf.discrepancy_models.GaussianProcess.log_prob`), which factorizes
+        each distinct covariance matrix once.
     use_orthogonal_discrepancy
         Constrain a Gaussian-process discrepancy to the complement of the free-parameter
         tangent space. This retains the full-data likelihood; it is not REML.
@@ -403,17 +408,55 @@ class MarginalLogLikelihood(AbstractEvaluator):
             log_prob, event_transform = self._orthogonal_log_prob(
                 model, frequency, **kwargs
             )
-            if self.has_conditional_event_transform:
-                log_prob = log_prob + jnp.sum(
-                    event_transform.forward_log_det_jacobian(observed)
+        else:
+            closed_form = self._closed_form_log_prob(model, frequency, **kwargs)
+            if closed_form is not None:
+                log_prob, event_transform = closed_form
+            else:
+                log_prob, event_transform = self._distribution_log_prob(
+                    model, frequency, **kwargs
                 )
-            return log_prob
 
+        # A prediction-dependent change of variables carries a Jacobian determinant that
+        # varies with the model, so it must be included for the density to be normalized.
+        # For a static transform the term is a constant offset, so it is omitted.
+        if self.has_conditional_event_transform:
+            log_prob = log_prob + jnp.sum(event_transform.forward_log_det_jacobian(observed))
+
+        return log_prob
+
+    def _closed_form_log_prob(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> tuple[jnp.ndarray, bij.AbstractBijector] | None:
+        """The log-likelihood of a GP with Gaussian noise constant over the event axis.
+
+        Returns ``None`` when it does not apply, in which case the distribution path
+        gives the same value.
+        """
+        if not isinstance(self.discrepancy, GaussianProcess) or not isinstance(
+            self.likelihood, GaussianLikelihood
+        ):
+            return None
+        pred_event, event_transform = self._event(model, frequency, **kwargs)
+        variance = self.likelihood._constant_variance(pred_event)
+        if variance is None:
+            return None
+        log_prob = self.discrepancy.log_prob(
+            pred_event,
+            event_transform.forward(self.observed),
+            frequency.f_scaled,
+            variance,
+        )
+        return log_prob, event_transform
+
+    def _distribution_log_prob(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> tuple[jnp.ndarray, bij.AbstractBijector]:
         # Get the distribution over obs_event and the actual observed event.
         # The observation is mapped by the *same* resolved transform as the prediction,
         # which for a conditional transform depends on the model.
         obs_dist, event_transform = self._predictive(model, frequency, **kwargs)
-        obs_event = event_transform.forward(observed)
+        obs_event = event_transform.forward(self.observed)
         batch_ndims = obs_event.ndim - self.event_ndims
         
         # We evaluate the log prob `batch_ndims` many times
@@ -424,15 +467,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
             mapped_log_prob = eqx.filter_vmap(mapped_log_prob)
         
         log_probs = mapped_log_prob(obs_dist, obs_event)
-        log_prob = jnp.sum(log_probs)
-
-        # A prediction-dependent change of variables carries a Jacobian determinant that
-        # varies with the model, so it must be included for the density to be normalized.
-        # For a static transform the term is a constant offset, so it is omitted.
-        if self.has_conditional_event_transform:
-            log_prob = log_prob + jnp.sum(event_transform.forward_log_det_jacobian(observed))
-
-        return log_prob
+        return jnp.sum(log_probs), event_transform
 
     def with_orthogonal_reference(
         self, model: PyTree, frequency: Frequency, **kwargs
