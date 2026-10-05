@@ -32,15 +32,17 @@ from pmrf.likelihoods import GaussianLikelihood
 from pmrf.models import DatasheetLine
 
 
-def _hyperparameter(value, name, random):
-    if not random:
-        return value
-    return prf.Random(RelativeTruncatedNormal(value, 0.1), name=name)
-
-
 def build(npoints: int, random: bool):
-    """Return ``(mll, model, frequency)`` for the reproduction."""
-    h = lambda value, name: _hyperparameter(value, name, random)
+    """Return ``(mll, model, frequency)`` for the two-port GP benchmark.
+
+    With ``random``, every kernel hyperparameter is a ``prf.Random`` centred on its
+    float value; otherwise it is that float.
+    """
+    def h(value, name):
+        if not random:
+            return value
+        return prf.Random(RelativeTruncatedNormal(value, 0.1), name=name)
+
     k_auto = (
         PeriodicKernel(h(12.0, 'auto_period'), h(1.5, 'auto_periodic_ls'))
         * Matern52Kernel(h(100.0, 'auto_envelope_ls'))
@@ -95,7 +97,10 @@ def main():
 
     value = eqx.filter_jit(lambda mll, m: mll(m, frequency))
     model_grad = eqx.filter_jit(eqx.filter_value_and_grad(lambda m, mll: mll(m, frequency)))
-    both_grad = eqx.filter_jit(eqx.filter_value_and_grad(lambda mm: mm[0](mm[1], frequency)))
+    def evaluate_pair(mll_and_model):
+        mll, m = mll_and_model
+        return mll(m, frequency)
+    both_grad = eqx.filter_jit(eqx.filter_value_and_grad(evaluate_pair))
 
     rows = [
         (f'Cholesky of K + s^2 I, shape {cov.shape}', cholesky, (cov,)),
