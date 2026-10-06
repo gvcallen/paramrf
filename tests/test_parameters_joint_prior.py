@@ -360,6 +360,99 @@ def test_raw_values_of_a_batched_model_are_whitened_per_sample():
     np.testing.assert_allclose(np.stack([raw[name] for name in NAMES], axis=-1), z, rtol=1e-10, atol=1e-12)
 
 
+# ---- A constant whitening log-determinant (#260) --------------------------------------
+
+
+def _mvn_example(space):
+    """A multivariate normal joint prior over `a.R` and `c.C` in `space`, with the
+    Cholesky factor of its covariance. `c.C` is scaled, so the spaces differ, and over
+    raw space `a.R` has a range, so its raw-to-declared map is not the identity."""
+    # A joint prior over declared or physical space must fit inside `a.R`'s bounds.
+    a = prf.Random(RTNormal(50.0, 0.1)) if space == "raw" else prf.Unconstrained(50.0)
+    parts = {
+        "a": Resistor(R=a, name="a"),
+        "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
+    }
+    mean, tril = {
+        "raw": ([3.9, 2.0], [[0.10, 0.0], [0.08, 0.06]]),
+        "declared": ([49.0, 2.2], [[2.0, 0.0], [0.1, 0.5]]),
+        "physical": ([49.0, 2.2e-12], [[2.0, 0.0], [0.1e-12, 0.5e-12]]),
+    }[space]
+    tril = jnp.asarray(tril)
+    return prf.prior(parts, ["a.R", "c.C"], dd.MultivariateNormalTri(jnp.asarray(mean), tril), space=space), tril
+
+
+def _flow_example():
+    """A joint prior over raw space whose whitening, a softplus after an affine map, has
+    a Jacobian that varies with the whitened values."""
+    n = 2
+    base = dd.Independent(dd.Normal(jnp.zeros(n), jnp.ones(n)))
+    bijector = db.Chain([db.Block(db.Softplus(), 1), db.Block(db.Shift(MU), 1), db.TriangularLinear(L)])
+    return prf.prior(_parts(), NAMES, dd.Transformed(base, bijector), space="raw")
+
+
+def _dense_raw_log_prior(model, names):
+    """Returns the raw log prior of `model` as a function of the raw values `z` of the
+    parameters `names` under its joint prior: the declared log prior plus the
+    log-determinant of a dense Jacobian of their declared values in `z`, plus the
+    raw-to-declared Jacobians of the other parameters."""
+
+    def at(z):
+        return prf.update(model, dict(zip(names, z)), space="raw")
+
+    def declared(z):
+        values = prf.values(at(z))
+        return jnp.stack([values[name] for name in names])
+
+    def log_prior(z):
+        moved = at(z)
+        total = prf.log_prior(moved, space="declared") + jnp.linalg.slogdet(jax.jacfwd(declared)(z))[1]
+        for name, p in prf.params(moved).items():
+            if name not in names and p.raw_to_declared_bijector is not None:
+                total += p.raw_to_declared_bijector.forward_log_det_jacobian(p.raw_value)
+        return total
+
+    return at, log_prior
+
+
+@pytest.mark.parametrize("space", ["raw", "declared", "physical"])
+def test_a_multivariate_normal_holds_its_whitening_log_det(space):
+    """Its whitening `L z + mu` has the constant log-determinant `sum log L_ii`."""
+    model, tril = _mvn_example(space)
+    np.testing.assert_allclose(
+        prx.as_unwrapped(model.whitening_log_det), jnp.sum(jnp.log(jnp.diag(tril))), rtol=1e-12
+    )
+
+
+@pytest.mark.parametrize("make", [
+    lambda: dd.MultivariateNormalDiag(MU, jnp.diag(L)),
+    lambda: dd.MultivariateNormalFullCovariance(MU, L @ L.T),
+], ids=["diag", "full_covariance"])
+def test_every_multivariate_normal_holds_its_whitening_log_det(make):
+    model = prf.prior(_parts(), NAMES, make(), space="raw")
+    np.testing.assert_allclose(prx.as_unwrapped(model.whitening_log_det), jnp.sum(jnp.log(jnp.diag(L))), rtol=1e-12)
+
+
+def test_a_flow_holds_no_whitening_log_det():
+    assert prx.as_unwrapped(_flow_example().whitening_log_det) is None
+
+
+@pytest.mark.parametrize("case", ["raw", "declared", "physical", "flow"])
+def test_raw_log_prior_and_its_gradient_match_a_dense_jacobian(case):
+    if case == "flow":
+        model, names = _flow_example(), NAMES
+    else:
+        model, names = _mvn_example(case)[0], ("a.R", "c.C")
+    at, dense = _dense_raw_log_prior(model, names)
+    raw = prf.values(model, space="raw")
+    z = jnp.stack([raw[name] for name in names]) + jnp.array([0.1, -0.05])
+    held = lambda z: prf.log_prior(at(z), space="raw")
+    np.testing.assert_allclose(held(z), dense(z), rtol=1e-12)
+    np.testing.assert_allclose(jax.grad(held)(z), jax.grad(dense)(z), rtol=1e-12, atol=1e-12)
+    jitted = eqx.filter_jit(lambda m: prf.log_prior(m, space="raw"))(at(z))
+    np.testing.assert_allclose(jitted, dense(z), rtol=1e-12)
+
+
 # ---- Names ----------------------------------------------------------------------------
 
 
