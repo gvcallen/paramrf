@@ -85,7 +85,9 @@ wrong for complex $Z_r$.
 - **Box space** is a fourth space: the box a bounded minimiser searches. It is
   built from a parameter's bounds, not its prior: the unit box when both bounds
   are finite, declared space otherwise. A closed edge of the box is the bound
-  itself; an open edge is inset by δ = 1e-6.
+  itself. A finite open edge is inset by a dtype-aware relative distance based
+  on machine epsilon, the bound and the original start; infinite edges stay
+  infinite. The exact algorithm is recorded below.
 - **Minimisers say whether they honour bounds**, through the minimiser
   interface. `SolverView` hands box space to one that does and raw space to one
   that does not. Nothing in `SolverView` knows about a specific backend.
@@ -94,6 +96,64 @@ wrong for complex $Z_r$.
   closed bound δ = 1e-6 inward in box space before mapping it to raw. The nudge
   is silent: it is the kind of difference engineers expect between optimisers.
 - **Raw space is unchanged.** It stays whitened by the prior (ADR-0005).
+
+### Open box edges preserve valid starts
+
+For each finite open edge `b`, let `x0` be the original box-space start, `eps`
+the dtype's machine epsilon and `tiny` its smallest positive normal value. The
+inward distance is
+
+`max(tiny, eps * max(abs(b), abs(x0 - b), tiny))`.
+
+Add this distance at a lower edge and subtract it at an upper edge. If rounding
+leaves the result on the excluded edge, move one representable value inward.
+If the proposed inset would exclude an already valid interior start, use that
+start as the search edge. A start exactly on an open edge is moved to the
+resulting interior edge; construction still rejects a deliberately declared
+invalid start. Keep infinite edges infinite. This preserves tiny positive
+starts, avoids a fixed absolute inset and ensures `Positive` has a positive
+normal-number search edge. Closed edges and raw-space closed-start nudging keep
+their existing behavior.
+
+### Trust-constr uses fixed affine search coordinates
+
+When bounds are supplied to SciPy `trust-constr` (case-insensitively), pass
+feasible `Bounds` and use fixed affine coordinates. For flattened original box
+start `x0`, choose each scale `s` as `upper - lower` for two finite bounds,
+`abs(x0 - lower)` for lower-only, `abs(upper - x0)` for upper-only, and
+`abs(x0)` for unbounded coordinates. Replace a zero or nonfinite scale by 1.
+SciPy starts at `z0 = 0`, sees bounds `(lower - x0) / s` and
+`(upper - x0) / s`, and evaluates the original objective at `x = x0 + s * z`.
+Apply the affine chain rule to supplied gradients and convert the returned
+coordinates to box space before rebuilding parameters. Scales stay fixed for
+the solve.
+
+Metrics retain SciPy's actual internal coordinates. Add `box_origin=x0` and
+`box_scale=s` so callers can recover box coordinates from `metrics.x`; do not
+partially rewrite derivative or multiplier fields. Other methods and calls
+without supplied bounds keep their existing representations and coordinates.
+This is private solver scaling, not a new public value space, and `SolverView`
+continues to expose box space.
+
+### Nonfinite SciPy evaluations fail immediately
+
+Before returning an objective value to SciPy, check the loss and each requested
+gradient entry for finiteness; check a Hessian only when a callback is actually
+passed. A nonfinite value raises `FloatingPointError` on that evaluation.
+Include the method, one-based evaluation number, failing quantity and affected
+free parameter names for a nonfinite gradient. A nonfinite loss may list the
+available free names as context without attributing cause. Identify a
+nonfinite attempted parameter vector separately. Diagnostics use the original
+box or raw coordinates before private affine scaling, never the internal vector
+as if it were box space. Direct low-level calls may identify positional
+coordinates when names are unavailable.
+
+Do not include parameter values, full model representations or distributions
+in errors or logs. Synchronize deferred JAX results before checking. Public
+minimize and Bayesian fit APIs propagate the exception rather than returning a
+failed start point; close any progress bar on failure. Finite nonconvergence
+still returns `success=False` with its existing warning, and unrelated user
+exceptions retain their type and message.
 
 ## Rejected options
 
