@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import pmrf as prf
 
 from pmrf.covariance_kernels import (
+    cross_gram,
     gram,
     RBFKernel,
     PeriodicKernel,
@@ -318,3 +319,22 @@ def test_marginal_log_likelihood_random_hyperparameters_match_floats():
 
     value = eqx.filter_jit(lambda e: e(_TwoPortModel(), frequency))
     assert value(mll(random=True)) == value(mll(random=False))
+
+
+def test_cross_gram_of_inputs_with_themselves_is_the_gram(x):
+    """The cross-Gram of x with itself equals the square Gram without jitter, bit for bit."""
+    for kernel in [RBFKernel(lengthscale=0.5), _shared_auto_cross(), _hyperparameter_kernel(random=False)]:
+        assert jnp.array_equal(cross_gram(kernel, x, x), gram(kernel, x))
+
+
+def test_cross_gram_keeps_block_layout(x):
+    """A cross-Gram has the (*batch, N1, N2) layout, routing blocks as the square Gram does."""
+    x_new = jnp.linspace(-1.0, 3.0, 4)
+    K = jnp.broadcast_to(cross_gram(_shared_auto_cross(), x_new, x), (2, 2, 2, 4, 6))
+    expected = _auto_where_ports_match(cross_gram(_AUTO, x_new, x), cross_gram(_CROSS, x_new, x))
+    assert jnp.array_equal(K, expected)
+    # RBF entries are exp(-0.5 (Δx / l)^2).
+    assert jnp.allclose(
+        cross_gram(_AUTO, x_new, x), jnp.exp(-0.5 * ((x_new[:, None] - x[None, :]) / 0.3) ** 2),
+        rtol=1e-14, atol=0.0,
+    )
