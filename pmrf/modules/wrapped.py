@@ -66,6 +66,11 @@ class Probabilistic(Module, prx.AbstractUnwrappable):
     #: The parameter names, relative to `module`, in the order of the distribution's vector.
     names: tuple[str, ...] = field(static=True)
 
+    #: The parameters' own shapes, as declared when the prior was attached, in the order
+    #: of `names`. Each takes that many values of the vector, in C order; any leading
+    #: axes beyond it, as in a batched model, are batch axes.
+    shapes: tuple[tuple[int, ...], ...] = field(static=True)
+
     #: The space the distribution is over: ``'raw'``, ``'declared'`` or ``'physical'``.
     #: ``'raw'`` is the parameters' raw space as it was when the prior was attached.
     space: Space = field(static=True)

@@ -1,5 +1,5 @@
-"""Joint priors attached by name with `prf.prior` (ADR-0005, #193), and the whitened raw
-space of their parameters (#194)."""
+"""Joint priors attached by name with `prf.prior` (ADR-0005, #193), the whitened raw
+space of their parameters (#194), and array-valued parameters under them (#261)."""
 import parax.bijectors as db
 import parax.distributions as dd
 import equinox as eqx
@@ -542,12 +542,6 @@ def test_a_selected_name_that_is_not_a_free_parameter_raises():
         prf.prior(parts, ["a.R", "nope"], _gaussian(MU, L))
 
 
-def test_a_non_scalar_parameter_raises():
-    parts = {"a": Resistor(R=prf.Unconstrained(jnp.array([1.0, 2.0])), name="a")}
-    with pytest.raises(ValueError, match=r"'a.R'.*not"):
-        prf.prior(parts, ["a.R"], dd.MultivariateNormalDiag(jnp.zeros(1), jnp.ones(1)))
-
-
 def test_fixing_a_parameter_under_a_joint_prior_raises():
     model = _example()
     with pytest.raises(ValueError, match=r"Cannot fix 'a.R'.*joint prior"):
@@ -777,3 +771,138 @@ def test_cube_draws_follow_a_coupling_flow():
     direct = np.asarray(jax.vmap(flow.sample)(jax.random.split(jax.random.key(2), 20_000)))
     np.testing.assert_allclose(values.mean(axis=0), direct.mean(axis=0), atol=0.01)
     np.testing.assert_allclose(np.cov(values.T), np.cov(direct.T), atol=0.002)
+
+
+# ---- Array-valued parameters (#261) ---------------------------------------------------
+
+
+V = jnp.array([[0.3, -0.2, 0.1], [0.4, 0.0, -0.5]])
+ARRAY_NAMES = ["a.R", "v"]
+FLAT_NAMES = ["a.R", *(f"v{i}" for i in range(V.size))]
+
+
+def _array_parts(flat=False):
+    """A scalar `a.R` and a scaled, bounded array `v` of shape (2, 3), or with `flat`,
+    the same values as one scalar parameter `v0` ... `v5` per element, in C order. A
+    width `w` like `v` stays outside the joint prior."""
+    a = Resistor(R=prf.Bounded(40.0, 60.0, value=50.5), name="a")
+    w = prf.Unconstrained(jnp.zeros(V.shape))
+    if flat:
+        return {"a": a, "w": w, **{f"v{i}": prf.Bounded(-5.0, 5.0, value=x, scale=1e-3) for i, x in enumerate(V.ravel())}}
+    return {"a": a, "w": w, "v": prf.Bounded(-5.0, 5.0, value=V, scale=1e-3)}
+
+
+def _array_distribution(kind, space):
+    """A correlated Gaussian over the 7 values of `a.R` and `v` in `space`, centred near
+    their values there, as a multivariate normal or as a flow."""
+    parts = _array_parts()
+    values = prf.values(parts, space=space)
+    mean = jnp.concatenate([jnp.ravel(values["a.R"]), jnp.ravel(values["v"])]) + 0.01
+    width = jnp.abs(mean) * 0.2 + (1e-4 if space == "physical" else 0.1)
+    corr = jnp.eye(7) + 0.3 * jnp.tril(jnp.ones((7, 7)), -1)
+    tril = width[:, None] * corr
+    return dd.MultivariateNormalTri(mean, tril) if kind == "mvn" else _gaussian(mean, tril)
+
+
+def _array_prior(kind, space, flat=False):
+    return prf.prior(_array_parts(flat), FLAT_NAMES if flat else ARRAY_NAMES, _array_distribution(kind, space), space=space)
+
+
+def _at_raw(model, z, flat=False):
+    """`model` with the joint prior's whitened vector `z`, possibly batched, written in."""
+    if flat:
+        return prf.update(model, dict(zip(FLAT_NAMES, jnp.moveaxis(z, -1, 0))), space="raw")
+    return prf.update(model, {"a.R": z[..., 0], "v": z[..., 1:].reshape(*z.shape[:-1], *V.shape)}, space="raw")
+
+
+Z = jnp.array([0.2, -0.4, 0.3, 0.1, -0.6, 0.5, 0.05])
+
+
+@pytest.mark.parametrize("kind", ["mvn", "flow"])
+@pytest.mark.parametrize("prior_space", ["raw", "declared", "physical"])
+def test_an_array_parameter_scores_as_one_scalar_per_value(kind, prior_space):
+    array = _at_raw(_array_prior(kind, prior_space), Z)
+    flat = _at_raw(_array_prior(kind, prior_space, flat=True), Z, flat=True)
+    declared = prf.values(array)
+    assert declared["v"].shape == V.shape
+    np.testing.assert_allclose(
+        jnp.ravel(declared["v"]), [prf.values(flat)[f"v{i}"] for i in range(V.size)], rtol=1e-12
+    )
+    for space in ("raw", "declared", "physical"):
+        np.testing.assert_allclose(prf.log_prior(array, space=space), prf.log_prior(flat, space=space), rtol=1e-12)
+    jitted = eqx.filter_jit(lambda m: prf.log_prior(m, space="raw"))(array)
+    np.testing.assert_allclose(jitted, prf.log_prior(flat, space="raw"), rtol=1e-12)
+
+
+@pytest.mark.parametrize("prior_space", ["raw", "declared", "physical"])
+def test_an_array_parameters_raw_value_is_its_slice_of_the_whitened_vector(prior_space):
+    model = _at_raw(_array_prior("mvn", prior_space), Z)
+    raw = prf.values(model, space="raw")
+    assert raw["v"].shape == V.shape
+    np.testing.assert_allclose(jnp.concatenate([jnp.ravel(raw["a.R"]), jnp.ravel(raw["v"])]), Z, rtol=1e-12, atol=1e-14)
+
+
+@pytest.mark.parametrize("prior_space", ["raw", "declared", "physical"])
+@pytest.mark.parametrize("batched", [False, True], ids=["single", "batched"])
+def test_array_values_round_trip_through_update_in_every_space(prior_space, batched):
+    z = Z + jnp.array([[0.0], [0.3], [-0.2]]) if batched else Z
+    model = _at_raw(_array_prior("mvn", prior_space), z)
+    batch = (3,) if batched else ()
+    assert prf.values(model)["v"].shape == batch + V.shape
+    assert prf.values(model, space="raw")["v"].shape == batch + V.shape
+    for space in ("raw", "declared", "physical"):
+        again = prf.update(model, prf.values(model, space=space), space=space)
+        for check in ("raw", "declared", "physical"):
+            before, after = prf.values(model, space=check), prf.values(again, space=check)
+            for name in before:
+                np.testing.assert_allclose(after[name], before[name], rtol=1e-10, atol=1e-12, err_msg=f"{space} {check} {name}")
+
+
+def test_a_hypercube_sampler_maps_the_cube_through_an_array_parameters_block():
+    n = 5
+    u = jax.random.uniform(jax.random.key(3), (n, 7)).at[0].set(1e-12).at[1].set(1.0 - 1e-12)
+    points = {"a.R": u[:, 0], "v": u[:, 1:].reshape(n, *V.shape), "w": jnp.full((n, *V.shape), 0.5)}
+    flat_points = {"a.R": u[:, 0], "w": points["w"], **{f"v{i}": u[:, 1 + i] for i in range(V.size)}}
+    model = prf.update(_array_prior("mvn", "raw"), "w", fn=lambda w: prf.Random(Normal(0.0, 1.0), value=jnp.zeros(V.shape)))
+    flat = prf.update(_array_prior("mvn", "raw", flat=True), "w", fn=lambda w: prf.Random(Normal(0.0, 1.0), value=jnp.zeros(V.shape)))
+    values = prf.values(_cube_draws(model, _CubeDraws(points=points)))
+    expected = prf.values(_cube_draws(flat, _CubeDraws(points=flat_points)))
+    assert values["v"].shape == (n, *V.shape)
+    np.testing.assert_allclose(values["a.R"], expected["a.R"], rtol=1e-10)
+    np.testing.assert_allclose(
+        values["v"].reshape(n, -1), jnp.stack([expected[f"v{i}"] for i in range(V.size)], axis=-1), rtol=1e-10
+    )
+    assert np.all(np.isfinite(values["v"])) and np.all((values["v"] >= -5.0) & (values["v"] <= 5.0))
+    assert np.all((values["a.R"] >= 40.0) & (values["a.R"] <= 60.0))
+
+
+def test_an_event_size_matching_no_selection_names_both_sizes():
+    distribution = dd.MultivariateNormalDiag(jnp.zeros(5), jnp.ones(5))
+    with pytest.raises(ValueError, match=r"event size 5.*total size 7"):
+        prf.prior(_array_parts(), ARRAY_NAMES, distribution)
+
+
+def test_a_support_outside_an_array_parameters_validity_raises_naming_it():
+    """The support is checked element by element: one element of `a.R` reaching below
+    zero is enough."""
+    parts = {
+        "x": prf.Unconstrained(0.0),
+        "a": _PositiveResistor(R=prf.Unconstrained(jnp.array([50.0, 51.0, 52.0])), name="a"),
+    }
+
+    def box(lower):
+        # A sigmoid over a standard-normal base, shifted: support (lower, lower + 1).
+        squash = db.Chain([db.Block(db.Shift(jnp.asarray(lower)), 1), db.Block(db.Sigmoid(), 1)])
+        return dd.Transformed(dd.Independent(dd.Normal(jnp.zeros(4), jnp.ones(4))), squash)
+
+    with pytest.raises(ValueError, match=r"validity of 'a\.R'\. "):
+        prf.prior(parts, ["x", "a.R"], box([-0.5, 50.0, -0.5, 52.0]))
+    assert isinstance(prf.prior(parts, ["x", "a.R"], box([-0.5, 50.0, 51.0, 52.0])), Probabilistic)
+
+
+def test_fixing_or_tying_an_array_parameter_under_a_joint_prior_raises():
+    model = _array_prior("mvn", "raw")
+    with pytest.raises(ValueError, match=r"Cannot fix 'v'.*joint prior"):
+        prf.update(model, "v", fixed=True)
+    with pytest.raises(ValueError, match=r"Cannot tie: 'v'.*joint prior"):
+        prf.tie(model, "v", "w")
