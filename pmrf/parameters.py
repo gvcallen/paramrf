@@ -1339,10 +1339,16 @@ def _joint_raw_log_det(joint, nodes: list) -> Array:
     With `t = w(z)` the values in the joint prior's space and `x_i = g_i(t_i)`, this is
     $\\log|\\det \\partial w / \\partial z| + \\sum_i \\log|g_i'(t_i)|$, where $g_i$ is the
     identity for a declared-space prior, division by the scale for a physical one, and the
-    parameter's raw-to-declared map for a raw one.
+    parameter's raw-to-declared map for a raw one. The first term is the joint prior's
+    held whitening log-determinant when it has one.
     """
-    distribution = prx.as_unwrapped(joint.distribution)
-    log_det = _per_vector(lambda z: _whitening_log_det(distribution, z), _whitened_vector(joint, nodes))
+    held = prx.as_unwrapped(joint.whitening_log_det)
+    if held is None:
+        distribution = prx.as_unwrapped(joint.distribution)
+        log_det = _per_vector(lambda z: _whitening_log_det(distribution, z), _whitened_vector(joint, nodes))
+    else:
+        batch = _stack_vector([_read(node, joint.space) for node in nodes]).shape[:-1]
+        log_det = jnp.broadcast_to(held, batch)
     for node in nodes:
         if joint.space == 'raw':
             log_det = log_det + _raw_log_det_jacobian(node)
@@ -2415,7 +2421,7 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
             "already under a joint prior, which replaces its own prior. A parameter can be "
             "under one joint prior only."
         )
-    event_size = int(jnp.prod(jnp.asarray(distribution.event_shape)))
+    event_size = _event_size(distribution)
     if distribution.event_shape != ():
         if event_size == len(selected):
             return _attach_joint_prior(tree, _joint_order(selected, names), distribution, space)
@@ -2467,8 +2473,21 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
         _check_joint_support(names, nodes, distribution, space)
         tree = _set_paths(tree, [resolved[name][0] for name in names], [_with_prior(node, None) for node in nodes])
     base = tree.wrapped if isinstance(tree, Wrapped) else tree
-    joint = Probabilistic(base, distribution, tuple(names), space)
+    joint = Probabilistic(base, distribution, tuple(names), space, _constant_whitening_log_det(distribution))
     return Wrapped(wrapped=joint) if isinstance(tree, Model) else joint
+
+
+def _constant_whitening_log_det(distribution: AbstractDistribution) -> Array | None:
+    """Returns the log-determinant of the whitening of `distribution` if its Jacobian is
+    constant, as for a multivariate normal, and None otherwise, as for a nonlinear flow."""
+    if not _whitening(distribution).is_constant_jacobian:
+        return None
+    return _whitening_log_det(distribution, jnp.zeros(_event_size(distribution)))
+
+
+def _event_size(distribution: AbstractDistribution) -> int:
+    """Returns the number of values in one event of `distribution`."""
+    return int(jnp.prod(jnp.asarray(distribution.event_shape)))
 
 
 def _check_joint_support(names: list[str], nodes: list, distribution: AbstractDistribution, space: str) -> None:

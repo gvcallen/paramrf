@@ -3,6 +3,7 @@
 from typing import Any, Callable
 
 import parax as prx
+from jax import Array
 
 from pmrf.distributions import AbstractDistribution
 from pmrf.modules.base import Module
@@ -68,6 +69,11 @@ class Probabilistic(Module, prx.AbstractUnwrappable):
     #: The space the distribution is over: ``'raw'``, ``'declared'`` or ``'physical'``.
     #: ``'raw'`` is the parameters' raw space as it was when the prior was attached.
     space: Space = field(static=True)
+
+    #: The log-determinant of the distribution's whitening when its Jacobian is constant,
+    #: as for a multivariate normal, held so that :func:`pmrf.log_prior` in raw space does
+    #: not recompute it; otherwise None. Held frozen, like `distribution`.
+    whitening_log_det: Array | None = field(converter=freeze)
 
     def unwrap(self) -> Any:
         return self.module
