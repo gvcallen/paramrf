@@ -886,7 +886,7 @@ def new_freq():
 
 
 def _hand_prediction(gp, transform, observed, model, frequency, new_frequency, noise):
-    """#255's prediction called by hand on the event-space residual."""
+    """`GaussianProcess.predict` called by hand on the event-space residual."""
     y_pred = Feature('s')(model, frequency)
     residual = transform.forward(observed) - transform.forward(y_pred)
     return gp.predict(residual, frequency.f_scaled, new_frequency.f_scaled, jnp.asarray(noise))
@@ -901,7 +901,7 @@ def _assert_same_prediction(actual, expected):
 @pytest.mark.parametrize('noise', ['scalar', 'per_batch'])
 @pytest.mark.parametrize('kernel', ['unbatched', 'shared', 'auto_cross', 'shared_auto_cross'])
 def test_discrepancy_prediction_matches_gp_predict(gp_freq, new_freq, kernel, noise):
-    """A complex two-port with the default event transform gives #255's prediction by hand."""
+    """A complex two-port with the default event transform gives `GaussianProcess.predict` called by hand."""
     mll = _gp_mll(gp_freq, _gp_kernel(kernel), _NOISES[noise]())
     model = _sloped_two_port()
     prediction = mll.predict_discrepancy(model, gp_freq, new_freq)
