@@ -1776,7 +1776,14 @@ def _write(node, value: Any, space: str, on_invalid: str = 'raise'):
         safe_value = jnp.where(invalid, _read(node, space), value)
         updated = _write(node, safe_value, space)
         return _poison_value(updated, invalid)
-    if space != 'raw':
+    if space == 'raw':
+        invalid = _invalid_value(node, value, space)
+        value = error_if(
+            jnp.asarray(value),
+            invalid,
+            "A parameter value falls outside the constraint or contains a nonfinite value.",
+        )
+    else:
         candidate = jnp.asarray(value)
         declared = candidate / node._scale if is_param(node) and space == 'physical' and node._scale != 1.0 else candidate
         value = error_if(
@@ -1805,22 +1812,40 @@ def _invalid_value(node, value: Any, space: str, *, require_nan_dtype: bool = Fa
         raise TypeError("`on_invalid='nan'` requires floating-point or complex parameter values")
 
     candidate = jnp.asarray(value)
+    if space == 'raw':
+        if is_param(node):
+            candidate = _like(candidate, _peel_fixed(node.variable).raw_value)
+        else:
+            candidate = jnp.asarray(value, dtype=node.dtype)
     if is_param(node):
         if space == 'physical' and node._scale != 1.0:
             declared = candidate / node._scale
         elif space == 'raw':
-            declared = node.raw_to_declared_bijector.forward(candidate) if node.raw_to_declared_bijector is not None else candidate
+            if node.raw_to_declared_bijector is not None:
+                declared = node.raw_to_declared_bijector.forward(candidate)
+            else:
+                # Field validity can constrain the underlying Parax variable without
+                # appearing as Param.constraint. Ask that variable to map the proposed
+                # raw leaf back to its declared value before checking validity.
+                inner = _peel_fixed(node.variable)
+                proposed = eqx.tree_at(lambda v: v.raw_value, inner, candidate)
+                declared = jnp.asarray(proposed)
         else:
             declared = candidate
-        constraint = _intersect(
-            None if node.constraint is None else prx.unwrap(node.constraint),
-            None if node.validity is None else prx.unwrap(node.validity),
+        constraints = [
+            prx.unwrap(constraint)
+            for constraint in (node.constraint, node.validity)
+            if constraint is not None
+        ]
+        outside = (
+            jnp.any(jnp.stack([jnp.any(c.is_outside(declared)) for c in constraints]))
+            if constraints
+            else jnp.asarray(False)
         )
-        outside = jnp.asarray(False) if constraint is None else jnp.any(constraint.is_outside(declared))
     else:
         declared = candidate
         outside = jnp.asarray(False)
-    return jnp.any(~jnp.isfinite(declared)) | outside
+    return jnp.any(~jnp.isfinite(candidate)) | jnp.any(~jnp.isfinite(declared)) | outside
 
 
 def _poison_value(node, invalid: Array):
@@ -1828,8 +1853,6 @@ def _poison_value(node, invalid: Array):
     if is_param(node):
         inner = _peel_fixed(node.variable)
         raw = inner.raw_value
-        if not (jnp.issubdtype(raw.dtype, jnp.floating) or jnp.issubdtype(raw.dtype, jnp.complexfloating)):
-            raise TypeError("`on_invalid='nan'` requires floating-point or complex parameter values")
         poisoned = jnp.where(invalid, jnp.full_like(raw, jnp.nan), raw)
         new_inner = eqx.tree_at(lambda v: v.raw_value, inner, poisoned)
         variable = prx.Fixed(new_inner) if node.fixed else new_inner

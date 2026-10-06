@@ -188,6 +188,16 @@ def test_update_nan_supports_selector_and_raw_value_updates():
     assert np.isnan(raw.value)
 
 
+def test_raw_updates_check_values_after_the_stored_dtype_cast():
+    leaf = jnp.array(1.0, dtype=jnp.float32)
+    candidate = jnp.array(1e100, dtype=jnp.float64)
+
+    tree = {"x": leaf}
+    with pytest.raises(Exception, match="nonfinite"):
+        prf.update(tree, {"x": candidate}, space="raw")
+    assert np.isnan(prf.update(tree, {"x": candidate}, space="raw", on_invalid="nan")["x"])
+
+
 def test_update_nan_preserves_array_leaf_shape_and_vmap_trials_are_independent():
     p = prf.Constrained(Positive(), jnp.array([1.0, 2.0]))
 
@@ -214,9 +224,14 @@ def test_update_nan_keeps_valid_results_and_gradients_unchanged():
     p = prf.Constrained(Positive(), 1.0)
     strict = prf.update(p, value=2.0)
     tolerant = prf.update(p, value=2.0, on_invalid="nan")
+    model = RC(R=p, C=3.0)
+    frequency = prf.Frequency(1.0, 2.0, 3, "GHz")
 
     assert tolerant.value == strict.value
     assert jax.grad(lambda x: prf.update(p, value=x, on_invalid="nan").value**2)(2.0) == 4.0
+    strict_objective = jnp.sum(jnp.abs(prf.update(model, {"R": 2.0}).s(frequency)) ** 2)
+    tolerant_objective = jnp.sum(jnp.abs(prf.update(model, {"R": 2.0}, on_invalid="nan").s(frequency)) ** 2)
+    assert tolerant_objective == strict_objective
 
 
 def test_update_nan_rejects_other_modes_and_preserves_dtype():
@@ -230,6 +245,8 @@ def test_update_nan_rejects_other_modes_and_preserves_dtype():
         prf.update(p, fixed=True, on_invalid="nan")
     with pytest.raises(ValueError, match="must be 'raise' or 'nan'"):
         prf.update(p, value=3, on_invalid="ignore")
+    with pytest.raises(TypeError, match="floating-point or complex"):
+        prf.update({"count": jnp.array(2, dtype=jnp.int32)}, {"count": 3}, on_invalid="nan")
 
 
 def test_param_constructor_out_of_bounds_raises_under_jit():
