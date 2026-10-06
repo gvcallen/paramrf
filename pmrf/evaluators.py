@@ -19,9 +19,11 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.discrepancy_models import GaussianProcess
+from pmrf.covariance_kernels import gram
+from pmrf.discrepancy_models import GaussianProcess, _add_noise
+from pmrf.linearization import Linearization, _linearize
 from pmrf.modules.base import Module
-from pmrf.parameters import values as _values, update
+from pmrf.parameters import Space, values as _values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
 
 
@@ -582,6 +584,82 @@ class MarginalLogLikelihood(AbstractEvaluator):
         residual = event_transform.forward(self.observed) - pred_event
         x_new = new_frequency.f / frequency.multiplier
         return self.discrepancy.predict(residual, frequency.f_scaled, x_new, variance)
+
+    @unwrap_self
+    def linearize(
+        self,
+        model: PyTree,
+        frequency: Frequency,
+        space: Space = 'declared',
+        **kwargs,
+    ) -> Linearization:
+        r"""Linearise the fit at ``model``.
+
+        The residual $r = \tilde h - h(\theta)$ is formed in event space as in
+        :meth:`predict_discrepancy`, and differentiated with respect to the model's
+        free parameters, giving $J = -\partial r / \partial \theta$. With a conditional
+        event transform the observation's event depends on the model too, and $J$
+        includes that dependence. Only the model is differentiated: the kernel's
+        hyperparameters and the noise are held at their values in this evaluator.
+
+        $\Sigma_D = K + \Sigma_n$ is factorized per event block, with the noise
+        variance read from the :class:`~pmrf.likelihoods.GaussianLikelihood` at
+        ``model``'s prediction. It may vary along frequency. Without a discrepancy,
+        $\Sigma_D = \Sigma_n$.
+
+        Parameters
+        ----------
+        model : PyTree
+            The fitted model. Must still be wrapped.
+        frequency : Frequency
+            The frequency the evaluator was fitted over, matching :attr:`observed`.
+        space : {'declared', 'physical', 'raw'}, default='declared'
+            The space of the parameter values differentiated with respect to, as for
+            :func:`pmrf.utils.derivative`.
+        **kwargs
+            Passed to the predictor.
+
+        Returns
+        -------
+        pmrf.linearization.Linearization
+            The Jacobian, residual, factor of $\Sigma_D$ and Fisher matrix. Pass it to
+            :func:`pmrf.linearization.posterior_covariance`.
+
+        Raises
+        ------
+        TypeError
+            If the discrepancy is neither ``None`` nor a
+            :class:`~pmrf.discrepancy_models.GaussianProcess`, or the likelihood is
+            not a :class:`~pmrf.likelihoods.GaussianLikelihood`.
+        ValueError
+            If orthogonal discrepancy is enabled.
+        """
+        if self.discrepancy is not None and not isinstance(self.discrepancy, GaussianProcess):
+            raise TypeError(
+                "Linearisation requires no discrepancy or a `GaussianProcess` "
+                f"discrepancy. Got {type(self.discrepancy).__name__}."
+            )
+        if not isinstance(self.likelihood, GaussianLikelihood):
+            raise TypeError(
+                "Linearisation requires a `GaussianLikelihood`. "
+                f"Got {type(self.likelihood).__name__}."
+            )
+        if self.use_orthogonal_discrepancy:
+            raise ValueError("Linearisation does not support orthogonal discrepancy.")
+
+        def residual_fn(candidate):
+            pred_event, event_transform = self._event(candidate, frequency, **kwargs)
+            return event_transform.forward(self.observed) - pred_event
+
+        pred_event, _ = self._event(model, frequency, **kwargs)
+        n = pred_event.shape[-1]
+        if self.discrepancy is None:
+            K = jnp.zeros((n, n), dtype=pred_event.dtype)
+        else:
+            K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
+        variance = self.likelihood._event_variance(pred_event)
+        chol = jnp.linalg.cholesky(_add_noise(K, variance, pred_event.shape[:-1]))
+        return _linearize(residual_fn, model, chol, space)
 
     def predictive_distribution(self, model: PyTree, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
         """
