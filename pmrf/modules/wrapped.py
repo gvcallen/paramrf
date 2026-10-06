@@ -80,5 +80,8 @@ class Probabilistic(Module, prx.AbstractUnwrappable):
     #: not recompute it; otherwise None. Held frozen, like `distribution`.
     whitening_log_det: Array | None = field(converter=freeze)
 
+    #: Whether the distribution is normalised over the selected parameters' validity.
+    normalised: bool = field(static=True, default=True)
+
     def unwrap(self) -> Any:
         return self.module

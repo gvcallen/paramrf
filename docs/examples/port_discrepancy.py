@@ -1,8 +1,7 @@
-"""Port discrepancy from a reference two-port to a reflection-only transfer fit.
+"""Transfer a constrained joint Gaussian prior to a reflection-only fit.
 
-Run with ``python docs/examples/port_discrepancy.py --n-frequency 1000``.
+Run with ``python docs/examples/port_discrepancy.py``.
 """
-import argparse
 from time import perf_counter
 
 import equinox as eqx
@@ -19,7 +18,8 @@ from pmrf.discrepancy_models import GaussianProcess
 from pmrf.evaluators import MarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
 from pmrf.linearization import posterior_covariance
-from pmrf.models import GridPortDiscrepancy, Load, PortCorrected, RLGCLine, SModel
+from pmrf.models import CoaxialLine, GridPortDiscrepancy, Load, PortCorrected, RLGCLine, SModel
+from pmrf.materials import BulkConductor, ConstantDielectric
 
 jax.config.update('jax_enable_x64', True)
 
@@ -266,8 +266,144 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
                 delta_std=delta_std, mc_std=mc_std)
 
 
+def run_constrained_transfer():
+    """Run the constrained CoaxialLine reference-to-transfer prior recipe."""
+    def cable(length):
+        return CoaxialLine(
+            length=length,
+            d_in=prf.Fixed(1.12e-3),
+            d_out=prf.Fixed(3.2e-3),
+            dielectric=ConstantDielectric(ep_r=prf.Fixed(1.384), tand=prf.Fixed(0.001)),
+            conductor=BulkConductor(sigma=prf.Fixed(1 / 1.6e-8)),
+        )
+
+    reference_frequency = prf.Frequency(100.0, 500.0, 12, 'MHz')
+    transfer_frequency = prf.Frequency(120.0, 480.0, 6, 'MHz')
+    truth_model = cable(prf.Fixed(0.1))
+    reference_model = cable(prf.Bounded(0.05, 0.15, value=0.095))
+    reference_observed = reciprocal_predictor(truth_model, reference_frequency)
+    reference = MarginalLogLikelihood(
+        predictor=reciprocal_predictor,
+        observed=reference_observed,
+        likelihood=GaussianLikelihood(jnp.full((3, 2, reference_frequency.npoints), 1e-8)),
+        discrepancy=GaussianProcess(Matern52Kernel(80.0) * 1e-6, jitter=1e-12),
+        event_transform=ReciprocalEventTransform,
+    )
+
+    def reference_loss(length):
+        candidate = prf.update(reference_model, {'length': length})
+        return -reference(candidate, reference_frequency)
+
+    value_gradient = jax.jit(jax.value_and_grad(reference_loss))
+    reference_fit_result = minimize(
+        lambda x: tuple(np.asarray(value) for value in value_gradient(jnp.asarray(x))),
+        np.array([0.095]),
+        jac=True,
+        method='L-BFGS-B',
+        bounds=[(0.05, 0.15)],
+        options={'maxiter': 1000, 'gtol': 1e-10, 'ftol': 1e-14},
+    )
+    if not reference_fit_result.success or not np.isfinite(reference_fit_result.fun):
+        raise RuntimeError(f'Reference MAP fit failed: {reference_fit_result.message}')
+    fitted = prf.update(reference_model, {'length': jnp.asarray(reference_fit_result.x[0])})
+    names, joint = reference.predict_joint(fitted, reference_frequency, transfer_frequency)
+    mean, covariance = joint.mean(), joint.covariance()
+    delta_mean = mean[1:].reshape((3, 2, transfer_frequency.npoints), order='C')
+    corrected = PortCorrected(
+        fitted,
+        GridPortDiscrepancy(
+            prf.Unconstrained(delta_mean), transfer_frequency, ('11', '22', 's21')
+        ),
+    )
+    attached = prf.prior(
+        corrected,
+        [*names, 'discrepancy.values'],
+        joint,
+        truncate='unnormalised',
+    )
+    transfer = attached.terminated(Load(gamma=(75.0 - 50.0) / (75.0 + 50.0), z0=50.0))
+    transfer_observed = truth_model.terminated(
+        Load(gamma=(75.0 - 50.0) / (75.0 + 50.0), z0=50.0)
+    ).s(transfer_frequency, z0=50.0)[:, 0, 0]
+    transfer_likelihood = MarginalLogLikelihood(
+        predictor=lambda model, frequency: model.s(frequency, z0=50.0)[:, 0, 0],
+        observed=transfer_observed,
+        likelihood=GaussianLikelihood(1e-6),
+    )
+    linearization = transfer_likelihood.linearize(transfer, transfer_frequency, space='declared')
+    posterior = posterior_covariance([linearization], transfer, space='declared')
+
+    prior_names = (*names, 'discrepancy.values')
+    prior_shapes = ((), (3, 2, transfer_frequency.npoints))
+    prior_offsets = {}
+    offset = 0
+    for name, shape in zip(prior_names, prior_shapes):
+        prior_offsets[name] = offset
+        offset += int(np.prod(shape))
+    linearization_values = prf.values(transfer, free_only=True, space='declared')
+    covariance_indices = []
+    theta = []
+    for name, shape in zip(linearization.names, linearization.shapes):
+        size = int(np.prod(shape))
+        matches = [
+            prior_name for prior_name in prior_names
+            if name == prior_name or name.endswith('.' + prior_name)
+        ]
+        if len(matches) != 1:
+            raise ValueError(f'Cannot map transfer parameter {name!r} into the joint prior.')
+        start = prior_offsets[matches[0]]
+        covariance_indices.extend(range(start, start + size))
+        theta.extend(np.ravel(np.asarray(linearization_values[name])))
+    covariance = np.asarray(covariance)[np.ix_(covariance_indices, covariance_indices)]
+    jacobian = np.asarray(linearization.J).reshape((-1, len(theta)))
+    measurement = np.eye(jacobian.shape[0]) * 1e-6
+    expected_posterior = covariance - covariance @ jacobian.T @ np.linalg.solve(
+        jacobian @ covariance @ jacobian.T + measurement,
+        jacobian @ covariance,
+    )
+    relative_diagonal_error = np.abs(
+        np.diag(np.asarray(posterior) - expected_posterior) / np.diag(expected_posterior)
+    )
+
+    theta = jnp.asarray(theta)
+    sizes = [int(np.prod(shape)) for shape in linearization.shapes]
+    offsets = np.cumsum([0, *sizes])
+
+    def values_from_vector(vector):
+        return {
+            name: vector[offsets[i]:offsets[i + 1]].reshape(shape)
+            for i, (name, shape) in enumerate(zip(linearization.names, linearization.shapes))
+        }
+
+    prior_precision = -jax.hessian(
+        lambda vector: prf.log_prior(
+            prf.update(transfer, values_from_vector(vector), space='declared'),
+            space='declared',
+        )
+    )(theta)
+    expected_prior_precision = np.linalg.inv(covariance)
+    prior_precision_relative_error = np.linalg.norm(
+        np.asarray(prior_precision) - expected_prior_precision, ord='fro'
+    ) / np.linalg.norm(expected_prior_precision, ord='fro')
+    log_prior = prf.log_prior(transfer, space='declared')
+    jitted_log_prior = eqx.filter_jit(lambda model: prf.log_prior(model, space='declared'))(transfer)
+    return dict(
+        names=names,
+        joint=joint,
+        attached=attached,
+        reference_success=reference_fit_result.success,
+        reference_objective=reference_fit_result.fun,
+        relative_diagonal_error=relative_diagonal_error,
+        expected_covariance_diagonal=np.diag(expected_posterior),
+        prior_precision=np.asarray(prior_precision),
+        expected_prior_precision=expected_prior_precision,
+        prior_precision_relative_error=prior_precision_relative_error,
+        log_prior=log_prior,
+        jitted_log_prior=jitted_log_prior,
+    )
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--n-frequency', type=int, default=1000)
-    args = parser.parse_args()
-    run(args.n_frequency)
+    result = run_constrained_transfer()
+    print(f"Reference MAP success: {result['reference_success']}")
+    print(f"Maximum relative Kalman covariance error: {np.max(result['relative_diagonal_error']):.3g}")

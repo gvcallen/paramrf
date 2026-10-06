@@ -54,3 +54,17 @@ def test_reference_discrepancy_transfers_to_reflection_fit_and_qoi():
     crossings = lambda values: np.count_nonzero(np.diff(np.signbit(values)))
     assert crossings(additive) > 20
     assert crossings(logarithmic) < crossings(additive) / 4
+
+
+def test_constrained_joint_transfer_matches_independent_numpy_kalman_update():
+    result = example.run_constrained_transfer()
+    assert result["names"] == ("length",)
+    assert result["joint"].event_shape == (37,)
+    assert result["attached"].wrapped.normalised is False
+    assert result["reference_success"]
+    assert np.isfinite(result["reference_objective"])
+    assert np.max(result["relative_diagonal_error"]) <= 1e-6
+    assert np.all(result["expected_covariance_diagonal"] > 0)
+    assert result["prior_precision_relative_error"] <= 1e-8
+    assert np.isfinite(result["log_prior"])
+    assert np.isfinite(result["jitted_log_prior"])

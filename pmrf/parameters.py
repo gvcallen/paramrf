@@ -1122,6 +1122,7 @@ def _joint_log_prob(slots: dict[int, tuple[_JointSlot, Array]]) -> Array:
     declared = [y / slot.scale for (slot, _), y in zip(ordered, physical)]
     outside = jnp.asarray(False)
     for (slot, _), x in zip(ordered, declared):
+        outside = outside | _own_any(~jnp.isfinite(x), slot.shape)
         if slot.bounds is not None:
             outside = outside | _own_any((x < slot.bounds[0]) | (x > slot.bounds[1]), slot.shape)
 
@@ -2472,7 +2473,14 @@ def _with_prior(node, distribution: AbstractDistribution | None) -> Any:
     )
 
 
-def prior(tree, names: Selector, distribution: AbstractDistribution, space: Space = 'declared'):
+def prior(
+    tree,
+    names: Selector,
+    distribution: AbstractDistribution,
+    space: Space = 'declared',
+    *,
+    truncate: Literal['normalised', 'unnormalised'] = 'normalised',
+):
     """
     Returns a copy of a model with a prior attached to the parameters `names` selects.
 
@@ -2505,10 +2513,13 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     value, scale, name, metadata and fixed state are kept.
 
     A joint prior over declared or physical space must have its support inside the
-    parameters' validity, since it cannot be truncated to it and stay exactly
-    normalised. For a joint prior, :func:`log_prior` scores the parameters jointly in
-    place of their own priors: over raw space these stay attached but unused, and
-    otherwise they are dropped with the range. A value outside a parameter's bounds
+    parameters' validity by default. Set ``truncate='unnormalised'`` to keep the
+    supplied density unchanged inside that validity and assign zero density outside;
+    ParamRF does not calculate a truncation normaliser. This option is only available
+    for declared- or physical-space joint priors, and those priors cannot be sampled or
+    used as evidence. For a joint prior, :func:`log_prior` scores the parameters jointly
+    in place of their own priors: over raw space these stay attached but unused, and
+    otherwise they are dropped with the range. A value outside a parameter's validity
     scores minus infinity.
 
     Attaching a joint prior redefines raw space for its parameters as the
@@ -2539,6 +2550,12 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         change-of-variables term, and a prior over raw space keeps the mapping from
         that raw space to declared space. A hypercube sampler maps a mapped
         one-dimensional prior through its base's inverse CDF, so the base needs one.
+    truncate : {'normalised', 'unnormalised'}, default='normalised'
+        How a declared- or physical-space joint prior whose support leaves a selected
+        parameter's validity is treated. ``'normalised'`` requires the full support to
+        lie inside every validity. ``'unnormalised'`` retains the supplied density in
+        the valid region and gives out-of-validity values zero density, without
+        renormalising it. This is for MAP and linearisation only; sampling is rejected.
 
     Returns
     -------
@@ -2553,8 +2570,10 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         the validity and cannot be, or a selected parameter is already under a joint
         prior. For a joint prior, also if a selected name is not a free parameter
         (a fixed or frozen parameter raises, and a tie's target is not a parameter at
-        all), or, over ``'declared'`` or ``'physical'`` space, the distribution's
-        support leaves a selected parameter's validity in any element. A support Parax
+        all), or, over ``'declared'`` or ``'physical'`` space with
+        ``truncate='normalised'``, the distribution's support leaves a selected
+        parameter's validity in any element. ``truncate='unnormalised'`` raises for a
+        scalar-event prior or for a joint prior over raw space. A support Parax
         cannot determine counts as unbounded.
 
     Examples
@@ -2580,6 +2599,8 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         prf.params(model)   # the same names as before
     """
     _check_space(space)
+    if truncate not in ('normalised', 'unnormalised'):
+        raise ValueError("`truncate` must be 'normalised' or 'unnormalised'")
     selected = _select(tree, names)
     under = _under_joint_prior(tree, selected)
     if under:
@@ -2592,12 +2613,24 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     if distribution.event_shape != ():
         total = sum(math.prod(_declared_shape(node)) for _, node in selected.values())
         if event_size == total:
-            return _attach_joint_prior(tree, _joint_order(selected, names), distribution, space)
+            if truncate == 'unnormalised' and space == 'raw':
+                raise ValueError(
+                    "`truncate='unnormalised'` is not supported for raw-space joint priors"
+                )
+            return _attach_joint_prior(
+                tree,
+                _joint_order(selected, names),
+                distribution,
+                space,
+                normalised=truncate == 'normalised',
+            )
         raise ValueError(
             f"prf.prior got a distribution with event size {event_size} for "
             f"{len(selected)} parameters of total size {total}: it must have a scalar "
             f"event, or one entry per value of the selected parameters."
         )
+    if truncate == 'unnormalised':
+        raise ValueError("`truncate='unnormalised'` is not supported for scalar-event priors")
     paths = [path for path, _ in selected.values()]
     nodes = [_with_prior(node, _declared_prior(node, distribution, space)) for _, node in selected.values()]
     return _set_paths(tree, paths, nodes)
@@ -2617,7 +2650,14 @@ def _joint_order(selected: dict, names: Selector) -> list[str]:
     return ordered
 
 
-def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistribution, space: Space):
+def _attach_joint_prior(
+    tree,
+    names: list[str],
+    distribution: AbstractDistribution,
+    space: Space,
+    *,
+    normalised: bool = True,
+):
     """Returns `tree` wrapped, unchanged, in a joint prior over the parameters `names`."""
     from pmrf.models import Model, Wrapped
     from pmrf.modules import Probabilistic
@@ -2633,7 +2673,8 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
     shapes = tuple(_declared_shape(resolved[name][1]) for name in names)
     if space != 'raw':
         nodes = [resolved[name][1] for name in names]
-        _check_joint_support(names, nodes, shapes, distribution, space)
+        if normalised:
+            _check_joint_support(names, nodes, shapes, distribution, space)
         tree = _set_paths(tree, [resolved[name][0] for name in names], [_with_prior(node, None) for node in nodes])
     base = tree.wrapped if isinstance(tree, Wrapped) else tree
     joint = Probabilistic(
@@ -2643,6 +2684,7 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
         shapes=shapes,
         space=space,
         whitening_log_det=_constant_whitening_log_det(distribution),
+        normalised=normalised,
     )
     return Wrapped(wrapped=joint) if isinstance(tree, Model) else joint
 

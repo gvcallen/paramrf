@@ -5,8 +5,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import equinox as eqx
+import parax.distributions as dd
 
-from pmrf.parameters import Random, Fixed
+from pmrf.parameters import Random, Fixed, Constrained, prior
+from pmrf.constraints import Positive
 from pmrf.distributions import Normal, Uniform
 from pmrf.infer import base
 
@@ -44,6 +46,45 @@ def check_samples(x_samples, y_samples):
     # Ensure the sampler narrowed the uncertainty compared to the Prior (std=5.0)
     assert jnp.std(x_samples) < 2.5
     assert jnp.std(y_samples) < 2.5
+
+
+class _RecordingJointSampler(base.AbstractJointSampler):
+    calls: list = eqx.field(static=True)
+
+    def run(self, logposterior_fn, y0, args, key, init_samples=None, max_steps=None, **kwargs):
+        self.calls.append("joint")
+        raise AssertionError("sampler must not run")
+
+
+class _RecordingSplitSampler(base.AbstractSplitSampler):
+    calls: list = eqx.field(static=True)
+
+    def run(self, loglikelihood_fn, logprior_fn, y0, args, key, init_samples=None, max_steps=None, **kwargs):
+        self.calls.append("split")
+        raise AssertionError("sampler must not run")
+
+
+class _RecordingHypercubeSampler(base.AbstractHypercubeSampler):
+    calls: list = eqx.field(static=True)
+
+    def run(self, loglikelihood_fn, prior_transform_fn, u0, args, key, init_cube_samples=None, max_steps=None, **kwargs):
+        self.calls.append("hypercube")
+        raise AssertionError("sampler must not run")
+
+
+@pytest.mark.parametrize(
+    "sampler_type", [_RecordingJointSampler, _RecordingSplitSampler, _RecordingHypercubeSampler]
+)
+def test_unnormalised_joint_prior_rejects_every_sampler_before_run(sampler_type):
+    model = {"a": Constrained(Positive(), 50.0), "b": Constrained(Positive(), 49.0)}
+    distribution = dd.MultivariateNormalDiag(jnp.array([50.0, 49.0]), jnp.array([2.0, 2.0]))
+    model = prior(model, ["a", "b"], distribution, truncate="unnormalised")
+    calls = []
+    sampler = sampler_type(calls=calls)
+
+    with pytest.raises(ValueError, match="unnormalised joint prior.*'a'.*'b'.*MAP and linearisation"):
+        base.run_sampler(lambda m, _: jnp.asarray(0.0), model, sampler, jax.random.key(0))
+    assert calls == []
 
 
 # ==========================================
