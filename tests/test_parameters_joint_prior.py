@@ -17,6 +17,7 @@ from pmrf.infer import base as infer_base
 from pmrf.models import Capacitor, Resistor, Wrapped
 from pmrf.modules import Probabilistic
 from pmrf.parameters import tree_param_distributions, tree_param_log_prob
+from pmrf.problems import PriorPenalized, SummedTerms
 
 
 MU = jnp.array([3.9, 3.9])
@@ -197,6 +198,14 @@ class _PositiveResistor(prf.Model):
         return jnp.zeros((len(freq), 1, 1), dtype=complex)
 
 
+class _ArrayPriorModel(prf.Model):
+    value: prf.Param = prf.param(as_free=True, constraint=prf.constraints.Positive())
+
+
+class _OutsidePriorModel(prf.Model):
+    value: prf.Param = prf.param(as_free=True)
+
+
 def _positive_parts():
     """`a.R` and `b.R` with a positive validity, and ranges inside it."""
     return {
@@ -251,6 +260,171 @@ def test_a_joint_prior_whose_support_fits_the_bounds_is_accepted():
     squash = db.Chain([db.Block(db.Shift(jnp.array([0.0, 1.0])), 1), db.Block(db.Sigmoid(), 1)])
     box = dd.Transformed(dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2))), squash)
     assert isinstance(prf.prior(bounded, NAMES, box), Probabilistic)
+
+
+def test_unnormalised_joint_prior_opts_out_of_support_check_but_keeps_validity():
+    mean, covariance = jnp.array([50.0, 50.0]), jnp.array([[4.0, 1.0], [1.0, 4.0]])
+    distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
+    with pytest.raises(ValueError, match="support leaves the validity"):
+        prf.prior(_positive_parts(), NAMES, distribution)
+
+    model = prf.prior(_positive_parts(), NAMES, distribution, truncate="unnormalised")
+    assert model.normalised is False
+    assert prf.params(model)["a.R"].distribution is None
+    assert prf.params(model)["a.R"].bounds[0] == 0.0
+    assert prf.params(model)["a.R"].bounds[1] == np.inf
+    np.testing.assert_allclose(prf.log_prior(model), distribution.log_prob(mean), rtol=1e-12)
+    invalid = prf.update(model, {"a.R": -1.0}, on_invalid="nan")
+    assert prf.log_prior(invalid) == -jnp.inf
+    assert eqx.filter_jit(prf.log_prior)(invalid) == -jnp.inf
+
+
+def test_unnormalised_joint_prior_mirror_scores_the_same_and_counts_precision_once():
+    mean = jnp.array([50.0, 49.0])
+    covariance = jnp.array([[4.0, 1.5], [1.5, 3.0]])
+    distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
+    model = prf.prior(
+        _positive_parts(), NAMES, distribution, truncate="unnormalised"
+    )
+
+    def penalized(values):
+        moved = prf.update(model, dict(zip(NAMES, values)))
+        return PriorPenalized(SummedTerms(moved, (lambda _: jnp.asarray(0.0),)))()
+
+    np.testing.assert_allclose(
+        jax.grad(penalized)(mean), jnp.zeros_like(mean), atol=1e-12, rtol=1e-12
+    )
+    np.testing.assert_allclose(
+        jax.hessian(penalized)(mean), np.linalg.inv(covariance), atol=1e-10, rtol=1e-10
+    )
+    invalid = prf.update(model, {"a.R": -1.0}, on_invalid="nan")
+    assert jnp.isposinf(PriorPenalized(SummedTerms(invalid, (lambda _: 0.0,)))())
+
+
+def test_unnormalised_joint_prior_masks_array_member_and_keeps_outside_prior():
+    mean = jnp.array([50.0, 0.2, 0.3])
+    covariance = jnp.array(
+        [[4.0, 0.2, 0.1], [0.2, 0.04, 0.01], [0.1, 0.01, 0.09]]
+    )
+    distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
+    parts = {
+        "scalar": _PositiveResistor(
+            R=prf.Random(Normal(50.0, 2.0), value=50.0), name="scalar"
+        ),
+        "array": _ArrayPriorModel(value=jnp.array([0.2, 0.3]), name="array"),
+        "outside": _OutsidePriorModel(
+            value=prf.Random(Normal(0.0, 0.5), value=0.4), name="outside"
+        ),
+    }
+    model = prf.prior(parts, ["scalar.R", "array.value"], distribution, truncate="unnormalised")
+    expected = distribution.log_prob(mean) + Normal(0.0, 0.5).log_prob(0.4)
+    np.testing.assert_allclose(prf.log_prior(model), expected, rtol=1e-12, atol=1e-12)
+    assert prf.params(model)["outside.value"].distribution is not None
+
+    invalid = prf.update(model, {"array.value": jnp.array([-1.0, 0.3])}, on_invalid="nan")
+    assert prf.log_prior(invalid) == -jnp.inf
+
+    trials = jnp.array([[0.2, 0.3], [-1.0, 0.3], [0.2, jnp.nan]])
+    batched = jax.vmap(
+        lambda value: prf.log_prior(
+            prf.update(model, {"array.value": value}, on_invalid="nan")
+        )
+    )(trials)
+    assert jnp.isfinite(batched[0])
+    assert jnp.all(jnp.isneginf(batched[1:]))
+
+
+def test_unnormalised_joint_prior_penalized_mirror_counts_array_and_outside_prior():
+    mean = jnp.array([50.0, 0.2, 0.3])
+    covariance = jnp.array(
+        [[4.0, 0.2, 0.1], [0.2, 0.04, 0.01], [0.1, 0.01, 0.09]]
+    )
+    distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
+    parts = {
+        "scalar": _PositiveResistor(
+            R=prf.Random(Normal(50.0, 2.0), value=50.0), name="scalar"
+        ),
+        "array": _ArrayPriorModel(value=jnp.array([0.2, 0.3]), name="array"),
+        "outside": _OutsidePriorModel(
+            value=prf.Random(Normal(0.0, 0.5), value=0.4), name="outside"
+        ),
+    }
+    model = prf.prior(parts, ["scalar.R", "array.value"], distribution, truncate="unnormalised")
+
+    def penalized(values):
+        moved = prf.update(
+            model,
+            {
+                "scalar.R": values[0],
+                "array.value": values[1:3],
+                "outside.value": values[3],
+            },
+        )
+        return PriorPenalized(SummedTerms(moved, (lambda _: jnp.asarray(0.0),)))()
+
+    values = jnp.array([50.0, 0.2, 0.3, 0.0])
+    precision = np.zeros((4, 4))
+    precision[:3, :3] = np.linalg.inv(covariance)
+    precision[3, 3] = 4.0
+    np.testing.assert_allclose(jax.grad(penalized)(values), jnp.zeros_like(values), atol=1e-11)
+    np.testing.assert_allclose(jax.hessian(penalized)(values), precision, rtol=1e-10, atol=1e-10)
+
+
+def test_unnormalised_joint_prior_metadata_survives_copy_wrappers_and_serialization(tmp_path):
+    distribution = dd.MultivariateNormalDiag(jnp.array([50.0, 50.0]), jnp.array([2.0, 2.0]))
+    model = prf.prior(
+        _positive_parts(), NAMES, distribution, truncate="unnormalised"
+    )
+    updated = prf.update(model, {"a.R": 51.0})
+    resolved = prf.resolve(updated)
+    nested = {"transfer": resolved}
+    path = tmp_path / "unnormalised.prf"
+    prf.save(path, nested)
+    loaded = prf.load(path)
+
+    assert updated.normalised is False
+    assert resolved.normalised is False
+    assert loaded["transfer"].normalised is False
+
+
+def test_unnormalised_joint_prior_requires_declared_or_physical_event():
+    model = _positive_parts()
+    distribution = dd.MultivariateNormalDiag(jnp.array([50.0, 50.0]), jnp.array([2.0, 2.0]))
+    with pytest.raises(ValueError, match="unnormalised.*scalar-event"):
+        prf.prior(model, "a.R", Normal(50.0, 2.0), truncate="unnormalised")
+    with pytest.raises(ValueError, match="unnormalised.*raw-space"):
+        prf.prior(model, NAMES, distribution, space="raw", truncate="unnormalised")
+    with pytest.raises(ValueError, match="truncate.*normalised.*unnormalised"):
+        prf.prior(model, NAMES, distribution, truncate="normalise")
+
+
+def test_unnormalised_physical_joint_prior_keeps_density_and_applies_scale_jacobian_once():
+    parts = {
+        "a": prf.as_param(50.0, constraint=prf.constraints.Positive(), as_free=True),
+        "c": prf.as_param(
+            2.0,
+            constraint=prf.constraints.Positive(),
+            scale=1e-12,
+            as_free=True,
+        ),
+    }
+    mean = jnp.array([49.0, 2.2e-12])
+    covariance = jnp.diag(jnp.array([2.0**2, (0.5e-12)**2]))
+    distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
+    model = prf.prior(
+        parts,
+        ["a", "c"],
+        distribution,
+        space="physical",
+        truncate="unnormalised",
+    )
+    expected = distribution.log_prob(jnp.array([50.0, 2e-12]))
+
+    assert model.normalised is False
+    np.testing.assert_allclose(prf.log_prior(model, space="physical"), expected, rtol=1e-12)
+    np.testing.assert_allclose(
+        prf.log_prior(model, space="declared"), expected + jnp.log(1e-12), rtol=1e-12
+    )
 
 
 def test_a_raw_joint_prior_over_bounded_parameters_is_accepted():

@@ -5,15 +5,20 @@ import importlib
 import pytest
 import jax
 import jax.numpy as jnp
+import equinox as eqx
+import numpy as np
+import parax.distributions as dd
 
-from pmrf.parameters import Param, Random
+import pmrf as prf
+from pmrf.parameters import Param, Random, prior
 from pmrf.distributions import Normal
 from pmrf.infer.sample import sample
 from pmrf.infer.solvers.blackjax import NUTS
 from pmrf.infer.result import InferResult
-from pmrf.infer.base import SampleResult
-from pmrf.models import Model
+from pmrf.infer.base import AbstractJointSampler, SampleResult
+from pmrf.models import CoaxialLine, Model
 from pmrf.frequency import Frequency
+from pmrf.fitting.sample import fit_sample
 
 # ==========================================
 # 1. Fixtures & Objectives
@@ -30,6 +35,14 @@ class DummyInferModel(Model):
         nf = freq.npoints
         return jnp.ones((nf, 1, 1), dtype=complex) * self.val
 
+
+class RecordingJointSampler(AbstractJointSampler):
+    calls: list = eqx.field(static=True)
+
+    def run(self, logposterior_fn, y0, args, key, init_samples=None, max_steps=None, **kwargs):
+        self.calls.append(True)
+        raise AssertionError("sampler must not run")
+
 @pytest.fixture
 def infer_model():
     return DummyInferModel()
@@ -41,6 +54,28 @@ def simple_ll(model, freq):
 def penalty_ll(model, freq):
     """A secondary log-likelihood penalty targeting val=0.0 to test lists."""
     return jnp.sum(Normal(model.val, 1.0).log_prob(0.0))
+
+
+@pytest.mark.parametrize("entrypoint", ["sample", "fit_sample"])
+def test_sampling_entrypoints_reject_unnormalised_joint_prior_before_solver_run(entrypoint):
+    model = CoaxialLine(
+        length=prf.Unconstrained(0.1), d_in=prf.Unconstrained(1.12e-3)
+    )
+    distribution = dd.MultivariateNormalDiag(jnp.array([0.1, 1.12e-3]), jnp.array([0.2, 1e-3]))
+    model = prior(model, ["length", "d_in"], distribution, truncate="unnormalised")
+    frequency = Frequency(1.0, 2.0, 3, "GHz")
+    calls = []
+    solver = RecordingJointSampler(calls=calls)
+
+    if entrypoint == "sample":
+        call = lambda: sample(lambda m, f: jnp.asarray(0.0), model, frequency, solver=solver)
+    else:
+        call = lambda: fit_sample(
+            model, np.asarray(model.s(frequency)), frequency, solver=solver
+        )
+    with pytest.raises(ValueError, match="unnormalised joint prior.*'d_in'.*'length'.*MAP and linearisation"):
+        call()
+    assert calls == []
 
 # ==========================================
 # 2. Higher-Level Wrapper Tests

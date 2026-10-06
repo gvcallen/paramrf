@@ -612,6 +612,13 @@ class MarginalLogLikelihood(AbstractEvaluator):
         $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
         :meth:`linearize`. New frequencies are converted to the fit's unit.
 
+        If the Gaussian support leaves a selected parameter's validity, attach it with
+        ``prf.prior(..., truncate='unnormalised')``. This retains the supplied density
+        inside the valid region and gives values outside that region zero density,
+        without adding a truncation normaliser. Such a prior is suitable for MAP fits,
+        scoring, differentiation and posterior covariance; every sampling path rejects
+        it before invoking a sampler.
+
         Parameters
         ----------
         model : PyTree
@@ -636,7 +643,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
             One multivariate normal over the declared parameter values, flattened
             per name, followed by discrepancy values of shape ``(*batch, N_*)``
             flattened in C order. Attach it with
-            ``prf.prior(transfer, [*names, 'cable.discrepancy.values'], distribution)``.
+            ``prf.prior(transfer, [*names, 'cable.discrepancy.values'], distribution)``
+            when its support lies inside each validity, or add
+            ``truncate='unnormalised'`` when that support crosses a validity.
 
         Raises
         ------

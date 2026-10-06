@@ -126,6 +126,28 @@ whether a bound is the model's (validity, such as a positive width) or the
 user's (a range, such as `prf.Bounded`), so the check treats every bound as
 validity.
 
+### Explicit unnormalised truncation for inference
+
+Declared- and physical-space joint priors may opt into `prior(...,
+truncate='unnormalised')` when their support leaves a selected parameter's
+validity. The distribution keeps its supplied density at every interior
+validity point, and the attached prior contributes `-inf` outside validity;
+ParamRF does not estimate or apply a truncation normaliser. The wrapper stores
+this choice as static `normalised=False` metadata, which survives resolution,
+updates, enclosing trees and supported serialization. The default remains
+`truncate='normalised'` and retains the support-inside-validity check. Scalar
+events and raw-space joint priors do not support unnormalised truncation.
+
+This opt-in is for MAP, scoring, differentiation and posterior covariance.
+Keeping the declared Gaussian density unchanged in the interior preserves its
+gradient and precision, which are needed when transferring a local Gaussian
+fit into a later linearised inference problem. It is not a probability
+normalised over the valid region and cannot be used for sampling or evidence:
+every public sampling path rejects an active unnormalised joint prior before
+calling the sampler, with the affected parameter names in the error. This
+includes direct sampling, `fit_sample`, joint samplers, split samplers and
+hypercube samplers.
+
 ### Hypercube samplers
 
 A hypercube sampler maps the unit cube through a joint prior's block as

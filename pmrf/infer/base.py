@@ -23,7 +23,8 @@ import parax as prx
 
 from pmrf._solver_view import SolverView
 from pmrf.parameters import (
-    _joint_blocks, _split_vector, _whitening, is_param, values as _values, params, tree_param_paths, update,
+    _joint_blocks, _joint_priors, _split_vector, _whitening, is_param, values as _values,
+    params, tree_param_paths, update,
 )
 
 
@@ -276,6 +277,15 @@ def run_sampler(
         a hypercube sampler is given a free parameter without a prior, a prior with no
         inverse CDF, or a joint prior with no independent normal base.
     """
+    unnormalised = [joint.names for _, joint in _joint_priors(model) if not joint.normalised]
+    if unnormalised:
+        names = sorted({name for block in unnormalised for name in block})
+        raise ValueError(
+            "Sampling cannot use an unnormalised joint prior over "
+            f"{', '.join(repr(name) for name in names)}. These priors are for MAP and "
+            "linearisation; sampling requires a normalised prior."
+        )
+
     if max_steps is not None:
         kwargs['max_steps'] = max_steps
 
