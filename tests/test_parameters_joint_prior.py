@@ -865,7 +865,9 @@ def test_map_fit_is_unchanged_by_the_whitening():
         x = jnp.stack([m["a"].R, m["b"].R])
         return 0.5 * jnp.sum(((x - target) / sigma) ** 2) - tree_param_log_prob(distributions, m)
 
-    fitted, _ = optimize_base.run_minimizer(loss, model, ScipyMinimize(), max_iter=1000)
+    fitted, _ = optimize_base.run_minimizer(
+        loss, model, ScipyMinimize(method="trust-constr"), max_iter=1000
+    )
     fit = np.array([prf.values(fitted)[name] for name in NAMES])
 
     own = prf.params(parts)

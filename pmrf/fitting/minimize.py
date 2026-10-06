@@ -122,6 +122,13 @@ def fit_minimize(
     -------
     FitResult
         The optimization result containing the fitted parameter PyTree.
+
+    Raises
+    ------
+    FloatingPointError
+        If the SciPy optimizer evaluates a nonfinite objective, requested gradient or
+        attempted optimizer vector. The diagnostic identifies the method and
+        evaluation number, and the failure propagates to the caller.
     """
     # Error checking
     if inference != 'frequentist' and inference != 'bayesian':

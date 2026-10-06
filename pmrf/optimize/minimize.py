@@ -59,6 +59,12 @@ def minimize(
     -------
     OptimizeResult
         A structured result containing the fitted model and solver statistics.
+
+    Raises
+    ------
+    FloatingPointError
+        If SciPy evaluates a nonfinite objective, requested gradient or attempted
+        optimizer vector. The diagnostic identifies the method and evaluation number.
     """
     # Create the combined problem
     if isinstance(objective, AbstractProblem):

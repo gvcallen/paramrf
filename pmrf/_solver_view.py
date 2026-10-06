@@ -11,7 +11,7 @@ would with those functions.
 Box space is the box a bounded minimiser searches (ADR-0007). Along each parameter it is
 built from the constraint's bounds, not its prior (Parax's ``base_bounds`` and
 ``base_bijector``): the unit box between two finite bounds, declared space otherwise. A closed edge of the box is the
-bound itself; an open edge is inset by 1e-6.
+bound itself; a finite open edge is inset by a dtype-aware relative distance based on the edge and the original start.
 """
 
 import dataclasses
@@ -31,8 +31,7 @@ from pmrf.utils import unwrap
 from pmrf.utils.tree import Pathgetter
 
 
-# How far a start on a closed bound is moved inward, and an open edge of the box is
-# inset, in box space (ADR-0007).
+# How far a raw-space start on a closed bound is moved inward (ADR-0007).
 _NUDGE = 1e-6
 
 
@@ -42,9 +41,18 @@ def _box_constraint(node: Param | Array) -> prx.constraints.AbstractConstraint |
     return prx.unwrap(node.constraint) if is_param(node) else None
 
 
-def _box_edges(node: Param | Array) -> tuple[Array, Array]:
+def _unit_box(constraint: prx.constraints.AbstractConstraint | None, shape) -> Array | None:
+    """Marks coordinates whose two finite bounds give them unit-box values."""
+    if constraint is None:
+        return None
+    lower, upper = constraint.base_bounds
+    return jnp.broadcast_to(jnp.isfinite(lower) & jnp.isfinite(upper), shape)
+
+
+def _box_edges(node: Param | Array, start: Array | None = None) -> tuple[Array, Array]:
     """Returns the lower and upper edges of the box of `node`, shaped like its value."""
     value = jnp.asarray(node.value if is_param(node) else node)
+    start = _to_box(node) if start is None else jnp.asarray(start, dtype=value.dtype)
     constraint = _box_constraint(node)
     if constraint is None:
         return jnp.full_like(value, -jnp.inf), jnp.full_like(value, jnp.inf)
@@ -54,16 +62,40 @@ def _box_edges(node: Param | Array) -> tuple[Array, Array]:
 
     lower, upper = (_like_value(b) for b in constraint.base_bounds)
     lower_closed, upper_closed = (jnp.broadcast_to(jnp.asarray(c), value.shape) for c in constraint.closed)
-    return jnp.where(lower_closed, lower, lower + _NUDGE), jnp.where(upper_closed, upper, upper - _NUDGE)
+    lower_edge = jnp.where(lower_closed, lower, _open_edge(lower, start, lower=True))
+    upper_edge = jnp.where(upper_closed, upper, _open_edge(upper, start, lower=False))
+    return lower_edge, upper_edge
+
+
+def _open_edge(edge: Array, start: Array, *, lower: bool) -> Array:
+    """Moves each finite open `edge` inward without cutting off a valid start."""
+    finfo = jnp.finfo(edge.dtype)
+    distance = jnp.maximum(
+        finfo.tiny,
+        finfo.eps * jnp.maximum(
+            jnp.maximum(jnp.abs(edge), jnp.abs(start - edge)), finfo.tiny
+        ),
+    )
+    direction = jnp.asarray(jnp.inf if lower else -jnp.inf, dtype=edge.dtype)
+    candidate = edge + distance if lower else edge - distance
+    candidate = jnp.where(candidate == edge, jnp.nextafter(edge, direction), candidate)
+    if lower:
+        excludes_start = (start > edge) & (candidate > start)
+    else:
+        excludes_start = (start < edge) & (candidate < start)
+    candidate = jnp.where(excludes_start, start, candidate)
+    return jnp.where(jnp.isfinite(edge), candidate, edge)
 
 
 def _to_box(node: Param | Array) -> Array:
     """Returns the declared value of `node` in its box space."""
     value = jnp.asarray(node.value if is_param(node) else node)
     constraint = _box_constraint(node)
-    if constraint is None:
+    unit_box = _unit_box(constraint, value.shape)
+    if unit_box is None:
         return value
-    return jnp.broadcast_to(constraint.base_bijector.inverse(value), value.shape).astype(value.dtype)
+    mapped = jnp.broadcast_to(constraint.base_bijector.inverse(value), value.shape).astype(value.dtype)
+    return jnp.where(unit_box, mapped, value)
 
 
 def _from_box(node: Param | Array, box: Array) -> Array:
@@ -73,9 +105,11 @@ def _from_box(node: Param | Array, box: Array) -> Array:
     otherwise step past. The comparison leaves the gradient at the edge intact.
     """
     constraint = _box_constraint(node)
-    if constraint is None:
+    unit_box = _unit_box(constraint, jnp.shape(box))
+    if unit_box is None:
         return box
-    declared = constraint.base_bijector.forward(box)
+    mapped = constraint.base_bijector.forward(box)
+    declared = jnp.where(unit_box, mapped, box)
     lower, upper = constraint.bounds
     return jnp.where(declared < lower, lower, jnp.where(declared > upper, upper, declared))
 
@@ -187,8 +221,8 @@ class SolverView:
     def box(self) -> tuple[dict, tuple[dict, dict]]:
         """Returns the start and the box a bounded minimiser searches, in box space.
 
-        A start on a closed bound stays on it. A start outside the box, which can only
-        be within 1e-6 of an open bound, is moved onto its edge.
+        A start on a closed bound stays on it. A start on an open bound is moved onto
+        its dtype-aware interior edge. An inset never excludes a valid interior start.
 
         Returns
         -------
@@ -198,8 +232,9 @@ class SolverView:
         """
         lower, upper, y0 = {}, {}, {}
         for name, (_, node) in self._free.items():
-            lower[name], upper[name] = _box_edges(node)
-            y0[name] = jnp.clip(_to_box(node), lower[name], upper[name])
+            start = _to_box(node)
+            lower[name], upper[name] = _box_edges(node, start)
+            y0[name] = jnp.clip(start, lower[name], upper[name])
         return y0, (lower, upper)
 
     def check_finite(self) -> None:

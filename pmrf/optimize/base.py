@@ -159,8 +159,9 @@ def run_minimizer(
     - **Box space**, if it does. Each parameter is searched over the box of its bounds,
       not its prior: the unit box between two finite bounds, declared space otherwise.
       The solver is given the box's edges as `bounds`. A closed edge is the bound
-      itself, so a parameter can start on it, reach it and stay on it; an open edge is
-      inset by 1e-6, so it is never evaluated.
+      itself, so a parameter can start on it, reach it and stay on it; each finite open
+      edge is inset by a dtype-aware relative distance that preserves valid interior
+      starts.
     - **Raw space**, if it does not. Constraints are enforced by each parameter's
       bijector. A parameter starting exactly on a closed bound has an infinite raw
       value, so the solver starts it just inside: by 1e-6 of the width between two
@@ -193,6 +194,9 @@ def run_minimizer(
     ------
     ValueError
         If `model` has no free parameters, or one starts at NaN.
+    FloatingPointError
+        If a SciPy minimizer evaluates a nonfinite objective, requested gradient or
+        attempted optimizer vector.
     """
     view = SolverView(model, 'optimize')
     # A start at NaN cannot move in either space. A start on a closed bound is already
