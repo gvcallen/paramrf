@@ -11,6 +11,11 @@ from pmrf.models.base import (
     validate as validate,
 )
 from pmrf.modules.base import Module as Module, is_module as is_module
+from pmrf.models.port_discrepancy import (
+    AbstractPortDiscrepancy as AbstractPortDiscrepancy,
+    GridPortDiscrepancy as GridPortDiscrepancy,
+    PortCorrected as PortCorrected,
+)
 
 # Adapters
 from pmrf.models.adapters.delegated import (
