@@ -165,7 +165,9 @@ def test_optimize_result_objective_holds_every_term(model, low_band, high_band):
 
 def test_optimize_result_objective_for_single_term(model, low_band):
     goal = prf.evaluators.Goal('s11_db', '<', -20)
-    result = minimize(goal, model, low_band, solver=ScipyMinimize())
+    # The hinge is flat beyond the threshold and its RMSE derivative is undefined at
+    # the zero-loss plateau, so this structural integration check uses SciPy differences.
+    result = minimize(goal, model, low_band, solver=ScipyMinimize(use_grad=False))
 
     assert len(result.objective) == 1
     assert isinstance(result.objective[0].evaluator, prf.evaluators.Goal)

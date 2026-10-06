@@ -78,9 +78,10 @@ def test_open_edges_are_inset():
     )
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
-    assert lower["u"] == pytest.approx(1e-6) and upper["u"] == pytest.approx(1 - 1e-6)
+    eps = jnp.finfo(y0["u"].dtype).eps
+    assert lower["u"] == pytest.approx(eps / 2) and upper["u"] == pytest.approx(1 - eps)
     # Without two finite bounds, the box is declared space.
-    assert y0["v"] == 3.0 and lower["v"] == pytest.approx(1e-6) and upper["v"] == jnp.inf
+    assert y0["v"] == 3.0 and lower["v"] == pytest.approx(3 * eps) and upper["v"] == jnp.inf
 
 
 def test_a_normal_prior_gets_an_unbounded_box():
@@ -173,8 +174,9 @@ def test_open_edge_is_never_evaluated(solver):
 
     assert seen and min(seen) > 0.0
     values = prf.values(fitted)
-    assert values["u"] == pytest.approx(1e-5, rel=1e-6)
-    assert values["v"] == pytest.approx(1e-6, rel=1e-6)
+    eps = jnp.finfo(values["u"].dtype).eps
+    assert values["u"] == pytest.approx(5 * eps, rel=1e-6)
+    assert values["v"] == pytest.approx(eps, rel=1e-6)
 
 
 # ---- Minimisers that do not honour bounds ---------------------------------------------

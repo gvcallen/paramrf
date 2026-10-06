@@ -11,8 +11,9 @@ from jax.scipy.stats import norm
 
 import pmrf as prf
 from pmrf._solver_view import SolverView
-from pmrf.constraints import GreaterThan, Interval
+from pmrf.constraints import GreaterThan, Interval, LessThan
 from pmrf.distributions import Normal, Uniform
+from pmrf.distributions import LogNormal
 from pmrf.infer import base as infer_base
 from pmrf.models import Resistor
 from pmrf.optimize import base as optimize_base
@@ -90,6 +91,16 @@ class _RecordingMinimizer(optimize_base.AbstractUnconstrainedMinimizer):
 
     def run(self, fn, y0, args, max_iter=1024, **kwargs):
         _RecordingMinimizer.seen = (y0, fn(y0, args))
+        return optimize_base.MinimizeResult(y=y0)
+
+
+class _RecordingBoxMinimizer(optimize_base.AbstractBoundedMinimizer):
+    seen = None
+
+    def run(self, fn, y0, args, bounds=None, max_iter=1024, **kwargs):
+        value = fn(y0, args)
+        gradient = jax.grad(lambda x: fn({"R": x}, args))(y0["R"])
+        _RecordingBoxMinimizer.seen = (y0, bounds, value, gradient)
         return optimize_base.MinimizeResult(y=y0)
 
 
@@ -188,6 +199,87 @@ def test_nudged_start_has_a_usable_gradient(param, box_width):
     assert _declared(model, view.y0)["u"] == pytest.approx(1e-6 * box_width, rel=1e-6)
     grad = jax.grad(view.objective(lambda m, args: m.u))(view.y0, None)["u"]
     assert np.isfinite(grad) and grad != 0.0
+
+
+@pytest.mark.parametrize("dtype", [jnp.float32, jnp.float64], ids=["f32", "f64"])
+@pytest.mark.parametrize("start", [1e-12, 1e-7, 1e-5, 2.0, 30.0, 130.0])
+def test_open_positive_box_preserves_lognormal_start_and_uses_dtype_inset(dtype, start):
+    value = jnp.asarray(start, dtype=dtype)
+    model = Resistor(R=prf.Random(LogNormal(jnp.log(value), 1.0), value=value))
+    original = model.R.value
+
+    y0, (lower, upper) = SolverView(model, "optimize").box()
+
+    eps = jnp.finfo(original.dtype).eps
+    tiny = jnp.finfo(original.dtype).tiny
+    expected_inset = jnp.maximum(tiny, eps * original)
+    assert y0["R"] == original
+    assert 0.0 < lower["R"] < original
+    np.testing.assert_allclose(lower["R"], expected_inset, rtol=2e-6, atol=0.0)
+    assert jnp.isposinf(upper["R"])
+
+
+def test_bounded_minimizer_receives_tiny_lognormal_start_and_finite_gradient():
+    start = jnp.asarray(1e-7, dtype=jnp.float64)
+    model = Resistor(R=prf.Random(LogNormal(jnp.log(start), 1.0), value=start))
+
+    optimize_base.run_minimizer(lambda m, _: m.R, model, _RecordingBoxMinimizer())
+
+    y0, (lower, upper), value, gradient = _RecordingBoxMinimizer.seen
+    original = model.R.value
+    np.testing.assert_allclose(y0["R"], original, rtol=0.0, atol=0.0)
+    assert 0.0 < lower["R"] < original
+    assert jnp.isposinf(upper["R"])
+    np.testing.assert_allclose(value, original, rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(gradient, 1.0, rtol=0.0, atol=0.0)
+
+
+def test_open_negative_upper_edge_uses_original_start_scale():
+    start = jnp.asarray(-1e-7, dtype=jnp.float64)
+    model = Pair(u=prf.Constrained(LessThan(0.0, closed=False), value=start), v=prf.Fixed(0.0))
+    original = model.u.value
+    y0, (lower, upper) = SolverView(model, "optimize").box()
+
+    expected = -jnp.finfo(original.dtype).eps * jnp.abs(original)
+    assert y0["u"] == original
+    assert jnp.isneginf(lower["u"])
+    np.testing.assert_allclose(upper["u"], expected, rtol=1e-12)
+
+
+def test_two_open_edges_and_one_closed_edge_keep_elementwise_box_semantics():
+    model = Pair(
+        u=prf.Constrained(Interval(-2.0, 4.0, closed=(False, False)), value=0.0),
+        v=prf.Constrained(Interval(-2.0, 4.0, closed=(True, False)), value=-2.0),
+    )
+    y0, (lower, upper) = SolverView(model, "optimize").box()
+
+    assert 0.0 < lower["u"] < y0["u"] < upper["u"] < 1.0
+    assert y0["v"] == 0.0 and lower["v"] == 0.0
+    assert upper["v"] < 1.0
+
+
+def test_positive_nearest_representable_start_is_not_excluded_by_inset():
+    edge = jnp.asarray(1.0, dtype=jnp.float64)
+    start = jnp.nextafter(edge, jnp.asarray(jnp.inf))
+    model = Resistor(R=prf.Constrained(GreaterThan(edge, closed=False), value=start))
+    original = model.R.value
+    y0, (lower, upper) = SolverView(model, "optimize").box()
+
+    assert y0["R"] == original
+    assert lower["R"] == original
+    assert jnp.isposinf(upper["R"])
+
+
+def test_open_box_edges_are_elementwise_for_array_lognormal_parameters():
+    start = jnp.asarray([1e-12, 2.0], dtype=jnp.float64)
+    distribution = LogNormal(jnp.log(start), jnp.ones_like(start))
+    model = Resistor(R=prf.Random(distribution, value=start))
+    original = model.R.value
+    y0, (lower, upper) = SolverView(model, "optimize").box()
+
+    np.testing.assert_array_equal(y0["R"], original)
+    np.testing.assert_allclose(lower["R"], jnp.finfo(original.dtype).eps * original)
+    assert jnp.all(jnp.isposinf(upper["R"]))
 
 
 def test_minimizer_without_free_parameters_raises():

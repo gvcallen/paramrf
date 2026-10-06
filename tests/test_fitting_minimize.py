@@ -1,15 +1,21 @@
 # tests/test_optimize/test_fit.py
 import pytest
+import jax
 import jax.numpy as jnp
 import numpy as np
 
 from pmrf.frequency import Frequency
-from pmrf.models import CoaxialLine, Model
+from pmrf.models import CoaxialLine, Model, RLGCLine
 from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_minimize
-from pmrf.parameters import Fixed, Bounded, Param
+from pmrf.parameters import Fixed, Bounded, Param, Random, update, values
 from pmrf.losses import MSELoss, RMSELoss
 from pmrf.optimize import ScipyMinimize
+from pmrf.optimize.solvers import scipy as scipy_solver
+from pmrf.distributions import LogNormal, Normal
+from pmrf.covariance_kernels import Matern52Kernel
+from pmrf.discrepancy_models import GaussianProcess
+from pmrf.likelihoods import GaussianLikelihood
 
 @pytest.fixture
 def fit_freq():
@@ -146,3 +152,110 @@ def test_default_loss_pools_residuals_across_outputs(fit_freq):
 
     assert jnp.allclose(default.model.val.value, a_mse, atol=1e-4)
     assert jnp.allclose(rmse.model.val.value, a_rmse, atol=1e-3)
+
+
+def test_bayesian_fit_propagates_nonfinite_objective():
+    model = ConstantModel(val=Random(Normal(0.0, 1.0), value=1.0))
+    frequency = Frequency(10.0, 20.0, 3, "MHz")
+    data = jnp.zeros((3,))
+    with pytest.raises(FloatingPointError, match=r"trust-constr objective evaluation 1.*nonfinite loss"):
+        fit_minimize(
+            model,
+            data,
+            frequency=frequency,
+            features=lambda m, f: jnp.full((f.npoints,), jnp.nan),
+            inference="bayesian",
+            likelihood=GaussianLikelihood(1e-8),
+            solver=ScipyMinimize(method="trust-constr", show_progress=False),
+        )
+
+
+def test_bounded_trust_constr_fits_lognormal_gp_hyperparameters_from_tiny_starts(monkeypatch):
+    frequency = Frequency(10.0, 500.0, 20, "MHz")
+    line = RLGCLine(
+        length=Fixed(10.0),
+        R=Fixed(0.5),
+        L=Fixed(250e-9),
+        C=Fixed(100e-12),
+        G=Fixed(1e-6),
+    )
+    predictor = lambda model, freq: jnp.real(model.s(freq)[:, 0, 1])
+    observed = predictor(line, frequency) + 1e-3 * jnp.sin(frequency.f_scaled / 80.0)
+    scipy_minimize = scipy_solver.scipy_minimize
+    observed_evaluations = []
+
+    def recording_minimize(fun, x0, *args, **kwargs):
+        def finite_fun(x, *fn_args):
+            result = fun(x, *fn_args)
+            if isinstance(result, tuple):
+                loss, grad = result
+                observed_evaluations.append((float(np.asarray(loss)), np.asarray(grad)))
+                assert np.isfinite(np.asarray(loss)).all()
+                assert np.isfinite(np.asarray(grad)).all()
+            else:
+                observed_evaluations.append((float(np.asarray(result)), None))
+                assert np.isfinite(np.asarray(result)).all()
+            return result
+
+        return scipy_minimize(finite_fun, x0, *args, **kwargs)
+
+    monkeypatch.setattr(scipy_solver, "scipy_minimize", recording_minimize)
+    outcomes = []
+    for variance_start, variance_loc in ((1e-5, 1e-5), (1e-7, 1e-7)):
+        discrepancy = GaussianProcess(
+            Matern52Kernel(
+                Random(LogNormal(jnp.log(30.0), 1.0), value=30.0)
+            )
+            * Random(LogNormal(jnp.log(variance_loc), 1.0), value=variance_start),
+            jitter=1e-12,
+        )
+        result = fit_minimize(
+            line,
+            observed,
+            frequency=frequency,
+            features=predictor,
+            inference="bayesian",
+            likelihood=GaussianLikelihood(1e-8),
+            discrepancy=discrepancy,
+            solver=ScipyMinimize(method="trust-constr", show_progress=False),
+            max_iter=1000,
+        )
+        problem = result.solution.problem
+        free = values(problem, free_only=True, space="declared")
+        names = tuple(name for name in free if name.endswith(("lengthscale", "variance")))
+        assert result.solution.success
+        assert len(names) == 2
+        fitted = jnp.asarray([free[name] for name in names])
+        assert np.isfinite(fitted).all() and np.all(np.asarray(fitted) > 0.0)
+        expected_start = np.array([
+            30.0 if name.endswith("lengthscale") else variance_start for name in names
+        ])
+        np.testing.assert_allclose(
+            result.solution.metrics.box_origin, expected_start, rtol=2e-15, atol=0.0
+        )
+        recovered = (
+            np.asarray(result.solution.metrics.box_origin)
+            + np.asarray(result.solution.metrics.box_scale) * np.asarray(result.solution.metrics.x)
+        )
+        np.testing.assert_allclose(recovered, np.asarray(fitted), rtol=1e-12, atol=0.0)
+
+        def log_coordinate_loss(log_values):
+            moved = update(
+                problem,
+                {name: jnp.exp(log_values[i]) for i, name in enumerate(names)},
+                space="declared",
+            )
+            return moved()
+
+        log_gradient = jax.grad(log_coordinate_loss)(jnp.log(fitted))
+        assert np.max(np.abs(np.asarray(log_gradient))) < 1e-3
+        initial = dict(zip(names, expected_start))
+        initial_loss = update(problem, initial, space="declared")()
+        assert np.isfinite(initial_loss)
+        assert log_coordinate_loss(jnp.log(fitted)) < initial_loss
+        variance_index = next(i for i, name in enumerate(names) if name.endswith("variance"))
+        if variance_start == 1e-7:
+            assert float(fitted[variance_index]) < 1e-6
+        outcomes.append(result)
+
+    assert observed_evaluations
