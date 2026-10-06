@@ -872,3 +872,169 @@ def test_gp_log_likelihood_random_hyperparameters_match_floats(gp_freq):
     random = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross', random=True), 1e-3)
     floats = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), 1e-3)
     assert value(random) == value(floats)
+
+
+# ---------------------------------------------------------
+# Discrepancy prediction from a fitted marginal likelihood
+# ---------------------------------------------------------
+
+
+@pytest.fixture
+def new_freq():
+    """Off the fit grid, extending past both of its ends."""
+    return Frequency(start=0.5, stop=11.0, npoints=9, unit='GHz')
+
+
+def _hand_prediction(gp, transform, observed, model, frequency, new_frequency, noise):
+    """#255's prediction called by hand on the event-space residual."""
+    y_pred = Feature('s')(model, frequency)
+    residual = transform.forward(observed) - transform.forward(y_pred)
+    return gp.predict(residual, frequency.f_scaled, new_frequency.f_scaled, jnp.asarray(noise))
+
+
+def _assert_same_prediction(actual, expected):
+    # Same operations in the same order, so measured equal to the last bit.
+    np.testing.assert_allclose(actual.mean(), expected.mean(), rtol=1e-12, atol=0.0)
+    np.testing.assert_allclose(actual.covariance(), expected.covariance(), rtol=1e-12, atol=0.0)
+
+
+@pytest.mark.parametrize('noise', ['scalar', 'per_batch'])
+@pytest.mark.parametrize('kernel', ['unbatched', 'shared', 'auto_cross', 'shared_auto_cross'])
+def test_discrepancy_prediction_matches_gp_predict(gp_freq, new_freq, kernel, noise):
+    """A complex two-port with the default event transform gives #255's prediction by hand."""
+    mll = _gp_mll(gp_freq, _gp_kernel(kernel), _NOISES[noise]())
+    model = _sloped_two_port()
+    prediction = mll.predict_discrepancy(model, gp_freq, new_freq)
+    assert prediction.mean().shape == (2, 2, 2, len(new_freq))
+    expected = _hand_prediction(
+        mll.discrepancy, mll.event_transform, mll.observed, model, gp_freq, new_freq,
+        _NOISES[noise](),
+    )
+    _assert_same_prediction(prediction, expected)
+
+
+def test_discrepancy_prediction_with_conditional_event_transform(gp_freq, new_freq):
+    """A conditional transform is resolved from the prediction and applied to both sides."""
+    base = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), 1e-3).event_transform
+
+    def conditional(y_pred):
+        # A prediction-dependent shift, so the residual frame depends on the model.
+        return bij.Chain([bij.Shift(jnp.mean(jnp.abs(y_pred))), base])
+
+    gp = GaussianProcess(kernel=_gp_kernel('shared_auto_cross'), jitter=1e-8)
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_observed_two_port(gp_freq),
+        likelihood=GaussianLikelihood(noise=1e-3),
+        discrepancy=gp,
+        event_transform=conditional,
+    )
+    model = _sloped_two_port()
+    resolved = conditional(Feature('s')(model, gp_freq))
+    expected = _hand_prediction(gp, resolved, mll.observed, model, gp_freq, new_freq, 1e-3)
+    _assert_same_prediction(mll.predict_discrepancy(model, gp_freq, new_freq), expected)
+
+
+def test_discrepancy_prediction_converts_new_frequency_unit(gp_freq, new_freq):
+    """A new frequency in another unit gives the prediction at the same points in the fit's unit."""
+    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), 1e-3)
+    model = _sloped_two_port()
+    in_mhz = Frequency.from_f(new_freq.f_scaled * 1e3, unit='MHz')
+    expected = mll.predict_discrepancy(model, gp_freq, new_freq)
+    # Only the unit conversion's rounding differs; measured at 3e-16 relative.
+    actual = mll.predict_discrepancy(model, gp_freq, in_mhz)
+    np.testing.assert_allclose(actual.mean(), expected.mean(), rtol=1e-12, atol=1e-15)
+    np.testing.assert_allclose(actual.covariance(), expected.covariance(), rtol=1e-12, atol=1e-15)
+
+
+def test_discrepancy_prediction_from_fit_result(gp_freq, new_freq):
+    """The evaluator recovered from `prf.fit` predicts with its optimized hyperparameters."""
+    kernel = SharedIndependentKernel(AutoCrossKernel(
+        Matern52Kernel(prf.Bounded(0.5, 5.0, value=2.0)) * prf.Bounded(1e-4, 1.0, value=1e-2),
+        Matern52Kernel(prf.Bounded(0.5, 5.0, value=1.0)) * prf.Bounded(1e-4, 1.0, value=3e-3),
+        num_outputs=2,
+    ))
+    model = _SlopedTwoPort(gain=prf.Bounded(0.5, 1.5, value=1.0), delay=prf.Fixed(0.3))
+    result = prf.fitting.fit(
+        model,
+        _observed_two_port(gp_freq),
+        frequency=gp_freq,
+        likelihood=GaussianLikelihood(prf.Bounded(1e-6, 1e-1, value=1e-3)),
+        discrepancy=GaussianProcess(kernel=kernel, jitter=1e-8),
+    )
+    (term,) = result.solution.objective
+    mll = term.evaluator.evaluator
+    fitted = prf.unwrap(mll)
+    # The fit moved the hyperparameters, so the prediction uses the optimized ones.
+    assert fitted.likelihood.noise != 1e-3
+
+    prediction = mll.predict_discrepancy(result.model, result.frequency, new_freq)
+    expected = _hand_prediction(
+        fitted.discrepancy, fitted.event_transform, fitted.observed, prf.unwrap(result.model),
+        gp_freq, new_freq, fitted.likelihood.noise,
+    )
+    _assert_same_prediction(prediction, expected)
+
+
+def test_discrepancy_prediction_jit_and_grad_with_respect_to_model(gp_freq, new_freq):
+    """jit and grad with respect to the model work through the prediction."""
+    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES['per_batch']())
+    model = _sloped_two_port()
+
+    def mean_sum(m):
+        return jnp.sum(mll.predict_discrepancy(m, gp_freq, new_freq).mean())
+
+    assert jnp.allclose(eqx.filter_jit(mean_sum)(model), mean_sum(model), rtol=1e-12, atol=0.0)
+    grads = eqx.filter_jit(eqx.filter_grad(mean_sum))(model)
+    automatic = jnp.array([grads.gain, grads.delay])
+    step = 1e-6
+    finite_difference = jnp.array([
+        (mean_sum(eqx.tree_at(lambda m: m.gain, model, model.gain + step))
+         - mean_sum(eqx.tree_at(lambda m: m.gain, model, model.gain - step))) / (2 * step),
+        (mean_sum(eqx.tree_at(lambda m: m.delay, model, model.delay + step))
+         - mean_sum(eqx.tree_at(lambda m: m.delay, model, model.delay - step))) / (2 * step),
+    ])
+    assert jnp.all(automatic != 0.0)
+    # Measured at 1e-9 relative with this step.
+    assert jnp.allclose(automatic, finite_difference, rtol=1e-7, atol=0.0)
+
+
+def test_discrepancy_prediction_rejects_non_gp_discrepancy(gp_freq, new_freq):
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_observed_two_port(gp_freq),
+        likelihood=GaussianLikelihood(noise=1e-3),
+    )
+    with pytest.raises(TypeError, match="GaussianProcess"):
+        mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)
+
+
+def test_discrepancy_prediction_rejects_non_gaussian_likelihood(gp_freq, new_freq):
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_observed_two_port(gp_freq),
+        likelihood=_unit_normal_likelihood,
+        discrepancy=GaussianProcess(kernel=_gp_kernel('shared_auto_cross'), jitter=1e-8),
+    )
+    with pytest.raises(TypeError, match="GaussianLikelihood"):
+        mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)
+
+
+def test_discrepancy_prediction_rejects_noise_varying_over_frequency(gp_freq, new_freq):
+    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES['per_frequency']())
+    with pytest.raises(ValueError, match="constant along frequency"):
+        mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)
+
+
+def test_discrepancy_prediction_rejects_orthogonal_discrepancy(gp_freq, new_freq):
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_observed_two_port(gp_freq),
+        likelihood=GaussianLikelihood(noise=1e-3),
+        discrepancy=GaussianProcess(kernel=_gp_kernel('shared_auto_cross'), jitter=1e-8),
+        use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-10,
+        orthogonal_recompute=True,
+    )
+    with pytest.raises(ValueError, match="orthogonal"):
+        mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)

@@ -9,6 +9,7 @@ This chapter includes some basic examples to demonstrate ParamRF's core features
    cascading_and_terminating
    circuit_models
    model_optimization
+   discrepancy_prediction
    derivatives_and_sweeps
    parameter_naming_and_model_manipulation
    custom_models
