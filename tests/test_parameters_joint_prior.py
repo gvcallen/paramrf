@@ -129,6 +129,35 @@ def test_joint_prior_replaces_the_parameters_own_priors():
     assert prf.params(model)["a.R"].distribution is not None
 
 
+@pytest.mark.parametrize("space", ["declared", "raw", "physical"])
+def test_batched_raw_joint_prior_sums_closed_form_densities_in_every_space(space):
+    """Three whitened samples with a bounded map, scales, and an independent prior."""
+    mean = np.array([0.3, -0.1])
+    tril = np.array([[0.8, 0.0], [0.4, 0.6]])
+    z = np.array([[0.1, -0.2], [0.3, 0.4], [-1.0, 0.5]])
+    c = np.array([0.2, -0.5, 0.8])
+    parts = {
+        "a": prf.Bounded(-2.0, 4.0, value=0.0, scale=2.0),
+        "b": prf.Bounded(-2.0, 4.0, value=0.0, scale=3.0),
+        "c": prf.Random(Normal(0.0, 1.0), value=0.0, scale=5.0),
+    }
+    model = prf.prior(parts, ["a", "b"], _gaussian(mean, tril), space="raw")
+    model = prf.update(model, {"a": z[:, 0], "b": z[:, 1]}, space="raw")
+    model = prf.update(model, {"c": c})
+    t = mean + z @ tril.T
+    sigmoid = 1 / (1 + np.exp(-t))
+    log_det = np.log(6 * sigmoid * (1 - sigmoid)).sum()
+    independent = np.sum(-0.5 * c ** 2 - 0.5 * np.log(2 * np.pi))
+    expected = sum(_gaussian_log_prob(sample, mean, tril) for sample in t) - log_det + independent
+    if space == "physical":
+        expected -= len(z) * np.log(2 * 3 * 5)
+    elif space == "raw":
+        expected += log_det + len(z) * np.log(np.diag(tril)).sum()
+    actual = prf.log_prior(model, space=space)
+    assert actual.shape == ()
+    np.testing.assert_allclose(actual, expected, rtol=1e-12)
+
+
 def test_vector_order_follows_explicit_names():
     parts = prf.update(_parts(), {"a.R": 52.0})
     mean = MU + jnp.array([0.2, -0.3])
@@ -816,6 +845,76 @@ def _at_raw(model, z, flat=False):
 
 
 Z = jnp.array([0.2, -0.4, 0.3, 0.1, -0.6, 0.5, 0.05])
+
+
+@pytest.mark.parametrize("kind", ["flow", "tri", "diag", "full"])
+@pytest.mark.parametrize("prior_space", ["raw", "declared", "physical"])
+def test_array_joint_prior_sums_multiple_batch_axes_and_differentiates(kind, prior_space):
+    parts = {
+        "a": prf.Random(Normal(0.0, 1.0), value=0.0, scale=2.0),
+        "v": prf.Random(Normal(0.0, 1.0), value=jnp.zeros(V.shape), scale=3.0),
+    }
+    mean = np.linspace(-0.3, 0.3, 7)
+    tril = np.diag(np.linspace(0.6, 1.2, 7))
+    if kind != "diag":
+        tril += 0.1 * np.tril(np.ones((7, 7)), -1)
+    distribution = {
+        "flow": lambda: _gaussian(mean, tril),
+        "tri": lambda: dd.MultivariateNormalTri(jnp.asarray(mean), jnp.asarray(tril)),
+        "diag": lambda: dd.MultivariateNormalDiag(jnp.asarray(mean), jnp.asarray(np.diag(tril))),
+        "full": lambda: dd.MultivariateNormalFullCovariance(jnp.asarray(mean), jnp.asarray(tril @ tril.T)),
+    }[kind]()
+    model = prf.prior(parts, ["a", "v"], distribution, space=prior_space)
+    z = jnp.arange(42, dtype=float).reshape(2, 3, 7) / 30 - 0.5
+
+    def at(z):
+        return prf.update(model, {"a": z[..., 0], "v": z[..., 1:].reshape(*z.shape[:-1], *V.shape)}, space="raw")
+
+    batched = at(z)
+    assert prf.values(batched)["v"].shape == (2, 3, *V.shape)
+    t = mean + np.asarray(z).reshape(-1, 7) @ tril.T
+    density = sum(_gaussian_log_prob(sample, mean, tril) for sample in t)
+    scale = len(t) * (np.log(2) + V.size * np.log(3))
+    physical = density if prior_space == "physical" else density - scale
+    expected = {
+        "physical": physical,
+        "declared": physical + scale,
+        "raw": np.sum(-0.5 * np.asarray(z) ** 2 - 0.5 * np.log(2 * np.pi)),
+    }
+    for space in expected:
+        score = eqx.filter_jit(lambda m: prf.log_prior(m, space=space))(batched)
+        assert score.shape == ()
+        np.testing.assert_allclose(score, expected[space], rtol=1e-12)
+    gradient = jax.jit(jax.grad(lambda z: prf.log_prior(at(z), space="raw")))(z)
+    np.testing.assert_allclose(gradient, -z, rtol=1e-12, atol=1e-14)
+
+
+def test_attaching_to_batched_parameters_uses_the_attachment_shapes_as_the_event():
+    parts = {"a": prf.Unconstrained(0.0, scale=2.0), "b": prf.Unconstrained(0.0, scale=3.0)}
+    parts = prf.update(parts, {"a": jnp.zeros(3), "b": jnp.zeros(3)})
+    mean, tril = np.arange(6) / 10, 0.7 * np.eye(6)
+    model = prf.prior(parts, ["a", "b"], _gaussian(mean, tril))
+    z = jnp.arange(12, dtype=float).reshape(2, 6) / 10
+    batched = prf.update(model, {"a": z[:, :3], "b": z[:, 3:]}, space="raw")
+    density = sum(_gaussian_log_prob(sample, mean, tril) for sample in mean + np.asarray(z) @ tril.T)
+    for space, expected in {
+        "declared": density,
+        "physical": density - 2 * 3 * np.log(2 * 3),
+        "raw": np.sum(-0.5 * np.asarray(z) ** 2 - 0.5 * np.log(2 * np.pi)),
+    }.items():
+        actual = prf.log_prior(batched, space=space)
+        assert actual.shape == ()
+        np.testing.assert_allclose(actual, expected, rtol=1e-12)
+
+
+def test_one_out_of_bounds_sample_makes_the_batched_joint_total_minus_infinity():
+    model = _at_raw(_array_prior("mvn", "raw"), Z + jnp.array([[0.0], [0.3], [-0.2]]))
+    distributions = tree_param_distributions(model)
+    inside = prf.unwrap(model)
+    assert tree_param_log_prob(distributions, inside).shape == ()
+    assert np.isfinite(tree_param_log_prob(distributions, inside))
+    outside = eqx.tree_at(lambda m: m["v"], inside, inside["v"].at[1, 0, 2].set(6e-3))
+    assert tree_param_log_prob(distributions, outside) == -jnp.inf
 
 
 @pytest.mark.parametrize("kind", ["mvn", "flow"])

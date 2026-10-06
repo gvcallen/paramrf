@@ -1018,11 +1018,10 @@ def tree_param_log_prob(distributions, tree) -> jnp.ndarray:
         return d.log_prob(value) if prx.is_distribution(d) else jnp.asarray(0.0)
 
     log_probs = jax.tree.map(score, distributions, tree, is_leaf=is_scored)
-    # An array-valued parameter scores one density per element, so each leaf is reduced
-    # before summing; otherwise the result is a vector and the objective stops being
-    # scalar.
+    # Independent priors score each element; joint priors score each vector. Reduce
+    # both over all batch axes as well, so the objective stays scalar.
     total = sum(jnp.sum(log_prob) for log_prob in jax.tree.leaves(log_probs))
-    return total + sum((_joint_log_prob(slots) for slots in joints.values()), start=jnp.asarray(0.0))
+    return total + sum((jnp.sum(_joint_log_prob(slots)) for slots in joints.values()), start=jnp.asarray(0.0))
 
 
 class _JointSlot(eqx.Module):
@@ -1142,7 +1141,7 @@ def _joint_log_prob(slots: dict[int, tuple[_JointSlot, Array]]) -> Array:
                 correction = correction - _own_sum(slot.raw_to_declared.forward_log_det_jacobian(z), slot.shape)
                 values.append(z)
     vector = _flat_vector(values, shapes)
-    log_prob = first.distribution.log_prob(vector)
+    log_prob = _per_vector(first.distribution.log_prob, vector)
     if jnp.shape(log_prob) != vector.shape[:-1]:
         raise ValueError(
             f"A joint prior's distribution must give one log density per vector of "
@@ -1683,6 +1682,9 @@ def log_prior(tree, *, space: Space = 'declared') -> Array:
     by their own priors, and a value outside a parameter's bounds scores $-\\infty$.
     In raw space they are represented by the prior's whitened vector $z_j$, so the
     second Jacobian sum replaces the first for them.
+
+    Joint contributions are summed over all leading batch axes, giving a scalar
+    total alongside independent priors.
 
     Parameters
     ----------
