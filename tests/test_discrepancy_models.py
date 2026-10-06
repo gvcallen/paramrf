@@ -49,12 +49,17 @@ def _np_block_kernel(i, j):
 
 
 def _np_prediction(residual, x_a, x_b, noise, jitter):
-    """The two discrepancy prediction formulas in NumPy, block by block."""
+    """The two discrepancy prediction formulas in NumPy, block by block.
+
+    ``noise`` is the diagonal of each block's noise covariance, broadcastable to
+    ``(*BATCH, N_A)``.
+    """
+    noise = np.broadcast_to(noise, BATCH + (len(x_a),))
     means = np.zeros(BATCH + (len(x_b),))
     covariances = np.zeros(BATCH + (len(x_b), len(x_b)))
     for index in np.ndindex(BATCH):
         k = _np_block_kernel(index[0], index[1])
-        K_AA = k(x_a, x_a) + (jitter + noise[index]) * np.eye(len(x_a))
+        K_AA = k(x_a, x_a) + jitter * np.eye(len(x_a)) + np.diag(noise[index])
         K_BA = k(x_b, x_a)
         K_BB = k(x_b, x_b) + jitter * np.eye(len(x_b))
         means[index] = K_BA @ np.linalg.solve(K_AA, residual[index])
@@ -96,7 +101,18 @@ def residual(x_a):
 
 
 def _per_block_noise():
-    return np.linspace(1e-3, 8e-3, 8).reshape(BATCH)
+    """One noise variance per block, constant along the event axis."""
+    return np.linspace(1e-3, 8e-3, 8).reshape(BATCH + (1,))
+
+
+def _per_frequency_noise(n):
+    """Noise varying along the event axis, shared by every block."""
+    return np.linspace(1e-3, 4e-3, n)
+
+
+def _per_block_frequency_noise(n):
+    """Noise varying along the event axis and across blocks."""
+    return np.linspace(1e-3, 8e-3, 8).reshape(BATCH + (1,)) * np.linspace(1.0, 3.0, n)
 
 
 def test_prediction_matches_numpy_formulas(x_a, x_b, residual):
@@ -108,6 +124,18 @@ def test_prediction_matches_numpy_formulas(x_a, x_b, residual):
 
     assert prediction.mean().shape == BATCH + (6,)
     # Measured at 9e-16 (mean) and 8e-16 (covariance) absolute.
+    np.testing.assert_allclose(prediction.mean(), expected_mean, rtol=0.0, atol=1e-10)
+    np.testing.assert_allclose(prediction.covariance(), expected_covariance, rtol=0.0, atol=1e-10)
+
+
+@pytest.mark.parametrize('noise', [_per_frequency_noise, _per_block_frequency_noise])
+def test_prediction_with_noise_varying_along_frequency_matches_numpy_formulas(x_a, x_b, residual, noise):
+    """Noise varying along frequency conditions on Σ_n = diag(σ²(f)), block by block."""
+    noise = noise(len(x_a))
+    jitter = 1e-10
+    prediction = GaussianProcess(_kernel(), jitter=jitter).predict(residual, x_a, x_b, noise)
+    expected_mean, expected_covariance = _np_prediction(residual, x_a, x_b, noise, jitter)
+    # Measured at 1.1e-15 (mean) and 6e-16 (covariance) absolute or better.
     np.testing.assert_allclose(prediction.mean(), expected_mean, rtol=0.0, atol=1e-10)
     np.testing.assert_allclose(prediction.covariance(), expected_covariance, rtol=0.0, atol=1e-10)
 
@@ -195,6 +223,9 @@ def test_prediction_jit_and_gradients_are_finite(x_a, x_b, residual):
     (1e-3, 4),
     # Noise varying across entries that share K needs one matrix per entry.
     (_per_block_noise(), 8),
+    # Noise varying only along frequency is shared by the entries that share K.
+    (_per_frequency_noise(9), 4),
+    (_per_block_frequency_noise(9), 8),
 ])
 def test_prediction_factorizes_smallest_broadcast_shape(x_a, x_b, residual, noise, matrices):
     """K_AA + Σ_n is factorized once per distinct (kernel block, noise value) pair."""
@@ -207,4 +238,11 @@ def test_prediction_rejects_noise_that_does_not_broadcast(x_a, x_b, residual):
     """Noise with axes beyond the event batch is rejected, as in `log_prob`."""
     gp = GaussianProcess(_kernel(), jitter=1e-10)
     with pytest.raises(ValueError, match="do not broadcast"):
-        gp.predict(residual, x_a, x_b, np.full((3, 1, 1, 1), 1e-3))
+        gp.predict(residual, x_a, x_b, np.full((3, 1, 1, 1, 1), 1e-3))
+
+
+def test_prediction_rejects_noise_not_matching_frequency_count(x_a, x_b, residual):
+    """Noise whose last axis is neither 1 nor N_A is rejected."""
+    gp = GaussianProcess(_kernel(), jitter=1e-10)
+    with pytest.raises(ValueError, match="event points"):
+        gp.predict(residual, x_a, x_b, np.full(len(x_a) - 1, 1e-3))

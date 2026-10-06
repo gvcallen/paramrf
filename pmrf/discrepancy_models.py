@@ -91,16 +91,28 @@ _gaussian_log_prob.defvjp(_gaussian_log_prob_fwd, _gaussian_log_prob_bwd)
 
 
 def _add_noise(K: jnp.ndarray, noise_variance, batch_shape) -> jnp.ndarray:
-    """Form ``K + sigma^2 I`` at the broadcast batch shape of ``K`` and the noise.
+    """Form ``K + Sigma_n`` at the broadcast batch shape of ``K`` and the noise.
 
-    Raises if that shape does not broadcast to the event ``batch_shape``.
+    ``noise_variance`` has the event as its last axis. A scalar, or a last axis of
+    size one, is constant along the event axis and adds ``sigma^2 I``; otherwise it is
+    the diagonal of ``Sigma_n``. Raises if the noise does not broadcast to the
+    ``N`` event points, or the shape of ``K + Sigma_n`` does not broadcast to the
+    event ``batch_shape``.
     """
     variance = jnp.asarray(noise_variance)
-    M = K + variance[..., None, None] * jnp.eye(K.shape[-1], dtype=K.dtype)
+    n = K.shape[-1]
+    if variance.ndim == 0:
+        variance = variance[None]
+    if variance.shape[-1] not in (1, n):
+        raise ValueError(
+            f"The noise variance's last axis has size {variance.shape[-1]}, which does "
+            f"not broadcast to the {n} event points."
+        )
+    M = K + variance[..., None, :] * jnp.eye(n, dtype=K.dtype)
     if jnp.broadcast_shapes(M.shape[:-2], batch_shape) != tuple(batch_shape):
         raise ValueError(
             f"The kernel's batch shape {K.shape[:-2]} and noise variance shape "
-            f"{variance.shape} do not broadcast to the event batch shape {tuple(batch_shape)}."
+            f"{variance.shape[:-1]} do not broadcast to the event batch shape {tuple(batch_shape)}."
         )
     return M
 
@@ -175,11 +187,11 @@ class GaussianProcess(AbstractDiscrepancyModel):
         r"""Evaluate the summed log density of ``observed`` under the GP plus Gaussian noise.
 
         Each batch entry of ``observed`` is distributed as
-        $\mathcal{N}(y, K + \sigma^2 I)$. Equal to the log probability of the
-        distribution built by :meth:`__call__` and
+        $\mathcal{N}(y, K + \Sigma_n)$, with $\Sigma_n = \mathrm{diag}(\sigma^2)$.
+        Equal to the log probability of the distribution built by :meth:`__call__` and
         :class:`pmrf.likelihoods.GaussianLikelihood`, summed over the batch.
 
-        ``M = K + sigma^2 I`` is formed and factorized at the broadcast shape of the
+        ``M = K + Sigma_n`` is formed and factorized at the broadcast batch shape of the
         kernel's Gram batch and ``noise_variance``, rather than the full batch shape,
         and the residuals sharing each ``M`` are solved together.
 
@@ -192,8 +204,9 @@ class GaussianProcess(AbstractDiscrepancyModel):
         x : jnp.ndarray
             The frequency points, with shape ``(N,)``.
         noise_variance : jnp.ndarray
-            The noise variance, constant along the event axis and broadcastable to
-            ``batch_shape``.
+            The noise variance $\sigma^2$, with the event as its last axis and
+            broadcastable to ``(*batch_shape, N)``. A scalar, or a last axis of size
+            one, is constant along the event axis.
 
         Returns
         -------
@@ -221,7 +234,7 @@ class GaussianProcess(AbstractDiscrepancyModel):
         r"""Predict the discrepancy at new frequencies, given residuals at the fit frequencies.
 
         Conditions the GP on the residuals $r$ at the fit frequencies $x_A$ with
-        Gaussian noise covariance $\Sigma_n = \sigma^2 I$, and returns the
+        Gaussian noise covariance $\Sigma_n = \mathrm{diag}(\sigma^2)$, and returns the
         distribution of the discrepancy $\delta$ at the new frequencies $x_B$ for
         every event block:
 
@@ -233,7 +246,7 @@ class GaussianProcess(AbstractDiscrepancyModel):
         GP's jitter is added to $K_{AA}$ and $K_{BB}$, so $\Sigma$ stays positive
         definite.
 
-        As in :meth:`log_prob`, ``K_AA + sigma^2 I`` is formed and factorized at the
+        As in :meth:`log_prob`, ``K_AA + Sigma_n`` is formed and factorized at the
         broadcast shape of the kernel's Gram batch and ``noise_variance``, and the
         residuals sharing each matrix are solved together.
 
@@ -247,8 +260,9 @@ class GaussianProcess(AbstractDiscrepancyModel):
         x_new : jnp.ndarray
             The frequency points to predict at, with shape ``(N_B,)``.
         noise_variance : jnp.ndarray
-            The noise variance, constant along the event axis and broadcastable to
-            ``batch_shape``.
+            The noise variance $\sigma^2$, with the event as its last axis and
+            broadcastable to ``(*batch_shape, N_A)``. A scalar, or a last axis of size
+            one, is constant along the event axis.
 
         Returns
         -------
@@ -293,6 +307,9 @@ class GaussianProcess(AbstractDiscrepancyModel):
         This uses its nonsingular block factorization; it is not REML. In particular,
         the tangent-space block is retained because it depends on the fitted mean and
         measurement noise.
+
+        Unlike :meth:`log_prob`, ``noise_variance`` must be constant along the event
+        axis, so it has no event axis: it broadcasts to the event batch shape.
         """
         K = gram(self.kernel, x, jitter=self.jitter)
         variance = jnp.asarray(noise_variance)
