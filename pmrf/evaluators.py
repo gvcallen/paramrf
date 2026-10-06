@@ -524,6 +524,72 @@ class MarginalLogLikelihood(AbstractEvaluator):
         )
         return jnp.sum(log_probs), event_transform
     
+    @unwrap_self
+    def predict_discrepancy(
+        self, model: PyTree, frequency: Frequency, new_frequency: Frequency, **kwargs
+    ) -> dist.AbstractDistribution:
+        r"""Predict the discrepancy at new frequencies, conditioned on the fit.
+
+        The residual $r = \tilde h - h(\theta)$ of ``model`` at the fit ``frequency`` is
+        formed in event space, with the resolved event transform applied to both the
+        prediction and the observation, as in :meth:`__call__`. The noise variance is
+        read from the :class:`~pmrf.likelihoods.GaussianLikelihood` as in the
+        closed-form log-likelihood. Both are passed to
+        :meth:`~pmrf.discrepancy_models.GaussianProcess.predict`.
+
+        Kernel length scales are in the fit frequency's unit, so ``new_frequency`` is
+        converted to that unit first.
+
+        Parameters
+        ----------
+        model : PyTree
+            The fitted model.
+        frequency : Frequency
+            The frequency the evaluator was fitted over, matching :attr:`observed`.
+        new_frequency : Frequency
+            The frequencies to predict the discrepancy at, in any unit.
+        **kwargs
+            Passed to the predictor.
+
+        Returns
+        -------
+        dist.AbstractDistribution
+            The distribution of the discrepancy $\delta$ at ``new_frequency`` in event
+            space, batched over the event blocks, with event shape
+            ``(len(new_frequency),)``. It excludes measurement noise.
+
+        Raises
+        ------
+        TypeError
+            If the discrepancy is not a
+            :class:`~pmrf.discrepancy_models.GaussianProcess`, or the likelihood is not
+            a :class:`~pmrf.likelihoods.GaussianLikelihood`.
+        ValueError
+            If orthogonal discrepancy is enabled, or the noise varies along frequency.
+        """
+        if not isinstance(self.discrepancy, GaussianProcess):
+            raise TypeError(
+                "Discrepancy prediction requires a `GaussianProcess` discrepancy. "
+                f"Got {type(self.discrepancy).__name__}."
+            )
+        if not isinstance(self.likelihood, GaussianLikelihood):
+            raise TypeError(
+                "Discrepancy prediction requires a `GaussianLikelihood`. "
+                f"Got {type(self.likelihood).__name__}."
+            )
+        if self.use_orthogonal_discrepancy:
+            raise ValueError("Discrepancy prediction does not support orthogonal discrepancy.")
+        pred_event, event_transform = self._event(model, frequency, **kwargs)
+        variance = self.likelihood._constant_variance(pred_event)
+        if variance is None:
+            raise ValueError(
+                "Discrepancy prediction requires Gaussian noise variance that is "
+                "constant along frequency."
+            )
+        residual = event_transform.forward(self.observed) - pred_event
+        x_new = new_frequency.f / frequency.multiplier
+        return self.discrepancy.predict(residual, frequency.f_scaled, x_new, variance)
+
     def predictive_distribution(self, model: PyTree, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
         """
         Returns the full predictive distribution of an observed event for a given model.
