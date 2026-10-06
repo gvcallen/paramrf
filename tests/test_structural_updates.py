@@ -99,6 +99,16 @@ def test_update_structural_form_mismatches_raise():
         prf.update(rc, fn=lambda x: x)
 
 
+def test_nan_policy_rejects_structural_and_mixed_model_updates():
+    rc = _rc()
+    with pytest.raises(TypeError, match="structural model replacements"):
+        prf.update(rc, {"cascade[1]": Short()}, on_invalid="nan")
+    with pytest.raises(TypeError, match="structural model replacements"):
+        prf.update(rc, {"cascade[1]": Short(), "cascade[0].R": 3.0}, on_invalid="nan")
+    with pytest.raises(TypeError, match="only to numerical value updates"):
+        prf.update(rc, "cascade[1]", Short(), on_invalid="nan")
+
+
 def test_update_overlapping_structural_selection_raises():
     rc = _rc()
     with pytest.raises(ValueError, match="overlap"):

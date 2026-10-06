@@ -1401,7 +1401,12 @@ def _joint_raw_log_det(joint, nodes: list) -> Array:
     return log_det
 
 
-def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: str) -> tuple[list, list]:
+def _write_values(
+    tree,
+    entries: list[tuple[tuple[Any, ...], Any, Any]],
+    space: str,
+    on_invalid: str = 'raise',
+) -> tuple[list, list]:
     """Returns the paths and nodes that write `entries`, ``(path, node, value)`` triples,
     into `tree` with values in `space`.
 
@@ -1425,8 +1430,8 @@ def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: 
         ]
         vector = _per_vector(_joint_whitening(joint).forward, _flat_vector(coords, joint.shapes))
         for path, node, value in zip(paths, nodes, _split_vector(vector, joint.shapes)):
-            written[path] = _write(node, value, joint.space)
-    rest = [(path, _write(node, value, space)) for path, node, value in entries if path not in written]
+            written[path] = _write(node, value, joint.space, on_invalid)
+    rest = [(path, _write(node, value, space, on_invalid)) for path, node, value in entries if path not in written]
     pairs = rest + list(written.items())
     return [path for path, _ in pairs], [node for _, node in pairs]
 
@@ -1755,7 +1760,7 @@ def _set_paths(tree, paths: list, nodes: list):
     return eqx.tree_at(getter, tree, nodes[0] if len(paths) == 1 else tuple(nodes))
 
 
-def _write(node, value: Any, space: str):
+def _write(node, value: Any, space: str, on_invalid: str = 'raise'):
     """Returns `node`, a parameter or raw array, with its value in `space` replaced.
 
     A parameter goes through its constructor, keeping everything but the value and
@@ -1763,6 +1768,22 @@ def _write(node, value: Any, space: str):
     """
     if is_param(value):
         value = _read(value, space)
+    if on_invalid == 'nan':
+        invalid = _invalid_value(node, value, space, require_nan_dtype=True)
+        # Let the ordinary writer preserve all of the variable's metadata and shape.
+        # For invalid trials, first write the old value to avoid triggering its strict
+        # constructor check, then replace the whole numerical leaf with NaN below.
+        safe_value = jnp.where(invalid, _read(node, space), value)
+        updated = _write(node, safe_value, space)
+        return _poison_value(updated, invalid)
+    if space != 'raw':
+        candidate = jnp.asarray(value)
+        declared = candidate / node._scale if is_param(node) and space == 'physical' and node._scale != 1.0 else candidate
+        value = error_if(
+            candidate,
+            ~jnp.all(jnp.isfinite(declared)),
+            "A parameter value contains a nonfinite value.",
+        )
     if not is_param(node):
         return _like(jnp.asarray(value, dtype=node.dtype), node)
     if space == 'raw':
@@ -1773,6 +1794,48 @@ def _write(node, value: Any, space: str):
     if space == 'physical' and node._scale != 1.0:
         value = jnp.asarray(value) / node._scale
     return dataclasses.replace(node, value=value)
+
+
+def _invalid_value(node, value: Any, space: str, *, require_nan_dtype: bool = False) -> Array:
+    """Returns whether a numerical trial is nonfinite or outside a parameter's bounds."""
+    old = _read(node, space)
+    if require_nan_dtype and not (
+        jnp.issubdtype(old.dtype, jnp.floating) or jnp.issubdtype(old.dtype, jnp.complexfloating)
+    ):
+        raise TypeError("`on_invalid='nan'` requires floating-point or complex parameter values")
+
+    candidate = jnp.asarray(value)
+    if is_param(node):
+        if space == 'physical' and node._scale != 1.0:
+            declared = candidate / node._scale
+        elif space == 'raw':
+            declared = node.raw_to_declared_bijector.forward(candidate) if node.raw_to_declared_bijector is not None else candidate
+        else:
+            declared = candidate
+        constraint = _intersect(
+            None if node.constraint is None else prx.unwrap(node.constraint),
+            None if node.validity is None else prx.unwrap(node.validity),
+        )
+        outside = jnp.asarray(False) if constraint is None else jnp.any(constraint.is_outside(declared))
+    else:
+        declared = candidate
+        outside = jnp.asarray(False)
+    return jnp.any(~jnp.isfinite(declared)) | outside
+
+
+def _poison_value(node, invalid: Array):
+    """Replaces an invalid numerical trial's whole value leaf with NaNs."""
+    if is_param(node):
+        inner = _peel_fixed(node.variable)
+        raw = inner.raw_value
+        if not (jnp.issubdtype(raw.dtype, jnp.floating) or jnp.issubdtype(raw.dtype, jnp.complexfloating)):
+            raise TypeError("`on_invalid='nan'` requires floating-point or complex parameter values")
+        poisoned = jnp.where(invalid, jnp.full_like(raw, jnp.nan), raw)
+        new_inner = eqx.tree_at(lambda v: v.raw_value, inner, poisoned)
+        variable = prx.Fixed(new_inner) if node.fixed else new_inner
+        return dataclasses.replace(node, variable=variable)
+    poisoned = jnp.where(invalid, jnp.full_like(node, jnp.nan), node)
+    return _like(poisoned, node)
 
 
 def _with_fixed(node, fixed: bool):
@@ -1886,6 +1949,7 @@ def update(
     value: Any = _MISSING,
     fixed: bool | None = None,
     space: Space | None = None,
+    on_invalid: str = 'raise',
     fn: Callable[[Any], Any] | None = None,
 ):
     """
@@ -1902,6 +1966,7 @@ def update(
         prf.update(model, 'cascade[1]', Short())        # a new sub-model or node
         prf.update(model, 'load.*', fn=lambda p: ...)   # a function of the old part
         prf.update(model, v, space='raw')               # write-back from an optimiser or sampler
+        prf.update(model, {'R': trial}, on_invalid='nan') # reject an invalid trial
         prf.update(param, value=3.0)                    # the parameter itself
 
     The mapping, `value` and `fixed` forms go through each parameter's constructor:
@@ -1931,6 +1996,14 @@ def update(
     validation, use :func:`pmrf.replace`. To derive one parameter from another, use
     :func:`tie`.
 
+    By default, an invalid numerical value raises. Set ``on_invalid='nan'`` to make a
+    numerical trial non-raising: if a candidate is nonfinite or outside a parameter's
+    effective constraint, the entire updated value leaf becomes NaN. Other requested
+    values are still written. This option applies only to numerical value updates; it
+    cannot be combined with fixed-state changes or structural replacements. Candidate
+    values are checked after conversion from `space` to declared space, including after
+    the joint-prior whitening map for raw updates.
+
     Parameters
     ----------
     tree : PyTree
@@ -1957,6 +2030,11 @@ def update(
         A raw value of a parameter under a joint prior is its slice of the prior's
         whitened vector, in its own shape: the entries not given keep their raw
         values, and every parameter under the prior may move.
+    on_invalid : {'raise', 'nan'}, optional
+        How numerical value updates handle nonfinite values and values outside the
+        effective constraint. The default ``'raise'`` preserves strict validation.
+        ``'nan'`` writes NaN to the entire invalid parameter leaf and is only available
+        for floating-point or complex numerical value updates.
     fn : Callable, optional
         Called on each selected part; its result replaces the part.
 
@@ -1973,7 +2051,8 @@ def update(
         a joint prior. Under `jax.jit` the bounds check raises at runtime.
     TypeError
         If the arguments match none of the forms, or a mapping gives a model for a
-        parameter name or a non-model for a sub-model name.
+        parameter name or a non-model for a sub-model name, or ``on_invalid='nan'`` is
+        used with a structural update or a non-floating-point value leaf.
     """
     has_value = value is not _MISSING
     has_fixed = fixed is not None
@@ -1985,6 +2064,17 @@ def update(
 
     if has_value + has_fixed + has_node + has_fn > 1:
         raise form_error()
+    if on_invalid not in ('raise', 'nan'):
+        raise ValueError("`on_invalid` must be 'raise' or 'nan'")
+    if on_invalid == 'nan':
+        if has_fixed or has_node or has_fn:
+            raise TypeError("`on_invalid='nan'` applies only to numerical value updates")
+        if isinstance(selection, Mapping):
+            from pmrf.models.base import Model
+            if any(isinstance(v, Model) for v in selection.values()):
+                raise TypeError("`on_invalid='nan'` cannot be combined with structural model replacements")
+        elif not has_value and selection is not _MISSING:
+            raise TypeError("`on_invalid='nan'` applies only to numerical value updates")
     if space is not None and not has_value and not isinstance(selection, Mapping):
         raise TypeError(f"`space` applies only to values.\n\n{_UPDATE_FORMS}")
     space = 'declared' if space is None else space
@@ -2008,7 +2098,7 @@ def update(
     if selection is _MISSING:
         if not is_param(tree) or has_value == has_fixed:
             raise form_error()
-        return _write(tree, value, space) if has_value else _with_fixed(tree, fixed)
+        return _write(tree, value, space, on_invalid) if has_value else _with_fixed(tree, fixed)
 
     if isinstance(selection, Mapping):
         if has_value or has_fixed or not all(isinstance(k, str) for k in selection):
@@ -2040,7 +2130,7 @@ def update(
                 unknown.append(name)
         if unknown:
             raise ValueError(f"Unknown parameter names: {unknown}")
-        written_paths, written = _write_values(tree, entries, space)
+        written_paths, written = _write_values(tree, entries, space, on_invalid)
         paths, nodes = paths + written_paths, nodes + written
         if submodels is None:
             return _set_paths(tree, paths, nodes)
@@ -2063,7 +2153,9 @@ def update(
                 "and attach it over fewer parameters instead."
             )
     if has_value:
-        paths, nodes = _write_values(tree, [(path, leaf, value) for path, leaf in selected.values()], space)
+        paths, nodes = _write_values(
+            tree, [(path, leaf, value) for path, leaf in selected.values()], space, on_invalid,
+        )
     else:
         nodes = [_with_fixed(leaf, fixed) for _, leaf in selected.values()]
     return _set_paths(tree, paths, nodes)

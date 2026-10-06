@@ -205,6 +205,21 @@ def _positive_parts():
     }
 
 
+def test_nan_update_checks_values_after_raw_joint_log_normal_whitening():
+    base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)), 1)
+    prior = dd.Transformed(base, db.Block(db.Exp(), 1))
+    parts = {
+        "a": _PositiveResistor(R=prf.Unconstrained(50.0), name="a"),
+        "b": _PositiveResistor(R=prf.Unconstrained(50.0), name="b"),
+    }
+    model = prf.prior(parts, NAMES, prior, space="raw")
+
+    moved = prf.update(model, {"a.R": 1000.0}, space="raw", on_invalid="nan")
+
+    assert np.isnan(prf.values(moved)["a.R"])
+    assert np.isfinite(prf.values(moved)["b.R"])
+
+
 @pytest.mark.parametrize("space", ["declared", "physical"])
 def test_a_joint_prior_whose_support_leaves_validity_raises(space):
     """A correlated Gaussian over declared or physical values reaches outside positive

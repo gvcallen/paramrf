@@ -155,6 +155,83 @@ def test_update_out_of_bounds_raises_under_jit():
         set_value(load, 60.0)
 
 
+def test_update_nan_poisons_only_the_invalid_parameter_leaf():
+    model = RC(R=prf.Constrained(Positive(), 2.0), C=3.0)
+
+    moved = prf.update(model, {"R": -1.0, "C": 4.0}, on_invalid="nan")
+
+    assert np.isnan(moved.R.value)
+    assert moved.C.value == 4.0
+    with pytest.raises(Exception, match="outside the constraint"):
+        prf.update(model, {"R": -1.0})
+
+
+def test_update_nan_handles_open_edges_and_nonfinite_values():
+    positive = prf.Constrained(Positive(), 1.0)
+    bounded = prf.Bounded(0.0, 1.0, value=0.5)
+
+    assert np.isnan(prf.update(positive, value=0.0, on_invalid="nan").value)
+    assert prf.update(bounded, value=0.0, on_invalid="nan").value == 0.0
+    assert prf.update(bounded, value=1.0, on_invalid="nan").value == 1.0
+    assert np.isnan(prf.update(bounded, value=2.0, on_invalid="nan").value)
+    assert np.isnan(prf.update(prf.Unconstrained(1.0), value=jnp.inf, on_invalid="nan").value)
+    with pytest.raises(Exception, match="nonfinite"):
+        prf.update(prf.Unconstrained(1.0), value=jnp.inf)
+
+
+def test_update_nan_supports_selector_and_raw_value_updates():
+    model = RC(R=prf.Constrained(Positive(), 2.0), C=3.0)
+    selected = prf.update(model, "R", value=0.0, on_invalid="nan")
+    raw = prf.update(model.R, value=jnp.inf, space="raw", on_invalid="nan")
+
+    assert np.isnan(selected.R.value)
+    assert np.isnan(raw.value)
+
+
+def test_update_nan_preserves_array_leaf_shape_and_vmap_trials_are_independent():
+    p = prf.Constrained(Positive(), jnp.array([1.0, 2.0]))
+
+    def trial(value):
+        return prf.update(p, value=value, on_invalid="nan").value
+
+    values = jax.vmap(trial)(jnp.array([[3.0, 4.0], [-1.0, 5.0]]))
+    np.testing.assert_allclose(values[0], [3.0, 4.0])
+    assert np.isnan(values[1]).all()
+    assert values.shape == (2, 2)
+
+
+def test_update_nan_works_under_filter_jit():
+    import equinox as eqx
+
+    p = prf.Constrained(Positive(), 1.0)
+    update = eqx.filter_jit(lambda value: prf.update(p, value=value, on_invalid="nan").value)
+
+    assert update(2.0) == 2.0
+    assert np.isnan(update(-1.0))
+
+
+def test_update_nan_keeps_valid_results_and_gradients_unchanged():
+    p = prf.Constrained(Positive(), 1.0)
+    strict = prf.update(p, value=2.0)
+    tolerant = prf.update(p, value=2.0, on_invalid="nan")
+
+    assert tolerant.value == strict.value
+    assert jax.grad(lambda x: prf.update(p, value=x, on_invalid="nan").value**2)(2.0) == 4.0
+
+
+def test_update_nan_rejects_other_modes_and_preserves_dtype():
+    p = prf.Constrained(Positive(), 2.0)
+    valid = prf.update(p, value=3, on_invalid="nan")
+    invalid = prf.update(p, value=-1, on_invalid="nan")
+    assert valid.value.dtype == p.value.dtype
+    assert np.isnan(invalid.value)
+    assert_same_jit_key(p, valid)
+    with pytest.raises(TypeError, match="only to numerical value updates"):
+        prf.update(p, fixed=True, on_invalid="nan")
+    with pytest.raises(ValueError, match="must be 'raise' or 'nan'"):
+        prf.update(p, value=3, on_invalid="ignore")
+
+
 def test_param_constructor_out_of_bounds_raises_under_jit():
     import equinox as eqx
 
