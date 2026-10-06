@@ -11,7 +11,7 @@ from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.covariance_kernels import (
     AutoCrossKernel, Matern52Kernel, PeriodicKernel, RBFKernel, SharedIndependentKernel,
-    gram,
+    cross_gram, gram,
 )
 from pmrf.distributions import RelativeTruncatedNormal
 from pmrf.discrepancy_models import GaussianProcess
@@ -737,12 +737,22 @@ _NOISES = {
     'scalar': lambda: 1e-3,
     'per_batch': lambda: np.linspace(5e-4, 2e-3, 8).reshape(2, 2, 2),
     'per_frequency': lambda: np.linspace(5e-4, 2e-3, 7),
+    # Circular noise on S, seen in ln S: σ²/|S(f)|² differs per block and frequency.
+    'per_batch_frequency': lambda: 1e-3 / np.abs(np.asarray(_sloped_two_port().s(
+        Frequency(start=1.0, stop=10.0, npoints=7, unit='GHz')
+    ))).transpose(1, 2, 0)[:, :, None, :] ** 2,
 }
 
 _RANDOM_NOISES = {
-    'scalar': lambda: prf.Random(RelativeTruncatedNormal(1e-3, 0.1)),
-    'per_batch': lambda: prf.Random(RelativeTruncatedNormal(_NOISES['per_batch'](), 0.1)),
+    name: (lambda name=name: prf.Random(RelativeTruncatedNormal(_NOISES[name](), 0.1)))
+    for name in _NOISES
 }
+
+
+def _event_noise(noise):
+    """``noise`` with the event as its last axis, as `GaussianProcess` takes it."""
+    noise = np.asarray(noise)
+    return noise[..., None] if noise.shape == (2, 2, 2) else noise
 
 
 def _gp_mll(frequency, kernel, noise):
@@ -759,10 +769,10 @@ def gp_freq():
     return Frequency(start=1.0, stop=10.0, npoints=7, unit='GHz')
 
 
-@pytest.mark.parametrize('noise', ['scalar', 'per_batch'])
+@pytest.mark.parametrize('noise', list(_NOISES))
 @pytest.mark.parametrize('kernel', _KERNELS)
 def test_gp_log_likelihood_matches_distribution_path(gp_freq, kernel, noise):
-    """Noise constant over frequency takes the closed form, which matches the distributions."""
+    """Noise constant or varying along frequency takes the closed form, which matches the distributions."""
     mll = _gp_mll(gp_freq, _gp_kernel(kernel), _NOISES[noise]())
     model = _sloped_two_port()
     expected = _reference_log_prob(mll, model, gp_freq)
@@ -770,13 +780,6 @@ def test_gp_log_likelihood_matches_distribution_path(gp_freq, kernel, noise):
     assert jnp.allclose(mll(model, gp_freq), expected, rtol=1e-10, atol=0.0)
     compiled = eqx.filter_jit(lambda e, m: e(m, gp_freq))(mll, model)
     assert jnp.allclose(compiled, expected, rtol=1e-10, atol=0.0)
-
-
-def test_gp_log_likelihood_with_noise_varying_over_frequency(gp_freq):
-    """Noise that varies along frequency falls back to the distribution path."""
-    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES['per_frequency']())
-    model = _sloped_two_port()
-    assert mll(model, gp_freq) == _reference_log_prob(mll, model, gp_freq)
 
 
 @pytest.mark.parametrize('noise, kernel, matrices', [
@@ -788,6 +791,11 @@ def test_gp_log_likelihood_with_noise_varying_over_frequency(gp_freq):
     ('scalar', 'auto_cross', 4),
     # Noise varying across entries that share K needs one matrix per entry.
     ('per_batch', 'shared_auto_cross', 8),
+    # Noise varying along frequency is shared by the entries that share K: here the
+    # port blocks differ, but Re/Im share both K and the noise.
+    ('per_batch_frequency', 'shared_auto_cross', 4),
+    ('per_frequency', 'shared_auto_cross', 4),
+    ('per_frequency', 'unbatched', 1),
 ])
 def test_gp_log_likelihood_factorizes_smallest_broadcast_shape(gp_freq, noise, kernel, matrices):
     """Each distinct (kernel block, noise value) pair is factorized once."""
@@ -795,7 +803,7 @@ def test_gp_log_likelihood_factorizes_smallest_broadcast_shape(gp_freq, noise, k
     assert _cholesky_matrix_count(lambda m: mll(m, gp_freq), _sloped_two_port()) == matrices
 
 
-@pytest.mark.parametrize('noise', ['scalar', 'per_batch'])
+@pytest.mark.parametrize('noise', list(_NOISES))
 @pytest.mark.parametrize('kernel', _KERNELS)
 def test_gp_log_likelihood_gradients_match_distribution_path(gp_freq, kernel, noise):
     """Gradients wrt model, kernel hyperparameters and noise match under jit and grad."""
@@ -823,7 +831,7 @@ def test_gp_log_likelihood_gradients_match_distribution_path(gp_freq, kernel, no
     leaves, expected_leaves = jax.tree.leaves(grad), jax.tree.leaves(expected)
     assert len(leaves) == len(expected_leaves)
     for actual, reference_leaf in zip(leaves, expected_leaves):
-        # Measured at 2e-14 relative or better: summation-order roundoff between the two
+        # Measured at 4e-14 relative or better: summation-order roundoff between the two
         # backward passes. It grows with N (4e-9 at N = 1000 in #249).
         assert jnp.allclose(actual, reference_leaf, rtol=1e-10, atol=1e-14)
 
@@ -889,7 +897,9 @@ def _hand_prediction(gp, transform, observed, model, frequency, new_frequency, n
     """`GaussianProcess.predict` called by hand on the event-space residual."""
     y_pred = Feature('s')(model, frequency)
     residual = transform.forward(observed) - transform.forward(y_pred)
-    return gp.predict(residual, frequency.f_scaled, new_frequency.f_scaled, jnp.asarray(noise))
+    return gp.predict(
+        residual, frequency.f_scaled, new_frequency.f_scaled, jnp.asarray(_event_noise(noise)),
+    )
 
 
 def _assert_same_prediction(actual, expected):
@@ -1020,10 +1030,50 @@ def test_discrepancy_prediction_rejects_non_gaussian_likelihood(gp_freq, new_fre
         mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)
 
 
-def test_discrepancy_prediction_rejects_noise_varying_over_frequency(gp_freq, new_freq):
-    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES['per_frequency']())
-    with pytest.raises(ValueError, match="constant along frequency"):
-        mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)
+@pytest.mark.parametrize('noise', ['per_frequency', 'per_batch_frequency'])
+def test_discrepancy_prediction_with_noise_varying_along_frequency(gp_freq, new_freq, noise):
+    """Noise varying along frequency gives dense Gaussian conditioning with Σ_n = diag(σ²(f))."""
+    mll = _gp_mll(gp_freq, _gp_kernel('shared_auto_cross'), _NOISES[noise]())
+    model = _sloped_two_port()
+    prediction = mll.predict_discrepancy(model, gp_freq, new_freq)
+
+    transform = mll.event_transform
+    residual = np.asarray(
+        transform.forward(mll.observed) - transform.forward(Feature('s')(model, gp_freq))
+    )
+    batch, n_a = residual.shape[:-1], residual.shape[-1]
+    noise_diag = np.broadcast_to(_NOISES[noise](), residual.shape)
+    x_a, x_b = gp_freq.f_scaled, new_freq.f_scaled
+    kernel, jitter = mll.discrepancy.kernel, mll.discrepancy.jitter
+    K_AA = np.broadcast_to(gram(kernel, x_a, jitter=jitter), batch + (n_a, n_a))
+    K_BB = np.broadcast_to(gram(kernel, x_b, jitter=jitter), batch + (len(x_b),) * 2)
+    K_BA = np.broadcast_to(cross_gram(kernel, x_b, x_a), batch + (len(x_b), n_a))
+    for index in np.ndindex(batch):
+        M = K_AA[index] + np.diag(noise_diag[index])
+        mean = K_BA[index] @ np.linalg.solve(M, residual[index])
+        covariance = K_BB[index] - K_BA[index] @ np.linalg.solve(M, K_BA[index].T)
+        # Measured at 1.1e-15 (mean) and 9e-16 (covariance) relative to their largest
+        # entry or better.
+        scale = np.abs(mean).max()
+        np.testing.assert_allclose(prediction.mean()[index], mean, rtol=0.0, atol=1e-12 * scale)
+        scale = np.abs(covariance).max()
+        np.testing.assert_allclose(
+            prediction.covariance()[index], covariance, rtol=0.0, atol=1e-12 * scale,
+        )
+
+
+def test_orthogonal_discrepancy_rejects_noise_varying_along_frequency(gp_freq):
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_observed_two_port(gp_freq),
+        likelihood=GaussianLikelihood(noise=_NOISES['per_frequency']()),
+        discrepancy=GaussianProcess(kernel=_gp_kernel('shared_auto_cross'), jitter=1e-8),
+        use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-10,
+        orthogonal_recompute=True,
+    )
+    with pytest.raises(ValueError, match="constant along the event axis"):
+        mll(_sloped_two_port(), gp_freq)
 
 
 def test_discrepancy_prediction_rejects_orthogonal_discrepancy(gp_freq, new_freq):

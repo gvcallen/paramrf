@@ -67,66 +67,60 @@ class GaussianLikelihood(AbstractLikelihood):
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray]
 
     def variance(self, y_event: jnp.ndarray) -> jnp.ndarray:
-        """Return noise variance broadcastable over the non-event batch shape.
+        """Return the noise variance over the batch shape, requiring it to be constant along the event axis.
 
-        Orthogonal GP discrepancy requires variance that is constant along the event
-        axis so that the tangent covariance block is ``sigma^2 I``.
+        Orthogonal GP discrepancy requires this, so that the tangent covariance block
+        is ``sigma^2 I``. The variance is interpreted as in :meth:`__call__`.
+
+        Returns
+        -------
+        jnp.ndarray
+            The variance, broadcastable to the non-event batch shape of ``y_event``.
+
+        Raises
+        ------
+        ValueError
+            If the variance varies along the event axis.
         """
-        var = self.noise(y_event) if callable(self.noise) else self.noise
-        var = jnp.asarray(var)
-        batch_shape = y_event.shape[:-1]
-        if var.shape == y_event.shape:
+        var = self._event_variance(y_event)
+        if var.ndim == 0:
+            return var
+        if var.shape[-1] != 1:
             raise ValueError(
                 "Orthogonal GP discrepancy requires Gaussian noise variance to be "
                 "constant along the event axis."
             )
-        try:
-            broadcast_shape = jnp.broadcast_shapes(var.shape, batch_shape)
-        except ValueError as error:
-            raise ValueError(
-                "Gaussian noise variance is not broadcastable to the event batch shape."
-            ) from error
-        if broadcast_shape != batch_shape:
-            raise ValueError(
-                "Gaussian noise variance must not add dimensions to the event batch shape."
-            )
-        return var
-
-    def _constant_variance(self, y_event: jnp.ndarray) -> jnp.ndarray | None:
-        """Return the noise variance over the batch shape if it is constant along the event axis.
-
-        The variance is interpreted exactly as in :meth:`__call__`, and kept at its own
-        shape, which broadcasts to the non-event batch shape of ``y_event``.
-
-        Returns
-        -------
-        jnp.ndarray | None
-            The variance, or ``None`` if it varies along the event axis or does not
-            broadcast to ``y_event``.
-        """
-        var = self._event_variance(y_event)
-        try:
-            broadcast_shape = jnp.broadcast_shapes(var.shape, y_event.shape)
-        except ValueError:
-            return None
-        if broadcast_shape != y_event.shape:
-            return None
-        if var.ndim == 0:
-            return var
-        if var.shape[-1] != 1:
-            return None
         return var[..., 0]
 
     def _event_variance(self, y_event: jnp.ndarray) -> jnp.ndarray:
         """The noise variance with the event as its last axis, broadcastable to ``y_event``.
 
         A variance of exactly the batch shape is per batch entry; any other shape
-        aligns its trailing axis with the event axis.
+        aligns its trailing axis with the event axis. A scalar, or a trailing axis of
+        size one, is constant along the event axis.
+
+        Raises
+        ------
+        ValueError
+            If the variance does not broadcast to the shape of ``y_event``, or adds
+            dimensions to it.
         """
         var = self.noise(y_event) if callable(self.noise) else self.noise
         var = jnp.asarray(var)
         if var.shape == y_event.shape[:-1]:
             var = var[..., None]
+        try:
+            broadcast_shape = jnp.broadcast_shapes(var.shape, y_event.shape)
+        except ValueError as error:
+            raise ValueError(
+                f"Gaussian noise variance of shape {var.shape} is not broadcastable "
+                f"to the event shape {y_event.shape}."
+            ) from error
+        if broadcast_shape != y_event.shape:
+            raise ValueError(
+                f"Gaussian noise variance of shape {var.shape} must not add dimensions "
+                f"to the event shape {y_event.shape}."
+            )
         return var
 
     def __call__(self, y_event: jnp.ndarray | AbstractDistribution) -> AbstractDistribution:

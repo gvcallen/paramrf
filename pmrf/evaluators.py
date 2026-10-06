@@ -256,10 +256,10 @@ class MarginalLogLikelihood(AbstractEvaluator):
         Can be a function or a PyTree with optional parameters.
         See :class:`pmrf.discrepancy_models` for common discrepancy models.
         A :class:`~pmrf.discrepancy_models.GaussianProcess` with a
-        :class:`~pmrf.likelihoods.GaussianLikelihood` whose noise is constant along
-        the event axis is evaluated in closed form
+        :class:`~pmrf.likelihoods.GaussianLikelihood` is evaluated in closed form
         (:meth:`~pmrf.discrepancy_models.GaussianProcess.log_prob`), which factorizes
-        each distinct covariance matrix once.
+        each distinct covariance matrix once. The noise may be constant or vary along
+        the event axis.
     use_orthogonal_discrepancy
         Constrain a Gaussian-process discrepancy to the complement of the free-parameter
         tangent space. This retains the full-data likelihood; it is not REML.
@@ -428,7 +428,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     def _closed_form_log_prob(
         self, model: PyTree, frequency: Frequency, **kwargs
     ) -> tuple[jnp.ndarray, bij.AbstractBijector] | None:
-        """The log-likelihood of a GP with Gaussian noise constant over the event axis.
+        """The log-likelihood of a GP with Gaussian noise.
 
         Returns ``None`` when it does not apply, in which case the distribution path
         gives the same value.
@@ -438,9 +438,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         ):
             return None
         pred_event, event_transform = self._event(model, frequency, **kwargs)
-        variance = self.likelihood._constant_variance(pred_event)
-        if variance is None:
-            return None
+        variance = self.likelihood._event_variance(pred_event)
         log_prob = self.discrepancy.log_prob(
             pred_event,
             event_transform.forward(self.observed),
@@ -534,7 +532,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         formed in event space, with the resolved event transform applied to both the
         prediction and the observation, as in :meth:`__call__`. The noise variance is
         read from the :class:`~pmrf.likelihoods.GaussianLikelihood` as in the
-        closed-form log-likelihood. Both are passed to
+        closed-form log-likelihood, and may vary along frequency. Both are passed to
         :meth:`~pmrf.discrepancy_models.GaussianProcess.predict`.
 
         Kernel length scales are in the fit frequency's unit, so ``new_frequency`` is
@@ -565,7 +563,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
             :class:`~pmrf.discrepancy_models.GaussianProcess`, or the likelihood is not
             a :class:`~pmrf.likelihoods.GaussianLikelihood`.
         ValueError
-            If orthogonal discrepancy is enabled, or the noise varies along frequency.
+            If orthogonal discrepancy is enabled.
         """
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError(
@@ -580,12 +578,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         if self.use_orthogonal_discrepancy:
             raise ValueError("Discrepancy prediction does not support orthogonal discrepancy.")
         pred_event, event_transform = self._event(model, frequency, **kwargs)
-        variance = self.likelihood._constant_variance(pred_event)
-        if variance is None:
-            raise ValueError(
-                "Discrepancy prediction requires Gaussian noise variance that is "
-                "constant along frequency."
-            )
+        variance = self.likelihood._event_variance(pred_event)
         residual = event_transform.forward(self.observed) - pred_event
         x_new = new_frequency.f / frequency.multiplier
         return self.discrepancy.predict(residual, frequency.f_scaled, x_new, variance)
