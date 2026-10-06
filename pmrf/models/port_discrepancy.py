@@ -26,6 +26,15 @@ class AbstractPortDiscrepancy(Module):
         raise NotImplementedError
 
 
+def _values_on_grid(values: Array, stored: Frequency, requested: Frequency, message: str) -> Array:
+    """Check a frozen grid inside the trace and retain the requested dummy shape."""
+    same_shape = requested.f.shape == stored.f.shape
+    mismatch = jnp.any(requested.f != stored.f) if same_shape else True
+    mismatch = jnp.logical_or(mismatch, jnp.any(jnp.zeros_like(values, dtype=bool)))
+    checked = eqx.error_if(values, mismatch, message)
+    return checked[..., jnp.arange(requested.npoints)]
+
+
 def _block_indices(block: str) -> tuple[str, int, int]:
     if not isinstance(block, str) or re.fullmatch(r'(?:[1-9][1-9]|[sa][1-9][1-9])', block) is None:
         raise ValueError(f"Invalid port discrepancy block {block!r}; use 'ii', 'sij', or 'aij'.")
@@ -95,17 +104,14 @@ class GridPortDiscrepancy(AbstractPortDiscrepancy):
 
     @unwrap_self
     def __call__(self, frequency: Frequency) -> Array:
-        same_shape = frequency.f.shape == self.frequency.f.shape
-        mismatch = jnp.any(frequency.f != self.frequency.f) if same_shape else True
-        # Circuit discovers stamp shapes with eval_shape on a dummy grid. Keep
-        # the assertion in the traced computation so only evaluation rejects it.
-        mismatch = jnp.logical_or(mismatch, jnp.any(jnp.zeros_like(self.values, dtype=bool)))
-        values = eqx.error_if(self.values, mismatch, 'Port discrepancy requires its own frequency grid; make a joint prediction on the new grid.')
+        values = _values_on_grid(
+            self.values, self.frequency, frequency,
+            'Port discrepancy requires its own frequency grid; make a joint prediction on the new grid.',
+        )
         delta = jnp.zeros((frequency.npoints, self.number_of_ports, self.number_of_ports), dtype=jnp.result_type(values, 1j))
         for k, block in enumerate(self.blocks):
             kind, i, j = _block_indices(block)
-            indices = jnp.arange(frequency.npoints)
-            value = values[k, 0, indices] + 1j * values[k, 1, indices]
+            value = values[k, 0] + 1j * values[k, 1]
             delta = delta.at[:, i, j].add(value)
             if kind != 'reflection':
                 delta = delta.at[:, j, i].add(value if kind == 's' else -value)
