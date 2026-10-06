@@ -1,6 +1,7 @@
 # ADR-0005: Priors are attached by name, and a joint prior keeps its parameters
 
-Status: accepted (2026-09)
+Status: accepted (2026-09); amended (2026-10) to allow array-valued parameters
+under a joint prior, and to compute a constant whitening log-determinant once.
 
 ## Context
 
@@ -43,8 +44,8 @@ The distribution's event size decides which:
   `prf.Random`. Its raw space becomes the new prior's whitening, as for
   `prf.Random`, and the prior is truncated to the parameter's existing bounds so
   the bounds still hold.
-- **Event size equal to the number of selected parameters**: a **joint prior**
-  over them.
+- **Event size equal to the total size of the selected parameters**: a **joint
+  prior** over them. For scalar parameters the total size is their number.
 - Anything else raises.
 
 ### A joint prior keeps its parameters
@@ -62,6 +63,22 @@ transparent to the name resolver, as `Tied` is. So:
 - The joint prior **replaces** its parameters' own priors. Multiplying them in
   would count the earlier fit's priors twice, since its posterior already
   includes them.
+
+### Array-valued parameters
+
+A parameter under a joint prior may be an array, such as a port discrepancy's
+values on a frequency grid. The distribution's vector is the selected parameters'
+values, each flattened in C order, concatenated in name order. A parameter's own
+shape is its declared shape: leading batch axes of a batched model stay batch
+axes. Its raw value under the joint prior is its slice of the whitened vector,
+reshaped to its shape, so it keeps one name however many values it holds.
+Bounds are checked element by element, and fixing or tying the parameter raises,
+as for a scalar.
+
+The driving case is a port discrepancy (`CONTEXT.md`), whose values number
+about $6 N_f$ for a reciprocal two-port, a few thousand. One parameter per value
+would give it thousands of names and makes attaching and compiling the prior
+slow (7 s and 52 s at 6000 scalars).
 
 ### Space
 
@@ -130,6 +147,14 @@ CDF.
 - `prf.resolve` keeps a joint prior, since it is not a tie and does not change
   what the parameters are. `prf.unwrap` drops it, as it drops every prior.
 
+### A constant whitening log-determinant
+
+Scoring in raw space adds the log-determinant of the whitening. When the
+whitening's Jacobian is constant, as for a multivariate normal, that term is a
+constant: it is computed once, when the prior is attached, and held by the joint
+prior. Recomputing it as a dense Jacobian and its determinant on every call cost
+15.7 s per evaluation at 6000 values.
+
 ## Rejected options
 
 - **Polishing the collapsing `Probabilistic`** (keeping the names of the
@@ -147,6 +172,10 @@ CDF.
   the whitening from the old priors. The term is also on the avoid list.
 - **`Transformed.icdf` in distreqx.** It would not be an inverse CDF, and it would
   put ParamRF's sampler logic in another repository.
+
+- **A separate Gaussian-prior node for large arrays** (for a port discrepancy).
+  It would be a second way to attach a joint prior, which this ADR removed, and a
+  flow or Gaussian posterior over any array parameter needs the same thing.
 
 ## Consequences
 
