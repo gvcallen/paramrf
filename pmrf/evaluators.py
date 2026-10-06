@@ -23,7 +23,7 @@ from pmrf.covariance_kernels import gram
 from pmrf.discrepancy_models import GaussianProcess, _add_noise
 from pmrf.linearization import Linearization, _linearize
 from pmrf.modules.base import Module
-from pmrf.parameters import values as _values, update
+from pmrf.parameters import Space, values as _values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
 
 
@@ -590,7 +590,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         self,
         model: PyTree,
         frequency: Frequency,
-        space: Literal['declared', 'physical', 'raw'] = 'declared',
+        space: Space = 'declared',
         **kwargs,
     ) -> Linearization:
         r"""Linearise the fit at ``model``.

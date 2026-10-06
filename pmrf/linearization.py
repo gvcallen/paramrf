@@ -54,7 +54,7 @@ class Linearization(eqx.Module):
     shapes: tuple[tuple[int, ...], ...] = field(static=True)
 
     #: The space the parameter values, and so :attr:`J` and :attr:`F`, are in.
-    space: str = field(static=True)
+    space: Space = field(static=True)
 
     def unflatten(self, vector: Array) -> dict[str, Array]:
         """Map a flat vector over the parameters, such as a row of :attr:`F`, back to names."""
@@ -94,7 +94,7 @@ def _linearize(
     residual_fn: Callable[[PyTree], Array],
     model: PyTree,
     chol: Array,
-    space: Space = 'declared',
+    space: Space,
 ) -> Linearization:
     """Linearise a residual function of a model, given the factor of its covariance.
 
@@ -111,7 +111,7 @@ def _linearize(
     chol : jax.Array
         The lower Cholesky factor of $\\Sigma_D$, with shape ``(*chol_batch, N, N)``
         broadcasting to ``batch``.
-    space : {'declared', 'physical', 'raw'}, default='declared'
+    space : {'declared', 'physical', 'raw'}
         The space of the parameter values differentiated with respect to.
 
     Returns
@@ -186,10 +186,10 @@ def posterior_covariance(
                 f"{linearization.names} rather than {names}."
             )
     fisher = sum(linearization.F for linearization in linearizations)
-    precision = -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
-    precision = fisher + precision
-    precision = 0.5 * (precision + precision.T)
-    return jnp.linalg.solve(precision, jnp.eye(precision.shape[-1], dtype=precision.dtype))
+    prior_precision = -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
+    precision = fisher + prior_precision
+    chol = jnp.linalg.cholesky(0.5 * (precision + precision.T))
+    return jsp.linalg.cho_solve((chol, True), jnp.eye(precision.shape[-1], dtype=precision.dtype))
 
 
 __all__ = [

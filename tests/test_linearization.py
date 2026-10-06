@@ -100,6 +100,21 @@ def _mp_posterior(jacobians, sigma_ds, prior_precision):
         return np.array([[float(result[i, j]) for j in range(result.cols)] for i in range(result.rows)])
 
 
+def _mp_map(jacobians, sigma_ds, observed):
+    """(Σ_b J_bᵀ Σ_D,b⁻¹ J_b + Σ₀⁻¹)⁻¹ (Σ_b J_bᵀ Σ_D,b⁻¹ h̃_b + Σ₀⁻¹ μ₀) at 50 digits."""
+    with mpmath.workdps(50):
+        prior_precision = mpmath.inverse(mpmath.matrix(SIGMA0.tolist()))
+        total = prior_precision
+        rhs = prior_precision * mpmath.matrix(MU0.tolist())
+        for J, M, h in zip(jacobians, sigma_ds, observed):
+            J = mpmath.matrix(J.tolist())
+            JtMinv = J.T * mpmath.inverse(mpmath.matrix(M.tolist()))
+            total += JtMinv * J
+            rhs += JtMinv * mpmath.matrix(h.tolist())
+        result = mpmath.lu_solve(total, rhs)
+        return np.array([float(result[i]) for i in range(result.rows)])
+
+
 def _assert_close(actual, expected, tolerance):
     scale = np.abs(expected).max()
     np.testing.assert_allclose(np.asarray(actual), expected, rtol=0.0, atol=tolerance * scale)
@@ -160,8 +175,14 @@ def test_marginal_map_equals_explicit_discrepancy_map():
     )
     explicit = _map_by_newton(_mll(A, observed, discrepancy=False), explicit_model)
     assert tuple(prf.values(explicit_model, free_only=True)) == ('theta', 'delta')
-    # Measured at 1.4e-14 relative to the largest entry.
+    # Measured at 1.5e-14 relative to the largest entry.
     _assert_close(explicit[:P], np.asarray(marginal), 1e-8)
+
+    # Both against the closed-form MAP, independently of the code under test.
+    expected = _mp_map(A, _sigma_d(), np.asarray(observed).T)
+    # Measured at 6e-16 (marginal) and 1.6e-14 (explicit) relative to the largest entry.
+    _assert_close(marginal, expected, 1e-8)
+    _assert_close(explicit[:P], expected, 1e-8)
 
 
 def test_jacobian_through_conditional_event_transform_matches_finite_differences():
