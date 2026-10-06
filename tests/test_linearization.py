@@ -1,4 +1,5 @@
 """The linearisation of a marginal likelihood and its posterior covariance (#262)."""
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import mpmath
@@ -9,7 +10,7 @@ import parax.distributions as dd
 import pytest
 
 import pmrf as prf
-from pmrf.covariance_kernels import Matern52Kernel, gram
+from pmrf.covariance_kernels import Matern52Kernel, cross_gram, gram
 from pmrf.discrepancy_models import GaussianProcess
 from pmrf.evaluators import MarginalLogLikelihood
 from pmrf.likelihoods import GaussianLikelihood
@@ -72,12 +73,12 @@ def _observed(matrix, seed):
     return (np.einsum('bnp,p->bn', matrix, theta) + smooth + 1e-3 * rng.normal(size=(2, N))).T
 
 
-def _mll(matrix, observed, noise=NOISE, discrepancy=True, **kwargs):
+def _mll(matrix, observed, noise=NOISE, discrepancy=True, jitter=JITTER, **kwargs):
     return MarginalLogLikelihood(
         predictor=_linear_predictor(matrix),
         observed=observed,
         likelihood=GaussianLikelihood(noise=noise),
-        discrepancy=GaussianProcess(_kernel(), jitter=JITTER) if discrepancy else None,
+        discrepancy=GaussianProcess(_kernel(), jitter=jitter) if discrepancy else None,
         **kwargs,
     )
 
@@ -279,3 +280,138 @@ def test_posterior_covariance_rejects_another_space():
     lin = _mll(A, _observed(A, 0)).linearize(model, FREQ)
     with pytest.raises(ValueError, match="space"):
         posterior_covariance([lin], model, space='raw')
+
+
+def _mp_condition(mean, covariance, observed, size):
+    """Condition a stacked Gaussian's first `size` entries on all remaining entries."""
+    with mpmath.workdps(50):
+        mu = mpmath.matrix(np.asarray(mean).tolist())
+        sigma = mpmath.matrix(np.asarray(covariance).tolist())
+        cross = sigma[:size, size:]
+        solve = cross * mpmath.inverse(sigma[size:, size:])
+        conditional_mean = mu[:size, :] + solve * (mpmath.matrix(np.asarray(observed).tolist()) - mu[size:, :])
+        conditional_covariance = sigma[:size, :size] - solve * cross.T
+        return (
+            np.array(conditional_mean, dtype=float).reshape(-1),
+            np.array(conditional_covariance.tolist(), dtype=float),
+        )
+
+
+def _joint_reference(new_frequency, observed):
+    """The generative covariance of [θ; δ(x_*); h], independently of linearisation."""
+    K = np.kron(np.eye(2), np.asarray(gram(_kernel(), FREQ.f_scaled, jitter=JITTER)))
+    K_star = np.kron(np.eye(2), np.asarray(gram(_kernel(), new_frequency.f / FREQ.multiplier, jitter=JITTER)))
+    K_cross = np.kron(np.eye(2), np.asarray(cross_gram(_kernel(), new_frequency.f / FREQ.multiplier, FREQ.f_scaled)))
+    H = A.reshape(2 * N, P)
+    size = P + K_star.shape[0]
+    covariance = np.block([
+        [SIGMA0, np.zeros((P, K_star.shape[0])), SIGMA0 @ H.T],
+        [np.zeros((K_star.shape[0], P)), K_star, K_cross],
+        [H @ SIGMA0, K_cross.T, H @ SIGMA0 @ H.T + K + NOISE * np.eye(2 * N)],
+    ])
+    mean = np.concatenate([MU0, np.zeros(K_star.shape[0]), H @ MU0])
+    return _mp_condition(mean, covariance, np.asarray(observed).T.reshape(-1), size)
+
+
+@pytest.mark.parametrize('new_frequency', [FREQ, prf.Frequency(900, 5300, 7, 'MHz')], ids=['fit_grid', 'new_grid_unit'])
+def test_joint_prediction_equals_dense_gaussian_conditioning(new_frequency):
+    observed = _observed(A, 0)
+    theta_map = _mp_map(A, _sigma_d(), np.asarray(observed).T)
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(theta_map))))
+    mll = _mll(A, observed)
+    names, joint = mll.predict_joint(model, FREQ, new_frequency)
+    assert names == ('theta',)
+    expected_mean, expected_covariance = _joint_reference(new_frequency, observed)
+    _assert_close(joint.mean(), expected_mean, 1e-10)
+    _assert_close(joint.covariance(), expected_covariance, 1e-10)
+
+
+@pytest.mark.parametrize('noise', [NOISE, np.linspace(5e-7, 2e-6, 2 * N).reshape(2, N)], ids=['shared', 'per_block'])
+def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(MU0))))
+    mll = _mll(A, _observed(A, 0), noise=noise)
+    new_frequency = prf.Frequency(0.9, 5.3, 7, 'GHz')
+    lin = mll.linearize(model, FREQ)
+    # A second independent fit informs θ, while δ remains conditioned on this fit.
+    covariance = posterior_covariance([lin, _mll(B, _observed(B, 1)).linearize(model, FREQ)], model)
+    _, joint = mll.predict_joint(model, FREQ, new_frequency, covariance=covariance)
+    np.testing.assert_array_equal(joint.covariance()[:P, :P], covariance)
+    discrepancy = mll.predict_discrepancy(model, FREQ, new_frequency)
+    cross = np.asarray(joint.covariance()[P:, :P])
+    parameter_term = cross @ np.linalg.solve(np.asarray(covariance), cross.T)
+    remaining = np.asarray(joint.covariance()[P:, P:]) - parameter_term
+    for block in range(2):
+        sl = slice(block * 7, (block + 1) * 7)
+        _assert_close(remaining[sl, sl], np.asarray(discrepancy.covariance())[block], 1e-12)
+    _assert_close(joint.mean()[P:], np.asarray(discrepancy.mean()).reshape(-1), 1e-12)
+    np.testing.assert_allclose(remaining[:7, 7:], 0.0, atol=1e-15)
+
+
+def test_joint_prediction_as_transfer_prior_matches_joint_fit():
+    observed_a = _observed(A, 0)
+    # No nugget: A and B observe the same δ on the same grid. Prediction jitter
+    # otherwise represents distinct independent nuggets at the two evaluations.
+    mll_a = _mll(A, observed_a, jitter=0.0)
+    model_a = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    theta_map = _map_by_newton(mll_a, model_a)
+    model_a = prf.update(model_a, {'theta': theta_map})
+    names, joint = mll_a.predict_joint(model_a, FREQ, FREQ)
+    transfer = _Linear(
+        theta=prf.Unconstrained(jnp.zeros(P)),
+        delta=prf.Unconstrained(jnp.zeros((2, N))),
+    )
+    transfer = prf.prior(transfer, [*names, 'delta'], joint)
+    # The identity hand-off uses the joint mean's values in the original shapes.
+    transfer = prf.update(transfer, {'theta': joint.mean()[:P], 'delta': joint.mean()[P:].reshape(2, N)})
+    np.testing.assert_array_equal(prf.values(transfer)['delta'].reshape(-1), joint.mean()[P:])
+
+    fixed_map = np.eye(2 * N) + 0.1 * np.random.default_rng(263).normal(size=(2 * N, 2 * N))
+    observed_b = fixed_map @ np.asarray(observed_a).T.reshape(-1) + np.linspace(-0.01, 0.01, 2 * N)
+    noise_b = 3e-6
+
+    def transfer_predictor(model, frequency):
+        corrected = _linear_predictor(A)(model, frequency).T.reshape(-1)
+        return (fixed_map @ corrected).reshape(2, N).T
+
+    mll_b = MarginalLogLikelihood(
+        predictor=transfer_predictor,
+        observed=observed_b.reshape(2, N).T,
+        likelihood=GaussianLikelihood(noise=noise_b),
+    )
+    transfer_map = _map_by_newton(mll_b, transfer)
+    transfer_covariance = posterior_covariance([mll_b.linearize(transfer, FREQ)], transfer)
+
+    # Condition the original generative prior on A ∪ B in one dense solve.
+    K = np.kron(np.eye(2), np.asarray(gram(_kernel(), FREQ.f_scaled)))
+    prior = np.block([[SIGMA0, np.zeros((P, 2 * N))], [np.zeros((2 * N, P)), K]])
+    prior_mean = np.concatenate([MU0, np.zeros(2 * N)])
+    direct = np.concatenate([A.reshape(2 * N, P), np.eye(2 * N)], axis=1)
+    observation_map = np.concatenate([direct, fixed_map @ direct])
+    noise = np.diag(np.concatenate([np.full(2 * N, NOISE), np.full(2 * N, noise_b)]))
+    covariance = np.block([
+        [prior, prior @ observation_map.T],
+        [observation_map @ prior, observation_map @ prior @ observation_map.T + noise],
+    ])
+    mean = np.concatenate([prior_mean, observation_map @ prior_mean])
+    expected_mean, expected_covariance = _mp_condition(
+        mean, covariance, np.concatenate([np.asarray(observed_a).T.reshape(-1), observed_b]), P + 2 * N,
+    )
+    _assert_close(transfer_map, expected_mean, 1e-8)
+    _assert_close(transfer_covariance, expected_covariance, 1e-8)
+
+
+@pytest.mark.parametrize('unsupported', ['no_gp', 'non_gaussian', 'orthogonal'])
+def test_joint_prediction_rejects_unsupported_combinations(unsupported):
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    kwargs = {}
+    if unsupported == 'no_gp':
+        kwargs['discrepancy'] = False
+    elif unsupported == 'orthogonal':
+        kwargs['use_orthogonal_discrepancy'] = True
+        kwargs['orthogonal_rcond'] = 1e-10
+    mll = _mll(A, _observed(A, 0), **kwargs)
+    if unsupported == 'non_gaussian':
+        mll = eqx.tree_at(lambda evaluator: evaluator.likelihood, mll, lambda event: dd.Normal(event, 1.0))
+    exception, match = (ValueError, 'orthogonal') if unsupported == 'orthogonal' else (TypeError, 'Gaussian')
+    with pytest.raises(exception, match=match):
+        mll.predict_joint(model, FREQ, FREQ)

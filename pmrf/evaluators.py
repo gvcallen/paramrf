@@ -11,6 +11,7 @@ import equinox as eqx
 import parax as prx
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 from jaxtyping import PyTree
 import parax.distributions as dist
 import parax.bijectors as bij
@@ -19,9 +20,9 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.frequency import Frequency
 from pmrf.losses import HingeLoss, RMSELoss
 from pmrf.likelihoods import GaussianLikelihood
-from pmrf.covariance_kernels import gram
+from pmrf.covariance_kernels import cross_gram, gram
 from pmrf.discrepancy_models import GaussianProcess, _add_noise
-from pmrf.linearization import Linearization, _linearize
+from pmrf.linearization import Linearization, _linearize, posterior_covariance
 from pmrf.modules.base import Module
 from pmrf.parameters import Space, values as _values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
@@ -584,6 +585,105 @@ class MarginalLogLikelihood(AbstractEvaluator):
         residual = event_transform.forward(self.observed) - pred_event
         x_new = new_frequency.f / frequency.multiplier
         return self.discrepancy.predict(residual, frequency.f_scaled, x_new, variance)
+
+    @unwrap_self
+    def predict_joint(
+        self,
+        model: PyTree,
+        frequency: Frequency,
+        new_frequency: Frequency,
+        covariance: jnp.ndarray | None = None,
+        **kwargs,
+    ) -> tuple[tuple[str, ...], dist.AbstractDistribution]:
+        r"""Predict the free parameters and discrepancy together as a joint prior.
+
+        **Mathematical Formulation**
+
+        At the fitted model, let $A = K_{*h}\Sigma_D^{-1}$ and let
+        $\Sigma_\text{post}$ be the linearised parameter covariance. Then
+
+        $$\hat\delta = A r, \qquad
+        \Sigma_\delta = K_{**} - A K_{*h}^\top
+            + A J\Sigma_\text{post}J^\top A^\top$$
+
+        $$\Sigma_{\delta\theta} = -A J\Sigma_\text{post}$$
+
+        The parameter term couples event blocks, giving one dense Gaussian over
+        $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
+        :meth:`linearize`. New frequencies are converted to the fit's unit.
+
+        Parameters
+        ----------
+        model : PyTree
+            The fitted model at its MAP, still carrying its parameters and prior.
+        frequency : Frequency
+            The fit frequencies, matching :attr:`observed`.
+        new_frequency : Frequency
+            The frequencies to predict the discrepancy at, in any unit.
+        covariance : jnp.ndarray or None, default=None
+            Parameter covariance in declared space and the linearisation's name
+            order. If omitted, computed from this fit and the model's prior with
+            :func:`pmrf.linearization.posterior_covariance`. Supply a covariance
+            from combined linearisations when several fits inform the parameters.
+        **kwargs
+            Passed to the predictor.
+
+        Returns
+        -------
+        names : tuple of str
+            The model's free parameter names in linearisation order.
+        distribution : dist.AbstractDistribution
+            One multivariate normal over the declared parameter values, flattened
+            per name, followed by discrepancy values of shape ``(*batch, N_*)``
+            flattened in C order. Attach it with
+            ``prf.prior(transfer, [*names, 'cable.discrepancy.values'], distribution)``.
+
+        Raises
+        ------
+        TypeError
+            If the discrepancy is not a Gaussian process or the likelihood is not
+            Gaussian.
+        ValueError
+            If orthogonal discrepancy is enabled or ``covariance`` has the wrong
+            shape for the free parameters.
+        """
+        if not isinstance(self.discrepancy, GaussianProcess):
+            raise TypeError("Joint prediction requires a `GaussianProcess` discrepancy.")
+        linearization = self.linearize(model, frequency, **kwargs)
+        p = linearization.J.shape[-1]
+        if covariance is None:
+            covariance = posterior_covariance([linearization], model)
+        covariance = jnp.asarray(covariance)
+        if covariance.shape != (p, p):
+            raise ValueError(f"Parameter covariance must have shape {(p, p)}.")
+
+        batch_shape = linearization.residual.shape[:-1]
+        n = linearization.residual.shape[-1]
+        x_new = new_frequency.f / frequency.multiplier
+        K_cross = cross_gram(self.discrepancy.kernel, x_new, frequency.f_scaled)
+        n_new = K_cross.shape[-2]
+        L = jnp.broadcast_to(linearization.chol, batch_shape + (n, n))
+        K_cross = jnp.broadcast_to(K_cross, batch_shape + (n_new, n))
+        V = jsp.linalg.solve_triangular(L, jnp.swapaxes(K_cross, -1, -2), lower=True)
+        A = jnp.swapaxes(
+            jsp.linalg.solve_triangular(jnp.swapaxes(L, -1, -2), V, lower=False), -1, -2
+        )
+        mean_delta = (A @ linearization.residual[..., None]).reshape(-1)
+        conditional = gram(self.discrepancy.kernel, x_new, jitter=self.discrepancy.jitter)
+        conditional = conditional - jnp.swapaxes(V, -1, -2) @ V
+        conditional = conditional.reshape((-1, n_new, n_new))
+        blocks = conditional.shape[0]
+        conditional = jnp.einsum('bij,bc->bicj', conditional, jnp.eye(blocks)).reshape(
+            (blocks * n_new, blocks * n_new)
+        )
+        AJ = (A @ linearization.J).reshape((-1, p))
+        cross = -AJ @ covariance
+        sigma_delta = conditional + AJ @ covariance @ AJ.T
+        joint_covariance = jnp.block([[covariance, cross.T], [cross, sigma_delta]])
+        named_values = _values(model, free_only=True, space='declared')
+        theta = jnp.concatenate([jnp.ravel(named_values[name]) for name in linearization.names])
+        mean = jnp.concatenate([theta, mean_delta])
+        return linearization.names, dist.MultivariateNormalFullCovariance(mean, joint_covariance)
 
     @unwrap_self
     def linearize(
