@@ -14,7 +14,7 @@ import jax.scipy as jsp
 import jax.numpy as jnp
 import parax.distributions as dist
 
-from pmrf.covariance_kernels import gram
+from pmrf.covariance_kernels import cross_gram, gram
 from pmrf.utils import field
 from pmrf.modules.base import Module
 
@@ -90,6 +90,48 @@ def _gaussian_log_prob_bwd(residuals, g):
 _gaussian_log_prob.defvjp(_gaussian_log_prob_fwd, _gaussian_log_prob_bwd)
 
 
+def _add_noise(K: jnp.ndarray, noise_variance, batch_shape) -> jnp.ndarray:
+    """Form ``K + sigma^2 I`` at the broadcast batch shape of ``K`` and the noise.
+
+    Raises if that shape does not broadcast to the event ``batch_shape``.
+    """
+    variance = jnp.asarray(noise_variance)
+    M = K + variance[..., None, None] * jnp.eye(K.shape[-1], dtype=K.dtype)
+    if jnp.broadcast_shapes(M.shape[:-2], batch_shape) != tuple(batch_shape):
+        raise ValueError(
+            f"The kernel's batch shape {K.shape[:-2]} and noise variance shape "
+            f"{variance.shape} do not broadcast to the event batch shape {tuple(batch_shape)}."
+        )
+    return M
+
+
+def _group_by_matrix(matrix_batch_shape, residual):
+    """Group the batch entries of ``residual`` by the matrix they share.
+
+    ``matrix_batch_shape`` is the batch shape of a stack of matrices that broadcasts
+    to the residual's batch shape ``residual.shape[:-1]``. Batch axes along which the
+    matrix is shared become extra right-hand sides. Returns the matrix batch shape
+    with the shared axes dropped, the residual reshaped to
+    ``(*matrix_shape, N, k)``, and a function that maps an ``(*matrix_shape, M, k)``
+    result back to ``(*batch_shape, M)``.
+    """
+    batch_shape = residual.shape[:-1]
+    n = residual.shape[-1]
+    matrix_batch = (1,) * (len(batch_shape) - len(matrix_batch_shape)) + tuple(matrix_batch_shape)
+    matrix_axes = [i for i, size in enumerate(matrix_batch) if size == batch_shape[i]]
+    shared_axes = [i for i in range(len(batch_shape)) if i not in matrix_axes]
+    permutation = matrix_axes + [len(batch_shape)] + shared_axes
+    matrix_shape = tuple(batch_shape[i] for i in matrix_axes)
+    shared_shape = tuple(batch_shape[i] for i in shared_axes)
+    R = jnp.transpose(residual, permutation).reshape(matrix_shape + (n, -1))
+
+    def ungroup(result):
+        result = result.reshape(matrix_shape + (result.shape[-2],) + shared_shape)
+        return jnp.transpose(result, tuple(sorted(range(len(permutation)), key=permutation.__getitem__)))
+
+    return matrix_shape, R, ungroup
+
+
 class GaussianProcess(AbstractDiscrepancyModel):
     """
     Gaussian process discrepancy model with a covariance kernel.
@@ -162,25 +204,81 @@ class GaussianProcess(AbstractDiscrepancyModel):
         # construction into the transpose to LAPACK's column-major layout, and that
         # strided build nearly doubles the value's cost at N = 1000.
         K = jax.lax.optimization_barrier(gram(self.kernel, x, jitter=self.jitter))
-        variance = jnp.asarray(noise_variance)
-        batch_shape = y_event.shape[:-1]
         n = y_event.shape[-1]
-        M = K + variance[..., None, None] * jnp.eye(n, dtype=K.dtype)
-        if jnp.broadcast_shapes(M.shape[:-2], batch_shape) != batch_shape:
-            raise ValueError(
-                f"The kernel's batch shape {K.shape[:-2]} and noise variance shape "
-                f"{variance.shape} do not broadcast to the event batch shape {batch_shape}."
-            )
-        matrix_batch = (1,) * (len(batch_shape) - (M.ndim - 2)) + M.shape[:-2]
-        # Batch axes along which M is shared become extra right-hand sides.
-        matrix_axes = [i for i, size in enumerate(matrix_batch) if size == batch_shape[i]]
-        shared_axes = [i for i in range(len(batch_shape)) if i not in matrix_axes]
+        M = _add_noise(K, noise_variance, y_event.shape[:-1])
         residual = jnp.broadcast_to(observed - y_event, y_event.shape)
-        R = jnp.transpose(residual, matrix_axes + [len(batch_shape)] + shared_axes)
-        matrix_shape = tuple(batch_shape[i] for i in matrix_axes)
-        R = R.reshape(matrix_shape + (n, -1))
+        matrix_shape, R, _ = _group_by_matrix(M.shape[:-2], residual)
         M = M.reshape(matrix_shape + (n, n))
         return _gaussian_log_prob(M, R)
+
+    def predict(
+        self,
+        residual: jnp.ndarray,
+        x: jnp.ndarray,
+        x_new: jnp.ndarray,
+        noise_variance: jnp.ndarray,
+    ) -> dist.AbstractDistribution:
+        r"""Predict the discrepancy at new frequencies, given residuals at the fit frequencies.
+
+        Conditions the GP on the residuals $r$ at the fit frequencies $x_A$ with
+        Gaussian noise covariance $\Sigma_n = \sigma^2 I$, and returns the
+        distribution of the discrepancy $\delta$ at the new frequencies $x_B$ for
+        every event block:
+
+        $$\mu = K_{BA} (K_{AA} + \Sigma_n)^{-1} r$$
+
+        $$\Sigma = K_{BB} - K_{BA} (K_{AA} + \Sigma_n)^{-1} K_{AB}$$
+
+        The prediction is of $\delta$ alone: it excludes measurement noise. The
+        GP's jitter is added to $K_{AA}$ and $K_{BB}$, so $\Sigma$ stays positive
+        definite.
+
+        As in :meth:`log_prob`, ``K_AA + sigma^2 I`` is formed and factorized at the
+        broadcast shape of the kernel's Gram batch and ``noise_variance``, and the
+        residuals sharing each matrix are solved together.
+
+        Parameters
+        ----------
+        residual : jnp.ndarray
+            The residuals at the fit frequencies in event space, with shape
+            ``(*batch_shape, N_A)``.
+        x : jnp.ndarray
+            The fit frequency points, with shape ``(N_A,)``.
+        x_new : jnp.ndarray
+            The frequency points to predict at, with shape ``(N_B,)``.
+        noise_variance : jnp.ndarray
+            The noise variance, constant along the event axis and broadcastable to
+            ``batch_shape``.
+
+        Returns
+        -------
+        dist.AbstractDistribution
+            A multivariate normal distribution over the discrepancy at ``x_new``,
+            batched over the event blocks, with event shape ``(N_B,)``.
+        """
+        residual = jnp.asarray(residual)
+        batch_shape = residual.shape[:-1]
+        M = _add_noise(gram(self.kernel, x, jitter=self.jitter), noise_variance, batch_shape)
+        matrix_batch = M.shape[:-2]
+        K_BA = cross_gram(self.kernel, x_new, x)
+        K_BB = gram(self.kernel, x_new, jitter=self.jitter)
+        n_a, n_b = M.shape[-1], K_BB.shape[-1]
+        K_AB = jnp.broadcast_to(jnp.swapaxes(K_BA, -1, -2), matrix_batch + (n_a, n_b))
+
+        L = jnp.linalg.cholesky(M)
+        V = jsp.linalg.solve_triangular(L, K_AB, lower=True)
+        covariance = K_BB - jnp.swapaxes(V, -1, -2) @ V
+
+        matrix_shape, R, ungroup = _group_by_matrix(matrix_batch, residual)
+        L = L.reshape(matrix_shape + (n_a, n_a))
+        K_AB = K_AB.reshape(matrix_shape + (n_a, n_b))
+        mean = ungroup(jnp.swapaxes(K_AB, -1, -2) @ jsp.linalg.cho_solve((L, True), R))
+
+        covariance = jnp.broadcast_to(covariance, batch_shape + (n_b, n_b))
+        init_fn = dist.MultivariateNormalFullCovariance
+        for _ in batch_shape:
+            init_fn = eqx.filter_vmap(init_fn)
+        return init_fn(mean, covariance)
 
     def orthogonal_log_prob(
         self,

@@ -16,6 +16,49 @@ from pmrf.types import ArrayLike
 from pmrf.modules.base import Module
 
 
+def cross_gram(
+    kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray],
+    x1: jnp.ndarray,
+    x2: jnp.ndarray,
+) -> jnp.ndarray:
+    """
+    Build the cross-Gram matrix of a kernel between two sets of inputs.
+
+    Entry ``[..., i, j]`` is ``kernel(x1[i], x2[j])``, evaluated with a double
+    :func:`jax.vmap`. Batching is preserved exactly as for :func:`gram`: if the
+    kernel returns an array of shape ``batch_shape`` for a single pair of points,
+    the result has shape ``(*batch_shape, N1, N2)``, so each event block gets its
+    own ``(N1, N2)`` matrix.
+
+    Parameters
+    ----------
+    kernel : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+        The covariance kernel, as for :func:`gram`.
+    x1 : jnp.ndarray
+        The row input points, of shape ``(N1,)`` or ``(N1, d)``.
+    x2 : jnp.ndarray
+        The column input points, of shape ``(N2,)`` or ``(N2, d)``.
+
+    Returns
+    -------
+    jnp.ndarray
+        The cross-Gram matrix, of shape ``(*batch_shape, N1, N2)``.
+    """
+    # Unwrap the hyperparameters to their values once, behind a barrier. Otherwise
+    # XLA can fuse each one's raw-to-value bijector chain into the elementwise loop
+    # that builds the matrix and recompute it per entry.
+    leaves, structure = eqx.partition(unwrap(kernel), eqx.is_array)
+    kernel = eqx.combine(jax.lax.optimization_barrier(leaves), structure)
+
+    x1, x2 = jnp.asarray(x1), jnp.asarray(x2)
+    x1_feat = x1[:, None] if x1.ndim == 1 else x1
+    x2_feat = x2[:, None] if x2.ndim == 1 else x2
+
+    inner_vmap = jax.vmap(kernel, in_axes=(None, 0), out_axes=-1)
+    outer_vmap = jax.vmap(inner_vmap, in_axes=(0, None), out_axes=-2)
+    return outer_vmap(x1_feat, x2_feat)
+
+
 def gram(
     kernel: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray],
     x: jnp.ndarray,
@@ -51,25 +94,14 @@ def gram(
     jnp.ndarray
         The Gram matrix, of shape ``(*batch_shape, N, N)``, where
         ``batch_shape`` is the shape returned by the kernel for a single pair.
+
+    See Also
+    --------
+    cross_gram : The kernel between two different sets of inputs.
     """
-    # Unwrap the hyperparameters to their values once, behind a barrier. Otherwise
-    # XLA can fuse each one's raw-to-value bijector chain into the elementwise loop
-    # that builds the matrix and recompute it per entry.
-    leaves, structure = eqx.partition(unwrap(kernel), eqx.is_array)
-    kernel = eqx.combine(jax.lax.optimization_barrier(leaves), structure)
-
-    x = jnp.asarray(x)
-    if x.ndim == 1:
-        x_feat = x[:, None]
-    else:
-        x_feat = x
-
-    inner_vmap = jax.vmap(kernel, in_axes=(None, 0), out_axes=-1)
-    outer_vmap = jax.vmap(inner_vmap, in_axes=(0, None), out_axes=-2)
-
-    K = outer_vmap(x_feat, x_feat)
+    K = cross_gram(kernel, x, x)
     if jitter:
-        K = K + jnp.eye(x_feat.shape[0]) * jitter
+        K = K + jnp.eye(K.shape[-1]) * jitter
     return K
 
 
@@ -119,6 +151,26 @@ class AbstractCovarianceKernel(Module):
             The Gram matrix, of shape ``(*batch_shape, N, N)``.
         """
         return gram(self, x, jitter=jitter)
+
+    def cross_gram(self, x1: jnp.ndarray, x2: jnp.ndarray) -> jnp.ndarray:
+        """
+        Build the cross-Gram matrix of this kernel between ``x1`` and ``x2``.
+
+        Equivalent to ``pmrf.covariance_kernels.cross_gram(self, x1, x2)``.
+
+        Parameters
+        ----------
+        x1 : jnp.ndarray
+            The row input points, of shape ``(N1,)`` or ``(N1, d)``.
+        x2 : jnp.ndarray
+            The column input points, of shape ``(N2,)`` or ``(N2, d)``.
+
+        Returns
+        -------
+        jnp.ndarray
+            The cross-Gram matrix, of shape ``(*batch_shape, N1, N2)``.
+        """
+        return cross_gram(self, x1, x2)
 
     def __add__(self, other: 'AbstractCovarianceKernel') -> 'AbstractCovarianceKernel':
         from pmrf.covariance_kernels import SumKernel
@@ -426,8 +478,9 @@ class ZeroKernel(AbstractCovarianceKernel):
     """
     Kernel that always evaluates to zero.
 
-    Useful for masking out cross-covariances in multi-output models
-    to enforce strict independence between tasks.
+    As the ``cross`` kernel of an :class:`AutoCrossKernel`, it gives the
+    transmission blocks zero discrepancy, so only the reflection blocks get one.
+    It does not couple or decouple event blocks: blocks are always independent.
     """
     def __call__(self, x1, x2, key=None):
         return jnp.asarray(0.0)
