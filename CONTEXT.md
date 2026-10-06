@@ -170,6 +170,46 @@ Modifies conductor behaviour rather than line state — it scales a surface
 impedance — so it belongs to the material, not the geometry: it is a field of
 `RoughConductor` in `pmrf.materials.conductor`.
 
+## Discrepancy modelling
+
+A fit in Kennedy–O'Hagan form treats an observation as $\tilde h = h(\theta) +
+\delta + \varepsilon$: the model prediction, a **discrepancy** and measurement
+noise. `MarginalLogLikelihood` scores it; see `pmrf.discrepancy_models` and
+`pmrf.likelihoods`.
+
+### Event space and event block
+
+The space in which probability is defined: the prediction after the event
+transform, with frequency as the last (event) axis. Every other axis is a batch
+axis. One entry of that batch, for example the real part of S21, is an **event
+block**. Blocks are independent: a kernel chooses the covariance *within* each
+block (`AutoCrossKernel` routes by block, `SharedIndependentKernel` shares
+hyperparameters across blocks) and never couples two blocks.
+
+*Avoid:* "output" or "task" for a block; "cross-covariance" for the kernel an
+`AutoCrossKernel` gives a transmission block.
+
+### Discrepancy
+
+$\delta$, the systematic misfit between model and reality, as opposed to noise
+$\varepsilon$. Either deterministic or a `GaussianProcess` over each event block.
+
+### Residual
+
+The observation minus the model prediction, in event space: $r = \tilde h -
+h(\theta)$. It contains both discrepancy and noise.
+
+### Discrepancy prediction
+
+The distribution of $\delta$ at new frequencies $x_B$, conditioned on residuals
+at the fit frequencies $x_A$, per event block:
+$\mu = K_{BA}(K_{AA}+\Sigma_n)^{-1} r$ and
+$\Sigma = K_{BB} - K_{BA}(K_{AA}+\Sigma_n)^{-1}K_{AB}$. It excludes noise: it is
+the discrepancy, not a predicted observation.
+
+*Avoid:* "posterior predictive" (that includes noise); "discrepancy posterior"
+(ambiguous with a posterior over hyperparameters).
+
 ## Records at the boundaries
 
 These frozen records are the seams that keep `Param`s and `Module`s out of the
