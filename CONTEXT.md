@@ -98,7 +98,9 @@ is derived, so it has no prior of its own.
 
 `prf.prior` attaches a prior to the parameters a selector picks (ADR-0005). A
 scalar distribution gives each of them its own prior. A distribution whose
-event size equals the number of parameters is a **joint prior** over them: a
+event size equals the parameters' total size (their number, when they are
+scalars; an array parameter counts each of its values) is a **joint prior** over
+them: a
 wrapper (`prf.modules.Probabilistic`) around the unchanged tree, so every
 parameter keeps its name. A joint prior replaces its parameters' own priors,
 and its `space` says which space its distribution is over. Raw space for its
@@ -193,6 +195,7 @@ hyperparameters across blocks) and never couples two blocks.
 
 $\delta$, the systematic misfit between model and reality, as opposed to noise
 $\varepsilon$. Either deterministic or a `GaussianProcess` over each event block.
+It is on the observable unless it is a port discrepancy.
 
 ### Residual
 
@@ -209,6 +212,46 @@ the discrepancy, not a predicted observation.
 
 *Avoid:* "posterior predictive" (that includes noise); "discrepancy posterior"
 (ambiguous with a posterior over hyperparameters).
+
+### Linearisation
+
+A Gauss–Newton approximation of a fit at its MAP, with the discrepancy's
+hyperparameters held fixed: the Jacobian $J = -\partial r / \partial \theta$ of the
+residual with respect to the model's free parameters, and the Fisher matrix
+$F = J^\top \Sigma_D^{-1} J$ with $\Sigma_D = K + \Sigma_n$ per event block. With
+the prior precision $\Sigma_0^{-1}$ it gives the linearised posterior covariance
+$\Sigma_\text{post} = (F + \Sigma_0^{-1})^{-1}$, over parameter values in one space
+(declared by default). Fisher matrices of independent fits add.
+
+### Joint prediction
+
+The Gaussian over the free parameters and the discrepancy at new frequencies
+together, from a linearisation: unlike a discrepancy prediction, it carries the
+parameters' uncertainty into $\delta$ and the cross-covariance between them. It is
+the form in which one fit's posterior becomes the next fit's joint prior.
+
+### Port discrepancy
+
+A discrepancy embedded at a component's ports, on its S-parameters rather than on
+an observable: $\check S_{ii} = S_{ii} + \delta_{ii}$ for reflection and
+$\check S_{ij} = S_{ij} e^{\delta_{ij}}$ for transmission. A circuit containing
+the corrected component carries $\delta$ to any observable or quantity of
+interest, so it transfers between fits that observe the component differently.
+Transmission is split into a symmetric and an antisymmetric block,
+$\delta_{ij} = \delta^s_{ij} \pm \delta^a_{ij}$; a reciprocal component has no
+antisymmetric block. $\delta$ is defined at a reference impedance and is learnt
+at that impedance.
+
+When the component is observed directly, in an event space of the same form
+(additive for reflection, logarithmic for transmission), the port discrepancy *is*
+the event-space discrepancy, and is marginalised there: this is the **reference
+fit**. A later fit with the component inside a larger circuit holds $\delta$ as
+explicit parameters, under the reference fit's joint prediction as their prior:
+this is a **transfer fit**.
+
+*Avoid:* "embedded discrepancy" or "embedded model error" (in the literature
+these embed the error in the parameters); "stage 1" and "stage 2" (say reference
+fit and transfer fit).
 
 ## Records at the boundaries
 
