@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import itertools
+import math
 from collections.abc import Mapping
 from typing import Any, Literal, Optional, Self, Sequence, Union, Callable, TypeVar, TypeGuard
 
@@ -1041,10 +1042,12 @@ class _JointSlot(eqx.Module):
     space: str = eqx.field(static=True)
     #: Identifies the joint prior within one mirror.
     key: int = eqx.field(static=True)
-    #: The parameter's entry in the joint distribution's vector.
+    #: The parameter's position among the joint prior's parameters.
     index: int = eqx.field(static=True)
     #: The number of parameters under the joint prior.
     size: int = eqx.field(static=True)
+    #: The parameter's own shape, as in :attr:`pmrf.modules.Probabilistic.shapes`.
+    shape: tuple[int, ...] = eqx.field(static=True)
     #: The parameter's scale.
     scale: float = eqx.field(static=True)
 
@@ -1090,6 +1093,7 @@ def _mark_joint_members(joint, key: int):
             key=key,
             index=index,
             size=len(members),
+            shape=joint.shapes[index],
             scale=node._scale if is_param(node) else 1.0,
         )
         paths.append(path)
@@ -1114,18 +1118,19 @@ def _joint_log_prob(slots: dict[int, tuple[_JointSlot, Array]]) -> Array:
     first = ordered[0][0]
     if len(ordered) != first.size:
         raise ValueError("A joint prior's parameters are missing from the tree it is scored against.")
+    shapes = [slot.shape for slot, _ in ordered]
     physical = [jnp.asarray(value) for _, value in ordered]
     declared = [y / slot.scale for (slot, _), y in zip(ordered, physical)]
     outside = jnp.asarray(False)
     for (slot, _), x in zip(ordered, declared):
         if slot.bounds is not None:
-            outside = outside | jnp.any((x < slot.bounds[0]) | (x > slot.bounds[1]))
+            outside = outside | _own_any((x < slot.bounds[0]) | (x > slot.bounds[1]), slot.shape)
 
     correction = jnp.asarray(0.0)
     if first.space == 'physical':
         values = physical
     else:
-        correction = correction - sum(jnp.log(jnp.abs(slot.scale)) for slot, _ in ordered)
+        correction = correction - sum(math.prod(slot.shape) * jnp.log(jnp.abs(slot.scale)) for slot, _ in ordered)
         values = declared
         if first.space == 'raw':
             values = []
@@ -1134,17 +1139,38 @@ def _joint_log_prob(slots: dict[int, tuple[_JointSlot, Array]]) -> Array:
                     values.append(x)
                     continue
                 z = slot.raw_to_declared.inverse(x)
-                correction = correction - slot.raw_to_declared.forward_log_det_jacobian(z)
+                correction = correction - _own_sum(slot.raw_to_declared.forward_log_det_jacobian(z), slot.shape)
                 values.append(z)
-    stacked = jnp.stack(jnp.broadcast_arrays(*values), axis=-1)
-    log_prob = first.distribution.log_prob(stacked)
-    if jnp.shape(log_prob) != stacked.shape[:-1]:
+    vector = _flat_vector(values, shapes)
+    log_prob = first.distribution.log_prob(vector)
+    if jnp.shape(log_prob) != vector.shape[:-1]:
         raise ValueError(
             f"A joint prior's distribution must give one log density per vector of "
-            f"{first.size} values, but gave shape {jnp.shape(log_prob)}. An elementwise "
+            f"{vector.shape[-1]} values, but gave shape {jnp.shape(log_prob)}. An elementwise "
             "bijector in a `Transformed` must be wrapped in a `Block` to reduce over the event."
         )
     return jnp.where(outside, -jnp.inf, log_prob + correction)
+
+
+def _own_axes(x: Array, shape: tuple[int, ...]) -> tuple[Array, tuple[int, ...]]:
+    """Returns `x`, broadcast to a parameter's own `shape` if it has fewer axes, and its
+    trailing axes that `shape` spans; any before them are batch axes."""
+    x = jnp.asarray(x)
+    if x.ndim < len(shape):
+        x = jnp.broadcast_to(x, shape)
+    return x, tuple(range(x.ndim - len(shape), x.ndim))
+
+
+def _own_sum(x: Array, shape: tuple[int, ...]) -> Array:
+    """Sums elementwise `x` over a parameter's own axes, keeping any batch axes."""
+    x, axes = _own_axes(x, shape)
+    return jnp.sum(x, axis=axes)
+
+
+def _own_any(x: Array, shape: tuple[int, ...]) -> Array:
+    """Reduces elementwise `x` with `any` over a parameter's own axes, keeping any batch axes."""
+    x, axes = _own_axes(x, shape)
+    return jnp.any(x, axis=axes)
 
 
 def _is_name_leaf(x: Any) -> bool:
@@ -1301,10 +1327,29 @@ def _whitening_log_det(distribution: AbstractDistribution, z: Array) -> Array:
     return jnp.linalg.slogdet(jax.jacfwd(_whitening(distribution).forward)(z))[1]
 
 
-def _stack_vector(values: list) -> Array:
-    """Stacks one value per parameter under a joint prior on the last axis, broadcasting
-    a batch."""
-    return jnp.stack(jnp.broadcast_arrays(*values), axis=-1)
+def _flat_vector(values: list, shapes: Sequence[tuple[int, ...]]) -> Array:
+    """Returns the vector of a joint prior: the values of its parameters, each of its own
+    shape in `shapes` after any batch axes, flattened in C order and concatenated on the
+    last axis, broadcasting a batch. A value with fewer axes than its shape is broadcast
+    to it."""
+    flat = []
+    for value, shape in zip(values, shapes):
+        value, axes = _own_axes(value, shape)
+        flat.append(value.reshape(*value.shape[:value.ndim - len(axes)], math.prod(shape)))
+    batch = jnp.broadcast_shapes(*(f.shape[:-1] for f in flat))
+    return jnp.concatenate([jnp.broadcast_to(f, (*batch, f.shape[-1])) for f in flat], axis=-1)
+
+
+def _split_vector(vector: Array, shapes: Sequence[tuple[int, ...]]) -> list[Array]:
+    """Splits the last axis of a joint prior's `vector` into its parameters' values, each
+    reshaped to its own shape in `shapes` after any batch axes. The inverse of
+    :func:`_flat_vector`."""
+    pieces, start = [], 0
+    for shape in shapes:
+        size = math.prod(shape)
+        pieces.append(vector[..., start:start + size].reshape(*vector.shape[:-1], *shape))
+        start += size
+    return pieces
 
 
 def _joint_whitening(joint) -> AbstractBijector:
@@ -1313,9 +1358,9 @@ def _joint_whitening(joint) -> AbstractBijector:
 
 
 def _whitened_vector(joint, nodes: list) -> Array:
-    """Returns the raw values of a joint prior's parameters: their values in the joint
-    prior's space taken through the inverse of its whitening, stacked on the last axis."""
-    values = _stack_vector([_read(node, joint.space) for node in nodes])
+    """Returns the whitened vector of a joint prior: its parameters' values in its space,
+    as :func:`_flat_vector` gives them, taken through the inverse of its whitening."""
+    values = _flat_vector([_read(node, joint.space) for node in nodes], joint.shapes)
     return _per_vector(_joint_whitening(joint).inverse, values)
 
 
@@ -1327,8 +1372,8 @@ def _whitened_values(tree) -> dict[str, Array]:
     names = {path: name for name, (path, _) in tree_param_paths(tree).items()}
     values = {}
     for joint, paths, nodes in blocks:
-        z = _whitened_vector(joint, nodes)
-        values.update({names[path]: z[..., i] for i, path in enumerate(paths)})
+        z = _split_vector(_whitened_vector(joint, nodes), joint.shapes)
+        values.update({names[path]: z_i for path, z_i in zip(paths, z)})
     return values
 
 
@@ -1347,13 +1392,13 @@ def _joint_raw_log_det(joint, nodes: list) -> Array:
         distribution = prx.as_unwrapped(joint.distribution)
         log_det = _per_vector(lambda z: _whitening_log_det(distribution, z), _whitened_vector(joint, nodes))
     else:
-        batch = _stack_vector([_read(node, joint.space) for node in nodes]).shape[:-1]
+        batch = _flat_vector([_read(node, joint.space) for node in nodes], joint.shapes).shape[:-1]
         log_det = jnp.broadcast_to(held, batch)
-    for node in nodes:
+    for node, shape in zip(nodes, joint.shapes):
         if joint.space == 'raw':
-            log_det = log_det + _raw_log_det_jacobian(node)
+            log_det = log_det + _own_sum(_raw_log_det_jacobian(node), shape)
         elif joint.space == 'physical' and is_param(node):
-            log_det = log_det - jnp.log(jnp.abs(node._scale))
+            log_det = log_det - math.prod(shape) * jnp.log(jnp.abs(node._scale))
     return log_det
 
 
@@ -1361,7 +1406,8 @@ def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: 
     """Returns the paths and nodes that write `entries`, ``(path, node, value)`` triples,
     into `tree` with values in `space`.
 
-    A raw value of a parameter under a joint prior is its entry in the whitened vector.
+    A raw value of a parameter under a joint prior is its slice of the whitened vector,
+    in its own shape.
     Its parameters are written together: the entries not given keep their raw values,
     and the vector is taken through the whitening to the joint prior's space, so every
     parameter under the prior may move.
@@ -1372,15 +1418,15 @@ def _write_values(tree, entries: list[tuple[tuple[Any, ...], Any, Any]], space: 
     for joint, paths, nodes in blocks:
         if not any(path in given for path in paths):
             continue
-        z = _whitened_vector(joint, nodes)
+        z = _split_vector(_whitened_vector(joint, nodes), joint.shapes)
         coords = [
             jnp.asarray(_read(given[path], 'raw') if is_param(given[path]) else given[path])
-            if path in given else z[..., i]
-            for i, path in enumerate(paths)
+            if path in given else z_i
+            for path, z_i in zip(paths, z)
         ]
-        values = _per_vector(_joint_whitening(joint).forward, _stack_vector(coords))
-        for i, (path, node) in enumerate(zip(paths, nodes)):
-            written[path] = _write(node, values[..., i], joint.space)
+        vector = _per_vector(_joint_whitening(joint).forward, _flat_vector(coords, joint.shapes))
+        for path, node, value in zip(paths, nodes, _split_vector(vector, joint.shapes)):
+            written[path] = _write(node, value, joint.space)
     rest = [(path, _write(node, value, space)) for path, node, value in entries if path not in written]
     pairs = rest + list(written.items())
     return [path for path, _ in pairs], [node for _, node in pairs]
@@ -1578,9 +1624,9 @@ def values(
     ``prf.update(m, prf.values(m, space=s), space=s)`` gives back `m`, with
     the same structure and jit cache key.
 
-    The raw value of a parameter under a joint prior (see :func:`prior`) is its entry
-    in the prior's whitened vector, so it depends on the other parameters under the
-    prior, and is the same whichever parameters `where` selects.
+    The raw value of a parameter under a joint prior (see :func:`prior`) is its slice
+    of the prior's whitened vector, in its own shape, so it depends on the other
+    parameters under the prior, and is the same whichever parameters `where` selects.
 
     Parameters
     ----------
@@ -1906,9 +1952,9 @@ def update(
         The fixed state to give every selected parameter.
     space : {'declared', 'physical', 'raw'}, optional
         The space of the values, by default ``'declared'``. Only used with values.
-        A raw value of a parameter under a joint prior is its entry in the prior's
-        whitened vector: the entries not given keep their raw values, and every
-        parameter under the prior may move.
+        A raw value of a parameter under a joint prior is its slice of the prior's
+        whitened vector, in its own shape: the entries not given keep their raw
+        values, and every parameter under the prior may move.
     fn : Callable, optional
         Called on each selected part; its result replaces the part.
 
@@ -2321,12 +2367,15 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
       whitening. The prior is truncated to the parameter's validity and renormalised,
       so the validity still holds. A prior whose support already lies inside the
       validity is kept as given.
-    - **Event size equal to the number of selected parameters**: a joint prior over
-      them. The tree is wrapped, unchanged, in a :class:`pmrf.modules.Probabilistic`
+    - **Event size equal to the total size of the selected parameters**: a joint prior
+      over them. The tree is wrapped, unchanged, in a :class:`pmrf.modules.Probabilistic`
       (inside a :class:`pmrf.models.Wrapped` if `tree` is a :class:`pmrf.Model`, so RF
       methods stay available). Every parameter keeps its name and stays a parameter.
-      With a sequence of exact names, the distribution's vector is in that order; a
-      glob, or a callable, expands to sorted names.
+      The distribution's vector is their values, each flattened in C order,
+      concatenated in name order: with a sequence of exact names, that order; a glob,
+      or a callable, expands to sorted names. A parameter's own shape is its declared
+      shape when the prior is attached; leading axes beyond it, as in a batched model,
+      are batch axes.
     - Anything else raises.
 
     A parameter's bounds combine its validity, the constraint of the model field it
@@ -2349,8 +2398,9 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     distribution's whitened space, inferred as for a one-dimensional prior: a flow's
     base, the Cholesky-whitened space of a multivariate normal, and so on. Where no
     whitening is known, raw is the distribution's own space. Each parameter's raw
-    value, in :func:`values`, :func:`update` and :func:`log_prior`, is its entry
-    in that vector, so optimisers and samplers move in well-conditioned coordinates.
+    value, in :func:`values`, :func:`update` and :func:`log_prior`, is its slice of
+    that vector in its own shape, so optimisers and samplers move in well-conditioned
+    coordinates.
 
     A parameter under a joint prior cannot be fixed or tied, and cannot be under a
     second prior.
@@ -2382,13 +2432,13 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
     ------
     ValueError
         If a name is unknown, `space` is unknown, the event size is neither scalar
-        nor the number of selected parameters, the prior has to be truncated to
+        nor the total size of the selected parameters, the prior has to be truncated to
         the validity and cannot be, or a selected parameter is already under a joint
         prior. For a joint prior, also if a selected name is not a free parameter
         (a fixed or frozen parameter raises, and a tie's target is not a parameter at
-        all), a selected parameter is not a scalar, or, over ``'declared'`` or
-        ``'physical'`` space, the distribution's support leaves a selected parameter's
-        validity. A support Parax cannot determine counts as unbounded.
+        all), or, over ``'declared'`` or ``'physical'`` space, the distribution's
+        support leaves a selected parameter's validity in any element. A support Parax
+        cannot determine counts as unbounded.
 
     Examples
     --------
@@ -2423,12 +2473,13 @@ def prior(tree, names: Selector, distribution: AbstractDistribution, space: Spac
         )
     event_size = _event_size(distribution)
     if distribution.event_shape != ():
-        if event_size == len(selected):
+        total = sum(math.prod(_declared_shape(node)) for _, node in selected.values())
+        if event_size == total:
             return _attach_joint_prior(tree, _joint_order(selected, names), distribution, space)
         raise ValueError(
             f"prf.prior got a distribution with event size {event_size} for "
-            f"{len(selected)} parameters: it must have a scalar event, or one entry "
-            f"per selected parameter."
+            f"{len(selected)} parameters of total size {total}: it must have a scalar "
+            f"event, or one entry per value of the selected parameters."
         )
     paths = [path for path, _ in selected.values()]
     nodes = [_with_prior(node, _declared_prior(node, distribution, space)) for _, node in selected.values()]
@@ -2462,18 +2513,20 @@ def _attach_joint_prior(tree, names: list[str], distribution: AbstractDistributi
             f"{'is' if len(not_free) == 1 else 'are'} fixed or frozen. To condition on a fixed "
             "value, marginalise the distribution and attach it over fewer parameters."
         )
-    not_scalar = [name for name in names if jnp.size(_read(resolved[name][1], 'declared')) != 1]
-    if not_scalar:
-        raise ValueError(
-            f"A joint prior has one entry per parameter, so each must be a scalar, but "
-            f"{', '.join(repr(name) for name in not_scalar)} {'is' if len(not_scalar) == 1 else 'are'} not."
-        )
+    shapes = tuple(_declared_shape(resolved[name][1]) for name in names)
     if space != 'raw':
         nodes = [resolved[name][1] for name in names]
-        _check_joint_support(names, nodes, distribution, space)
+        _check_joint_support(names, nodes, shapes, distribution, space)
         tree = _set_paths(tree, [resolved[name][0] for name in names], [_with_prior(node, None) for node in nodes])
     base = tree.wrapped if isinstance(tree, Wrapped) else tree
-    joint = Probabilistic(base, distribution, tuple(names), space, _constant_whitening_log_det(distribution))
+    joint = Probabilistic(
+        module=base,
+        distribution=distribution,
+        names=tuple(names),
+        shapes=shapes,
+        space=space,
+        whitening_log_det=_constant_whitening_log_det(distribution),
+    )
     return Wrapped(wrapped=joint) if isinstance(tree, Model) else joint
 
 
@@ -2485,20 +2538,27 @@ def _constant_whitening_log_det(distribution: AbstractDistribution) -> Array | N
     return _whitening_log_det(distribution, jnp.zeros(_event_size(distribution)))
 
 
+def _declared_shape(node) -> tuple[int, ...]:
+    """Returns the shape of a parameter's or raw array's declared value."""
+    return tuple(jnp.shape(_read(node, 'declared')))
+
+
 def _event_size(distribution: AbstractDistribution) -> int:
     """Returns the number of values in one event of `distribution`."""
     return int(jnp.prod(jnp.asarray(distribution.event_shape)))
 
 
-def _check_joint_support(names: list[str], nodes: list, distribution: AbstractDistribution, space: str) -> None:
+def _check_joint_support(
+    names: list[str], nodes: list, shapes: Sequence[tuple[int, ...]], distribution: AbstractDistribution, space: str,
+) -> None:
     """Raises unless the support of a joint prior over declared or physical `space` lies
-    inside its parameters' validity, taken to that space."""
-    lower, upper = (jnp.ravel(b) for b in _support(distribution))
-    lower, upper = jnp.broadcast_to(lower, (len(names),)), jnp.broadcast_to(upper, (len(names),))
+    inside its parameters' validity, taken to that space, element by element."""
+    total = sum(math.prod(shape) for shape in shapes)
+    lower, upper = (_split_vector(jnp.broadcast_to(jnp.ravel(b), (total,)), shapes) for b in _support(distribution))
     outside = []
-    for i, (name, node) in enumerate(zip(names, nodes)):
+    for name, node, lo, hi in zip(names, nodes, lower, upper):
         bounds = _validity_bounds(node, space)
-        if bounds is not None and not _inside((lower[i], upper[i]), bounds):
+        if bounds is not None and not _inside((lo, hi), bounds):
             outside.append(name)
     if outside:
         raise ValueError(

@@ -23,7 +23,7 @@ import parax as prx
 
 from pmrf._solver_view import SolverView
 from pmrf.parameters import (
-    _joint_blocks, _whitening, is_param, values as _values, params, tree_param_paths, update,
+    _joint_blocks, _split_vector, _whitening, is_param, values as _values, params, tree_param_paths, update,
 )
 
 
@@ -390,9 +390,10 @@ def _normal_base(distribution) -> tuple[Array, Array] | None:
     return None
 
 
-def _cube_blocks(model) -> list[tuple[list[str], Array, Array]]:
+def _cube_blocks(model) -> list[tuple[list[str], list[Array], list[Array]]]:
     """Returns every joint prior in `model` as its parameters' names, in the order of its
-    vector, with the loc and scale of the independent normal its whitened space follows.
+    vector, with the loc and scale of the independent normal its whitened space follows,
+    split into one array per parameter in its own shape.
 
     Raises
     ------
@@ -414,7 +415,7 @@ def _cube_blocks(model) -> list[tuple[list[str], Array, Array]]:
                 "flow, a bijector over an independent normal base (`Transformed(Independent(Normal(...)), "
                 "bijector)`) or a multivariate normal."
             )
-        blocks.append((block_names, *base))
+        blocks.append((block_names, *(_split_vector(b, joint.shapes) for b in base)))
     return blocks
 
 
