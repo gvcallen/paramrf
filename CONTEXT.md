@@ -195,7 +195,7 @@ hyperparameters across blocks) and never couples two blocks.
 
 $\delta$, the systematic misfit between model and reality, as opposed to noise
 $\varepsilon$. Either deterministic or a `GaussianProcess` over each event block.
-It is on the observable unless it is a port discrepancy.
+It is on the observable unless it is a port or internal discrepancy.
 
 ### Residual
 
@@ -252,6 +252,27 @@ this is a **transfer fit**.
 *Avoid:* "embedded discrepancy" or "embedded model error" (in the literature
 these embed the error in the parameters); "stage 1" and "stage 2" (say reference
 fit and transfer fit).
+
+### Internal discrepancy
+
+A discrepancy on a quantity inside a model rather than on its ports: for a
+uniform line, its characteristic impedance, attenuation and phase constant,
+$\check Z_c = Z_c e^{z}$, $\check\alpha = \alpha e^{a}$, $\check\beta = \beta e^{b}$.
+The correction is log-relative and per unit length, so it is independent of the
+line's length. A port discrepancy carries the whole instance's error and does
+not transfer to another length; an internal discrepancy does, provided the
+line's $\gamma L$ scales with its length. Choose the internal quantity by what
+stays the same between the instances it must transfer across.
+
+$\alpha$ and $\beta$ are corrected separately rather than by one complex factor
+on $\gamma$, which would mix phase into loss because $\beta \gg \alpha$.
+
+It is learnt in a reference fit either from reference internal quantities, in
+an event space of the same log form, or from port observables alone, and is
+carried into transfer fits as a port discrepancy is.
+
+*Avoid:* "internal hook" (no general method interception exists; each
+internal discrepancy corrects one typed quantity).
 
 ## Records at the boundaries
 
