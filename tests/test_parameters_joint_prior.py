@@ -205,6 +205,23 @@ def _positive_parts():
     }
 
 
+def test_nan_update_checks_values_after_raw_joint_log_normal_whitening():
+    base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)), 1)
+    prior = dd.Transformed(base, db.Block(db.Exp(), 1))
+    parts = {
+        "a": _PositiveResistor(R=prf.Unconstrained(50.0), name="a"),
+        "b": _PositiveResistor(R=prf.Unconstrained(50.0), name="b"),
+    }
+    model = prf.prior(parts, NAMES, prior, space="raw")
+
+    moved = prf.update(model, {"a.R": 1000.0}, space="raw", on_invalid="nan")
+
+    assert np.isnan(prf.values(moved)["a.R"])
+    assert np.isfinite(prf.values(moved)["b.R"])
+    with pytest.raises(Exception, match="outside the constraint"):
+        prf.update(model, {"a.R": 1000.0}, space="raw")
+
+
 @pytest.mark.parametrize("space", ["declared", "physical"])
 def test_a_joint_prior_whose_support_leaves_validity_raises(space):
     """A correlated Gaussian over declared or physical values reaches outside positive
@@ -469,7 +486,13 @@ def test_a_flow_holds_no_whitening_log_det():
 @pytest.mark.parametrize("case", ["raw", "declared", "physical", "flow"])
 def test_raw_log_prior_and_its_gradient_match_a_dense_jacobian(case):
     if case == "flow":
-        model, names = _flow_example(), NAMES
+        model = prf.update(
+            _flow_example(), dict(zip(NAMES, jnp.array([0.1, -0.2]))), space="raw"
+        )
+        names = NAMES
+        round_trip = prf.update(model, prf.values(model, space="raw"), space="raw")
+        for name, value in prf.values(model).items():
+            np.testing.assert_allclose(prf.values(round_trip)[name], value)
     else:
         model, names = _mvn_example(case)[0], ("a.R", "c.C")
     at, dense = _dense_raw_log_prior(model, names)

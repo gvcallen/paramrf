@@ -91,8 +91,19 @@ def test_a_declared_prior_keeps_validity_and_drops_the_range():
     assert isinstance(d, dd.TruncatedNormal)
     assert np.allclose([d.low, d.high], [0.0, np.inf])
     assert np.allclose(prf.values(prf.update(m, {"w": 80.0}))["w"], 80.0)
+    assert np.isnan(prf.values(prf.update(m, {"w": -1.0}, on_invalid="nan"))["w"])
     with pytest.raises(Exception, match="outside the constraint"):
         prf.update(m, {"w": -1.0})
+
+
+def test_update_nan_checks_physical_values_after_scaling():
+    p = Width(prf.Unconstrained(2.0, scale=1e-12))
+
+    moved = prf.update(p, {"w": -1e-12}, space="physical", on_invalid="nan")
+
+    assert np.isnan(moved.w.value)
+    assert moved.w.scale == 1e-12
+    assert np.isnan(prf.values(moved, space="physical")["w"])
 
 
 def test_a_declared_prior_over_a_range_without_validity_is_untruncated():

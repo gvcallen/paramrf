@@ -124,6 +124,19 @@ It replaces `with_values`, `with_free`, `with_fixed`, `Module.map`,
 - **Not an optimiser step.** In fitting, "updates" also means Optax gradient
   steps; the docstring says `update` is neither.
 
+- **Numerical trials can opt out of raising on invalid parameter values.**
+  `update(..., on_invalid='raise')` remains strict by default. Numerical value
+  updates may opt into `on_invalid='nan'`, which marks the entire updated
+  parameter leaf NaN when its candidate is outside the effective constraint,
+  lies on an excluded open edge, or contains a nonfinite value. This gives
+  line searches and other numerical objectives a non-raising way to reject a
+  trial while keeping the parameter pytree structure and the other requested
+  values intact. The policy applies only to numerical value updates; structural
+  replacements and fixed-state changes remain outside it. Only parameter
+  validity failures become NaN: independent model errors keep their existing
+  behavior. NaN trials require a floating or complex leaf and do not promote
+  integer leaves.
+
 `prf.replace` stays as the plain `dataclasses.replace`: fields of one object,
 unvalidated, able to break a type. Its docstring points to `update` for
 anything name-based.

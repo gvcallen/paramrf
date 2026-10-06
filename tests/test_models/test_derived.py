@@ -54,6 +54,16 @@ def _wet(cable=None, w=0.4, ep_r=4.0):
     )
 
 
+def _raw_safe_wet():
+    """A valid interior fixture for tests that write all raw coordinates back."""
+    from pmrf.materials import ConstantDielectric
+
+    cable = _cable(
+        dielectric=ConstantDielectric(ep_r=1.0000001, tand=1e-10, sigma=1e-10)
+    )
+    return _wet(cable)
+
+
 def _by_hand(cable, w, ep_r):
     wet_part = prf.update(cable, 'length', prf.Fixed(w))
     wet_part = prf.update(wet_part, 'dielectric.ep_r', prf.Fixed(ep_r))
@@ -73,7 +83,7 @@ def test_zero_wet_length_is_the_plain_cable():
 
 @pytest.mark.parametrize('name', ['length', 'wet_length'])
 def test_gradients_match_finite_differences(name):
-    model = _wet()
+    model = _raw_safe_wet()
     raw = prf.values(model, space='raw')
 
     def loss(values):
@@ -133,7 +143,7 @@ def test_every_parameter_exists_once():
 
 @pytest.mark.parametrize('space', ['raw', 'declared', 'physical'])
 def test_round_trip_keeps_the_jit_key(space):
-    model = _wet()
+    model = _raw_safe_wet() if space == 'raw' else _wet()
     values = prf.values(model, space=space)
     assert_same_jit_key(prf.update(model, values, space=space), model)
     changed = prf.update(model, {'wet_length': 0.3})
