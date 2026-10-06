@@ -307,6 +307,9 @@ class GaussianProcess(AbstractDiscrepancyModel):
         This uses its nonsingular block factorization; it is not REML. In particular,
         the tangent-space block is retained because it depends on the fitted mean and
         measurement noise.
+
+        Unlike :meth:`log_prob`, ``noise_variance`` must be constant along the event
+        axis, so it has no event axis: it broadcasts to the event batch shape.
         """
         K = gram(self.kernel, x, jitter=self.jitter)
         variance = jnp.asarray(noise_variance)
