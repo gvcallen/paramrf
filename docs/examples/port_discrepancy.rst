@@ -8,19 +8,19 @@ The runnable :download:`example <port_discrepancy.py>` uses a synthetic 10 m lin
 Log Transmission Event Space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Reflection errors are additive. A cable's transmission phase winds many times over the band, so an additive transmission residual oscillates on the inverse-delay scale. A log-ratio residual removes that winding. For predicted transmission $S$ and observed transmission $\widetilde S$, the transform uses
+Reflection errors are additive. A cable's transmission phase winds many times over the band, so an additive transmission residual oscillates on the inverse-delay scale. A log-ratio residual removes that winding. The example defines its own bijectors, using the ``AbstractBijector`` interface available in released distreqx. For predicted transmission $S$ and observed transmission $\widetilde S$, the transform uses
 
 $$h(\widetilde S;S)=\ln|\widetilde S| + i\left[\operatorname{unwrap}(\arg S)+\operatorname{unwrap}\left(\arg\frac{\widetilde S}{S}\right)\right].$$
 
 Subtracting $h(S;S)$ gives the unwrapped complex log ratio. Unwrap the ratio along frequency, rather than independently unwrapping the two transmissions. Their initial ratio phase selects the local branch; transmissions must be nonzero and the frequency spacing must resolve their phase. The forward log determinant is $-2\ln|\widetilde S|$ per complex transmission entry.
 
 .. literalinclude:: port_discrepancy.py
-   :pyobject: port_event_transform
+   :pyobject: PortEventTransform
 
-The symmetric transmission block is the mean of the two directional logs; the antisymmetric block is their half-difference. This rotation adds the constant $-2\ln2$ to the log determinant per frequency. The full ``Lambda`` is invertible. For this reciprocal model, the antisymmetric residual has no parameter sensitivity and is independent of the retained blocks in the first-order, equal-directional-noise approximation, so the fit discards it before constructing a reduced, invertible three-block transform. The discarded likelihood and rotation determinant are constants for the reference parameters.
+The symmetric transmission block is the mean of the two directional logs; the antisymmetric block is their half-difference. This rotation adds the constant $-2\ln2$ to the log determinant per frequency. The full ``PortEventTransform`` is an invertible, example-local subclass of distreqx's ``AbstractBijector``. For this reciprocal model, the antisymmetric residual has no parameter sensitivity and is independent of the retained blocks in the first-order, equal-directional-noise approximation, so the fit discards it before constructing a reduced, invertible three-block transform. The discarded likelihood and rotation determinant are constants for the reference parameters.
 
 .. literalinclude:: port_discrepancy.py
-   :pyobject: reciprocal_event_transform
+   :pyobject: ReciprocalEventTransform
 
 Each directional transmission has noise variance $\sigma^2/\lvert S\rvert^2$ in log space to first order. Averaging independent directional measurements halves that variance. The example fixes this approximation at the observed symmetric transmission, while each additive reflection retains variance $\sigma^2$. This is a small-noise approximation, with GP hyperparameters held fixed.
 

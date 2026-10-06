@@ -5,10 +5,11 @@ Run with ``python docs/examples/port_discrepancy.py --n-frequency 1000``.
 import argparse
 from time import perf_counter
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from distreqx.bijectors import Lambda
+from distreqx.bijectors import AbstractBijector
 from distreqx.distributions import Normal
 from scipy.optimize import minimize
 
@@ -40,52 +41,85 @@ def truth(frequency):
     return SModel(dispersive.s(frequency), frequency, 50.0)
 
 
-def port_event_transform(predicted):
-    """Invertible full two-port transform; frequency is the last event axis."""
-    anchor = jnp.unwrap(jnp.angle(predicted), axis=0)
+class AbstractPortEventTransform(AbstractBijector, strict=True):
+    """Example-local event transform conditioned on a predicted response."""
 
-    def forward(s):
-        phase = anchor + jnp.unwrap(jnp.angle(s / predicted), axis=0)
+    #: Prediction selecting the local unwrapped logarithm branch.
+    predicted: jax.Array
+    #: Log-transmission derivatives depend on the response.
+    _is_constant_jacobian: bool = eqx.field(static=True, init=False, default=False)
+    #: The log determinant depends on transmission magnitude.
+    _is_constant_log_det: bool = eqx.field(static=True, init=False, default=False)
+
+    def inverse_log_det_jacobian(self, event):
+        return -self.forward_log_det_jacobian(self.inverse(event))
+
+    def forward_and_log_det(self, s):
+        return self.forward(s), self.forward_log_det_jacobian(s)
+
+    def inverse_and_log_det(self, event):
+        return self.inverse(event), self.inverse_log_det_jacobian(event)
+
+    def same_as(self, other):
+        return self is other
+
+
+class PortEventTransform(AbstractPortEventTransform, strict=True):
+    r"""Invertible full two-port transform, with frequency last in event space.
+
+    **Mathematical Formulation**
+
+    $$h(\widetilde S; S)=\ln|\widetilde S| + i[\operatorname{unwrap}(\arg S)
+    + \operatorname{unwrap}(\arg(\widetilde S/S))].$$
+
+    Reflections remain additive. Directional transmission logs become their
+    mean and half-difference. Each complex log contributes
+    $$-2\ln|\widetilde S|$$ to the forward log determinant, and the rotation
+    contributes $$-2\ln 2$$ per frequency.
+    """
+
+    def forward(self, s):
+        anchor = jnp.unwrap(jnp.angle(self.predicted), axis=0)
+        phase = anchor + jnp.unwrap(jnp.angle(s / self.predicted), axis=0)
         logs = jnp.log(jnp.abs(s)) + 1j * phase
         blocks = jnp.stack((s[:, 0, 0], s[:, 1, 1],
                             (logs[:, 1, 0] + logs[:, 0, 1]) / 2,
                             (logs[:, 1, 0] - logs[:, 0, 1]) / 2))
         return jnp.stack((blocks.real, blocks.imag), axis=1)
 
-    def inverse(event):
+    def inverse(self, event):
         blocks = event[:, 0] + 1j * event[:, 1]
         return jnp.stack((jnp.stack((blocks[0], jnp.exp(blocks[2] - blocks[3])), axis=-1),
                           jnp.stack((jnp.exp(blocks[2] + blocks[3]), blocks[1]), axis=-1)), axis=-2)
 
-    def logdet(s):
+    def forward_log_det_jacobian(self, s):
         # The mean/half-difference rotation has determinant 1/2 for each Re/Im pair.
         return -2 * jnp.log(jnp.abs(s[:, 0, 1])) - 2 * jnp.log(jnp.abs(s[:, 1, 0])) - 2 * jnp.log(2.0)
 
-    return Lambda(forward=forward, inverse=inverse,
-                  forward_log_det_jacobian=logdet,
-                  inverse_log_det_jacobian=lambda e: -logdet(inverse(e)),
-                  is_constant_jacobian=False)
 
+class ReciprocalEventTransform(AbstractPortEventTransform, strict=True):
+    r"""Transform the retained reflections and symmetric transmission only.
 
-def reciprocal_event_transform(predicted):
-    """Transform the retained reflections and symmetric transmission only."""
-    anchor = jnp.unwrap(jnp.angle(predicted[:, 2]))
+    **Mathematical Formulation**
 
-    def forward(s):
+    The symmetric transmission uses the anchored logarithm of
+    :class:`PortEventTransform`, with forward log determinant
+    $$-2\ln|\widetilde S^s|.$$ Reflections remain additive.
+    """
+
+    def forward(self, s):
+        anchor = jnp.unwrap(jnp.angle(self.predicted[:, 2]))
         log_t = jnp.log(jnp.abs(s[:, 2])) + 1j * (
-            anchor + jnp.unwrap(jnp.angle(s[:, 2] / predicted[:, 2])))
+            anchor + jnp.unwrap(jnp.angle(s[:, 2] / self.predicted[:, 2])))
         blocks = jnp.stack((s[:, 0], s[:, 1], log_t))
         return jnp.stack((blocks.real, blocks.imag), axis=1)
 
-    def inverse(event):
+    def inverse(self, event):
         blocks = event[:, 0] + 1j * event[:, 1]
         return jnp.stack((blocks[0], blocks[1], jnp.exp(blocks[2])), axis=-1)
 
-    logdet = lambda s: -2 * jnp.log(jnp.abs(s[:, 2]))
-    return Lambda(forward=forward, inverse=inverse,
-                  forward_log_det_jacobian=logdet,
-                  inverse_log_det_jacobian=lambda e: -logdet(inverse(e)),
-                  is_constant_jacobian=False)
+    def forward_log_det_jacobian(self, s):
+        return -2 * jnp.log(jnp.abs(s[:, 2]))
 
 
 def reciprocal_predictor(model, frequency):
@@ -131,7 +165,7 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
     observed = true_s + sigma * (rng.normal(size=true_s.shape) + 1j * rng.normal(size=true_s.shape))
     initial = fitted_line(line(0.5), log_R=prf.Unconstrained(jnp.log(0.5)))
     initial = prf.prior(initial, 'log_R', Normal(jnp.log(0.5), 0.02))
-    full_event = port_event_transform(initial.s(frequency)).forward(observed)
+    full_event = PortEventTransform(initial.s(frequency)).forward(observed)
     # Discard only the antisymmetric block, then encode the symmetric log in S space.
     retained = full_event[:3, 0] + 1j * full_event[:3, 1]
     reciprocal_observed = jnp.stack((retained[0], retained[1], jnp.exp(retained[2])), axis=-1)
@@ -141,12 +175,12 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
         predictor=reciprocal_predictor, observed=reciprocal_observed,
         likelihood=GaussianLikelihood(variance),
         discrepancy=GaussianProcess(Matern52Kernel(100.0) * 0.05**2, jitter=1e-8),
-        event_transform=reciprocal_event_transform,
+        event_transform=ReciprocalEventTransform,
     )
     finish('synthetic data and event transform', reciprocal_observed)
     fitted = reference_fit(reference, initial, frequency)
     finish('reference MAP', fitted.s(frequency))
-    event = reciprocal_event_transform(reciprocal_predictor(fitted, frequency))
+    event = ReciprocalEventTransform(reciprocal_predictor(fitted, frequency))
     log_residual = event.forward(reciprocal_observed)[2] - event.forward(reciprocal_predictor(fitted, frequency))[2]
     additive_residual = true_s[:, 1, 0] - fitted.s(frequency)[:, 1, 0]
     names, joint = reference.predict_joint(fitted, frequency, transfer_frequency)
