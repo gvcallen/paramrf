@@ -152,26 +152,6 @@ class AbstractCovarianceKernel(Module):
         """
         return gram(self, x, jitter=jitter)
 
-    def cross_gram(self, x1: jnp.ndarray, x2: jnp.ndarray) -> jnp.ndarray:
-        """
-        Build the cross-Gram matrix of this kernel between ``x1`` and ``x2``.
-
-        Equivalent to ``pmrf.covariance_kernels.cross_gram(self, x1, x2)``.
-
-        Parameters
-        ----------
-        x1 : jnp.ndarray
-            The row input points, of shape ``(N1,)`` or ``(N1, d)``.
-        x2 : jnp.ndarray
-            The column input points, of shape ``(N2,)`` or ``(N2, d)``.
-
-        Returns
-        -------
-        jnp.ndarray
-            The cross-Gram matrix, of shape ``(*batch_shape, N1, N2)``.
-        """
-        return cross_gram(self, x1, x2)
-
     def __add__(self, other: 'AbstractCovarianceKernel') -> 'AbstractCovarianceKernel':
         from pmrf.covariance_kernels import SumKernel
         return SumKernel(self, other)

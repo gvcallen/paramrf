@@ -325,7 +325,6 @@ def test_cross_gram_of_inputs_with_themselves_is_the_gram(x):
     """The cross-Gram of x with itself equals the square Gram without jitter, bit for bit."""
     for kernel in [RBFKernel(lengthscale=0.5), _shared_auto_cross(), _hyperparameter_kernel(random=False)]:
         assert jnp.array_equal(cross_gram(kernel, x, x), gram(kernel, x))
-        assert jnp.array_equal(kernel.cross_gram(x, x), gram(kernel, x))
 
 
 def test_cross_gram_keeps_block_layout(x):

@@ -117,8 +117,8 @@ def _group_by_matrix(matrix_batch_shape, residual):
     """
     batch_shape = residual.shape[:-1]
     n = residual.shape[-1]
-    matrix_batch = (1,) * (len(batch_shape) - len(matrix_batch_shape)) + tuple(matrix_batch_shape)
-    matrix_axes = [i for i, size in enumerate(matrix_batch) if size == batch_shape[i]]
+    padded = (1,) * (len(batch_shape) - len(matrix_batch_shape)) + tuple(matrix_batch_shape)
+    matrix_axes = [i for i, size in enumerate(padded) if size == batch_shape[i]]
     shared_axes = [i for i in range(len(batch_shape)) if i not in matrix_axes]
     permutation = matrix_axes + [len(batch_shape)] + shared_axes
     matrix_shape = tuple(batch_shape[i] for i in matrix_axes)
@@ -259,17 +259,17 @@ class GaussianProcess(AbstractDiscrepancyModel):
         residual = jnp.asarray(residual)
         batch_shape = residual.shape[:-1]
         M = _add_noise(gram(self.kernel, x, jitter=self.jitter), noise_variance, batch_shape)
-        matrix_batch = M.shape[:-2]
+        M_batch = M.shape[:-2]
         K_BA = cross_gram(self.kernel, x_new, x)
         K_BB = gram(self.kernel, x_new, jitter=self.jitter)
         n_a, n_b = M.shape[-1], K_BB.shape[-1]
-        K_AB = jnp.broadcast_to(jnp.swapaxes(K_BA, -1, -2), matrix_batch + (n_a, n_b))
+        K_AB = jnp.broadcast_to(jnp.swapaxes(K_BA, -1, -2), M_batch + (n_a, n_b))
 
         L = jnp.linalg.cholesky(M)
         V = jsp.linalg.solve_triangular(L, K_AB, lower=True)
         covariance = K_BB - jnp.swapaxes(V, -1, -2) @ V
 
-        matrix_shape, R, ungroup = _group_by_matrix(matrix_batch, residual)
+        matrix_shape, R, ungroup = _group_by_matrix(M_batch, residual)
         L = L.reshape(matrix_shape + (n_a, n_a))
         K_AB = K_AB.reshape(matrix_shape + (n_a, n_b))
         mean = ungroup(jnp.swapaxes(K_AB, -1, -2) @ jsp.linalg.cho_solve((L, True), R))
