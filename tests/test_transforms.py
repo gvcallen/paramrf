@@ -269,10 +269,10 @@ def test_a_closed_bound_is_still_a_valid_value():
 
 
 _CLOSED_BOUNDS = {
-    'non_negative': (0.0, prf.constraints.NonNegative()),
-    'greater_than': (2.0, prf.constraints.GreaterThan(2.0)),
-    'interval_upper': (3.0, prf.constraints.Interval(1.0, 3.0)),
-    'less_than': (3.0, prf.constraints.LessThan(3.0)),
+    'non_negative': (0.0, prf.parameters.constraints.NonNegative()),
+    'greater_than': (2.0, prf.parameters.constraints.GreaterThan(2.0)),
+    'interval_upper': (3.0, prf.parameters.constraints.Interval(1.0, 3.0)),
+    'less_than': (3.0, prf.parameters.constraints.LessThan(3.0)),
 }
 
 
@@ -298,7 +298,7 @@ def test_derivative_on_a_closed_bound_is_exact_and_confined(bound, space, n):
 
 
 def test_derivative_in_physical_space_on_a_closed_bound_is_declared_over_scale():
-    tree = {'a': prf.Param(value=0.0, constraint=prf.constraints.NonNegative(), scale=1e-3)}
+    tree = {'a': prf.Param(value=0.0, constraint=prf.parameters.constraints.NonNegative(), scale=1e-3)}
     fn = lambda t: jnp.sin(t['a'] + 0.3)
 
     (declared,) = prf.derivative(fn, tree)

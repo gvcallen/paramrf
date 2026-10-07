@@ -12,7 +12,7 @@ import parax as prx
 from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
-from pmrf.evaluators import AbstractEvaluator
+from pmrf.objectives.evaluators import AbstractEvaluator
 from pmrf.modules.base import Module
 from pmrf.utils import freeze, field, unwrap
 

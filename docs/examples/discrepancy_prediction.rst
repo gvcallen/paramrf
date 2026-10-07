@@ -1,12 +1,12 @@
 Discrepancy Prediction
 ======================
 
-A fit with a Gaussian-process discrepancy learns how the model differs from the data, not just the model parameters. That discrepancy can be predicted at frequencies the fit never saw, with its uncertainty. In this example we fit the S11 of a 10 m coaxial line with a GP discrepancy, then predict the discrepancy off the fit grid.
+A fitted Gaussian-process discrepancy can be predicted at new frequencies, with its uncertainty. Here we fit the S11 of a coaxial line and predict its discrepancy beyond the fit band.
 
 Fitting with a Discrepancy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The measured S11 is a coaxial line plus a slow ripple that the model cannot produce, and a little measurement noise. We fit the dielectric constant, with a :class:`~pmrf.discrepancy_models.GaussianProcess` to absorb the ripple. Its kernel's length scale is in the fit frequency's unit, here MHz:
+We add a slow ripple and measurement noise to the line's S11, then fit the dielectric constant with a :class:`~pmrf.stats.GaussianProcess` for the discrepancy. The kernel length scale uses the fit frequency's unit, MHz:
 
 .. plot::
    :context: reset
@@ -18,9 +18,7 @@ The measured S11 is a coaxial line plus a slow ripple that the model cannot prod
    from pmrf.models import CoaxialLine
    from pmrf.materials import BulkConductor, ConstantDielectric
    from pmrf.fitting import fit
-   from pmrf.likelihoods import GaussianLikelihood
-   from pmrf.discrepancy_models import GaussianProcess
-   from pmrf.covariance_kernels import Matern52Kernel
+   from pmrf.stats import GaussianLikelihood, GaussianProcess, Matern52Kernel
 
    def coax(ep_r):
        return CoaxialLine(
@@ -48,7 +46,7 @@ The measured S11 is a coaxial line plus a slow ripple that the model cannot prod
 Predicting the Discrepancy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The fitted :class:`~pmrf.evaluators.MarginalLogLikelihood`, with its optimized GP hyperparameters and noise, is the one term of the fit's objective. :meth:`~pmrf.evaluators.MarginalLogLikelihood.predict_discrepancy` conditions the GP on the fit's residuals and returns the distribution of the discrepancy at new frequencies. Here they extend past the fit band and are given in GHz; they are converted to the fit's unit first.
+:meth:`~pmrf.objectives.MarginalLogLikelihood.predict_discrepancy` uses the fitted model and residuals to predict the discrepancy. The new frequency grid extends beyond the fit band and uses GHz; the method handles the unit conversion.
 
 .. plot::
    :context:
@@ -74,4 +72,4 @@ The fitted :class:`~pmrf.evaluators.MarginalLogLikelihood`, with its optimized G
    axes[0].legend()
    axes[1].set_xlabel('Frequency (MHz)')
 
-The prediction is in event space: one block for the real part of S11 and one for the imaginary part, with frequency last. It is of the discrepancy alone, and excludes measurement noise. Inside the fit band it follows the ripple closely; beyond it, the mean relaxes towards zero and the uncertainty grows back to the GP's prior.
+The prediction has separate real and imaginary S11 blocks, with frequency last. It excludes measurement noise. Beyond the fit band, the mean approaches zero and uncertainty grows.

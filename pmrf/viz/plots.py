@@ -6,7 +6,7 @@ import skrf
 from pmrf.frequency import Frequency
 from pmrf.fitting.result import FitResult
 from pmrf.models import SkrfNetwork
-from pmrf.evaluators import AbstractEvaluator, Feature
+from pmrf.objectives.evaluators import AbstractEvaluator, Feature
 from pmrf.network_collection import NetworkCollection
 
 logger = logging.getLogger(__name__)

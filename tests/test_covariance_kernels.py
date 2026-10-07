@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 import pmrf as prf
 
-from pmrf.covariance_kernels import (
+from pmrf.stats.covariance_kernels import (
     cross_gram,
     gram,
     RBFKernel,
@@ -18,11 +18,11 @@ from pmrf.covariance_kernels import (
     AutoCrossKernel,
     SharedIndependentKernel,
 )
-from pmrf.discrepancy_models import GaussianProcess
-from pmrf.distributions import RelativeTruncatedNormal
-from pmrf.evaluators import Feature, MarginalLogLikelihood
+from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.stats.distributions import RelativeTruncatedNormal
+from pmrf.objectives.evaluators import Feature, MarginalLogLikelihood
 from pmrf.frequency import Frequency
-from pmrf.likelihoods import GaussianLikelihood
+from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.models.base import Model
 from pmrf.utils import unwrap
 

@@ -8,3 +8,4 @@ This section includes more detailed tutorials that can be followed step-by-step 
 
    1_cable_fitting.ipynb
    2_chip_inductor_fitting.ipynb
+   3_discrepancy_transfer.ipynb

@@ -9,7 +9,7 @@ import equinox as eqx
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.rf import renormalize_s
-from pmrf.constraints import Positive
+from pmrf.parameters.constraints import Positive
 from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
 

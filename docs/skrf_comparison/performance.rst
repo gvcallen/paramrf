@@ -28,7 +28,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         GlobalMNACircuitSolver,
     )
     from pmrf.parameters import Bounded
-    from pmrf.evaluators import Goal
+    from pmrf.objectives import Goal
     from pmrf.optimize import minimize as pmrf_minimize, ScipyMinimize
 
     c = scipy.constants.c

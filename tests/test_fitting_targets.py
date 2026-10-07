@@ -8,7 +8,7 @@ import pmrf as prf
 from pmrf.models import Model
 from pmrf.parameters import Bounded, Fixed, Param
 from pmrf.frequency import Frequency
-from pmrf.losses import MSELoss
+from pmrf.objectives.losses import MSELoss
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_joint
 from pmrf.fitting.targets import resolve_datasets, union_frequency
@@ -157,8 +157,8 @@ def test_map_problem_penalizes_the_prior(wide_band):
     """PriorPenalized is SummedTerms plus the negative log prior of its parameters."""
     import parax.distributions as dist
     from pmrf.parameters import Random
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import BoundEvaluator
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.terms import BoundEvaluator
 
     model = CompositeModel(
         wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
@@ -174,8 +174,8 @@ def test_map_problem_covers_hyper_parameters_in_terms(wide_band):
     """A prior on a term's own hyper-parameter is counted alongside the model's."""
     import parax.distributions as dist
     from pmrf.parameters import Random, Param
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import AbstractTerm
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.terms import AbstractTerm
 
     class NoisyTerm(AbstractTerm):
         sigma: Param
@@ -199,8 +199,8 @@ def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
     import parax.distributions as dist
     import equinox as eqx, jax, parax as prx
     from pmrf.parameters import Random
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import BoundEvaluator
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.terms import BoundEvaluator
 
     model = CompositeModel(
         wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
@@ -274,7 +274,7 @@ def test_prior_attached_by_name_is_found(wide_band):
     import parax.distributions as dist
     from pmrf.parameters import tree_param_distributions, tree_param_log_prob
 
-    model = prf.prior(_correlated(), 'wide.val', prf.distributions.Normal(3.0, 1.0))
+    model = prf.prior(_correlated(), 'wide.val', prf.stats.distributions.Normal(3.0, 1.0))
 
     expected = float(dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0)))
     scored = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
@@ -298,8 +298,8 @@ def test_correlated_joint_prior_across_sub_models(wide_band):
 
 def test_map_problem_uses_a_correlated_prior(wide_band):
     """End to end: PriorPenalized must apply an attached joint, not ignore it."""
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import BoundEvaluator
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.terms import BoundEvaluator
 
     joint = _correlated_normal([3.0, 6.0])
     model = prf.prior(_correlated(), ['wide.val', 'narrow.val'], joint)
@@ -371,7 +371,7 @@ def test_joint_prior_folds_the_scale_of_its_parameters():
     scored = {}
     for value in (75.0, 60.0):
         # Authored over mm, held in metres.
-        plain = Resistor(prf.Random(prf.distributions.Normal(75.0, 5.0), value=value, scale=1e-3))
+        plain = Resistor(prf.Random(prf.stats.distributions.Normal(75.0, 5.0), value=value, scale=1e-3))
         wrapped = prf.prior(Resistor(prf.Unconstrained(value, scale=1e-3)), ['R'], joint)
         scored[value] = (log_prior(plain), log_prior(wrapped))
         assert jnp.allclose(prf.unwrap(wrapped).build().R, value * 1e-3)
@@ -394,8 +394,8 @@ def test_map_prior_survives_pytree_round_trips(wide_band):
     import equinox as eqx
     import parax.distributions as dist
     from pmrf.parameters import Random
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import BoundEvaluator
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.terms import BoundEvaluator
 
     model = CompositeModel(
         wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(0.1)), value=3.0)),
@@ -426,11 +426,11 @@ def test_prior_is_finite_for_a_scaled_parameter(wide_band):
     used scale=1, the one case where this is invisible.
     """
     from pmrf.parameters import tree_param_distributions, tree_param_log_prob
-    from pmrf.problems import SummedTerms, PriorPenalized
-    from pmrf.terms import BoundEvaluator
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.terms import BoundEvaluator
 
     # Authored over mm, held in metres: the reported failure.
-    scaled = prf.Random(prf.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
+    scaled = prf.Random(prf.stats.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
     model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=Fixed(7.0)))
 
     log_prior = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
@@ -444,7 +444,7 @@ def test_scaled_parameter_still_moves_under_map(wide_band):
     from pmrf.fitting.minimize import fit_minimize
 
     ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5e-3, name='wide')
-    scaled = prf.Random(prf.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
+    scaled = prf.Random(prf.stats.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
     model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=Fixed(7.0)))
 
     result = fit_minimize(model, NetworkCollection([ntwk]),

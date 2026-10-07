@@ -100,27 +100,20 @@ from pmrf.utils import (
     is_constant as is_constant,
 )
 
-# Modules
+# Public packages
 from pmrf import (
-    bijectors as bijectors,
-    constraints as constraints,
-    covariance_kernels as covariance_kernels,
-    discrepancy_models as discrepancy_models,
-    distributions as distributions,
-    evaluators as evaluators,
     fitting as fitting,
     infer as infer,
-    likelihoods as likelihoods,
-    losses as losses,
     materials as materials,
     math as math,
     models as models,
     modules as modules,
-    noise_models as noise_models,
+    objectives as objectives,
     optimize as optimize,
     parameters as parameters,
     rf as rf,
     serialization as serialization,
+    stats as stats,
     viz as viz,
 )
 
@@ -169,24 +162,18 @@ __all__ = [
     "derivative",
     "sweep",
     
-    # Sub-modules
-    "constraints",
-    "covariance_kernels",
-    "discrepancy_models",
-    "distributions",
-    "evaluators",
+    # Public packages
     "fitting",
     "infer",
-    "likelihoods",
-    "losses",
     "materials",
     "math",
     "models",
     "modules",
-    "noise_models",
+    "objectives",
     "optimize",
     "parameters",
     "rf",
     "serialization",
+    "stats",
     "viz",
 ]

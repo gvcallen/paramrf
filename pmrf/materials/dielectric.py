@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import abstractmethod
 
 import jax.numpy as jnp
-from pmrf.constraints import Positive, NonNegative, GreaterThan, Interval
+from pmrf.parameters.constraints import Positive, NonNegative, GreaterThan, Interval
 from pmrf.frequency import Frequency
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param

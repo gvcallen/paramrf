@@ -12,14 +12,14 @@ import parax.distributions as dist
 
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, Negated
-from pmrf.problems import SummedTerms, PriorPenalized
-from pmrf.terms import as_terms
+from pmrf.objectives.evaluators import TargetLoss, MarginalLogLikelihood, GibbsMarginalLogLikelihood, Negated
+from pmrf.objectives.problems import SummedTerms, PriorPenalized
+from pmrf.objectives.terms import as_terms
 from pmrf.fitting.targets import resolve_datasets, union_frequency
-from pmrf.likelihoods import GaussianLikelihood
-from pmrf.losses import MSELoss
+from pmrf.stats.likelihoods import GaussianLikelihood
+from pmrf.objectives.losses import MSELoss
 from pmrf.parameters import Random
-from pmrf.distributions import Uniform
+from pmrf.stats.distributions import Uniform
 
 from pmrf.optimize.minimize import minimize, AbstractMinimizer
 from pmrf.fitting.result import FitResult
@@ -64,7 +64,7 @@ def fit_minimize(
     features : str | list[str] | Callable[[PyTree, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,
-        in which case a feature evaluator is created (see :class:`pmrf.evaluators.Feature`).
+        in which case a feature evaluator is created (see :class:`pmrf.objectives.evaluators.Feature`).
         Defaults to all S-parameters.
     inference : str
         The type of inference to use, either 'frequentist' or 'bayesian'.
@@ -72,11 +72,11 @@ def fit_minimize(
     loss : str | Callable, optional
         A loss function between the model prediction and the data.
         Can be a function or a callable PyTree with optional parameters.
-        Used to internally create a :class:`pmrf.evaluators.TargetLoss` evaluator.
+        Used to internally create a :class:`pmrf.objectives.evaluators.TargetLoss` evaluator.
         Mutually exclusive with `likelihood`. If neither `loss` nor `likelihood` is passed,
-        :class:`pmrf.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
-        otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
-        See :mod:`pmrf.losses` for common losses.
+        :class:`pmrf.objectives.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
+        otherwise :class:`pmrf.stats.likelihoods.GaussianLikelihood` is used for `likelihood`.
+        See :mod:`pmrf.objectives.losses` for common losses.
 
         An MSE that starts very small (e.g. fitting a feature that barely moves) can
         fall below SciPy's absolute `gtol` and `ftol` before the fit moves; tighten them
@@ -84,18 +84,18 @@ def fit_minimize(
     likelihood : str | Callable, optional
         A likelihood model representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
-        Used to internally create a :class:`pmrf.evaluators.MarginalLogLikelihood`,
-        wrapped in a :class:`pmrf.evaluators.Negated` evaluator.
+        Used to internally create a :class:`pmrf.objectives.evaluators.MarginalLogLikelihood`,
+        wrapped in a :class:`pmrf.objectives.evaluators.Negated` evaluator.
         Mutually exclusive with `loss`. If neither `loss` nor `likelihood` is passed,
-        :class:`pmrf.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
-        otherwise :class:`pmrf.likelihoods.GaussianLikelihood` is used for `likelihood`.
-        See :mod:`pmrf.losses` for common losses.
+        :class:`pmrf.objectives.losses.MSELoss` is used for `loss` if `inference` is 'frequentist',
+        otherwise :class:`pmrf.stats.likelihoods.GaussianLikelihood` is used for `likelihood`.
+        See :mod:`pmrf.objectives.losses` for common losses.
     noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise (variance), either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood`.
         For the function case, can be a callable PyTree with optional parameters.
-        See :mod:`pmrf.noise_models` for built-in noise models.
+        See :mod:`pmrf.stats.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
         Only allowed if `likelihood` is passed and/or `inference` is 'bayesian'.
 
@@ -108,7 +108,7 @@ def fit_minimize(
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.
         To use a Gaussian process as a discrepancy model,
-        see :class:`pmrf.discrepancy_models.GaussianProcess`.
+        see :class:`pmrf.stats.discrepancy_models.GaussianProcess`.
         Only allowed if `likelihood` is passed and/or `inference` is 'bayesian'.
     temperature : float, optional
         The temperature value for generalized Bayesian optimization.

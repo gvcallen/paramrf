@@ -21,9 +21,9 @@ import equinox as eqx
 import parax as prx
 from parax.annotation import AbstractAnnotated
 
-from pmrf.bijectors import AbstractBijector, Chain, ScalarAffine
-from pmrf.constraints import AbstractConstraint, Interval
-from pmrf.distributions import AbstractDistribution, Transformed, truncate
+from pmrf.stats.bijectors import AbstractBijector, Chain, ScalarAffine
+from pmrf.parameters.constraints import AbstractConstraint, Interval
+from pmrf.stats.distributions import AbstractDistribution, Transformed, truncate
 from pmrf.utils import error_if, field
 from pmrf.utils.tree import Pathgetter, path_nodes, path_to_name, resolve_target
 
@@ -105,9 +105,9 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         value : ArrayLike, optional
             The declared value of the parameter.
         distribution : Optional[AbstractDistribution], optional
-            The probability distribution, in declared space. See :mod:`pmrf.distributions`.
+            The probability distribution, in declared space. See :mod:`pmrf.stats.distributions`.
         constraint : Optional[AbstractConstraint], optional
-            The range, in declared space. See :mod:`pmrf.constraints`. It is
+            The range, in declared space. See :mod:`pmrf.parameters.constraints`. It is
             intersected with `validity`, and `distribution` is truncated to the
             result and renormalised.
         name : str, optional
@@ -551,7 +551,7 @@ def as_param(
     value : Any, optional
         The declared value of the parameter.
     constraint : Optional[AbstractConstraint], optional
-        The parameter's validity, in declared space. See :mod:`pmrf.constraints`.
+        The parameter's validity, in declared space. See :mod:`pmrf.parameters.constraints`.
     scale : float, optional
         The units `value` is written in, used unless `value` is a parameter with its
         own scale. None, the default, leaves the scale unset (acting as 1.0).
@@ -663,7 +663,7 @@ def param(
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.constraints import Positive
+        from pmrf.parameters.constraints import Positive
 
         class RC(prf.Module):
             R: prf.Param = prf.param(constraint=Positive())
@@ -684,7 +684,7 @@ def param(
     default : Any, optional
         The default value of the parameter.
     constraint : Optional[AbstractConstraint], optional
-        The constraint to apply to the parameter, in declared space. See :mod:`pmrf.constraints`.
+        The constraint to apply to the parameter, in declared space. See :mod:`pmrf.parameters.constraints`.
     scale : float, optional
         The units values of this field are written in, by default None (1.0). A
         parameter passed with its own scale keeps it.
@@ -797,7 +797,7 @@ def Constrained(
     """
     Create a free parameter constrained to a specific domain.
 
-    See :mod:`pmrf.constraints` for built-in constraints.
+    See :mod:`pmrf.parameters.constraints` for built-in constraints.
 
     Parameters
     ----------
@@ -882,8 +882,8 @@ def Random(
     Can also be used for bounded optimization, in which case the random
     variable's domain (constraint) is used as the bounds.
 
-    For built-in distributions, see :mod:`pmrf.distributions`.
-    For built-in constraints, see :mod:`pmrf.constraints`.
+    For built-in distributions, see :mod:`pmrf.stats.distributions`.
+    For built-in constraints, see :mod:`pmrf.parameters.constraints`.
 
     Parameters
     ----------
@@ -2542,7 +2542,7 @@ def prior(
         `fnmatch` glob over names, a sequence of them, or a callable returning nodes
         of `tree`. An unknown name raises; a glob matching nothing selects nothing.
     distribution : AbstractDistribution
-        The prior. See :mod:`pmrf.distributions`.
+        The prior. See :mod:`pmrf.stats.distributions`.
     space : {'declared', 'physical', 'raw'}, default='declared'
         The space `distribution` is over. ``'raw'`` is the parameters' raw space as
         it was just before this call, as :func:`values` returned it with
@@ -2580,8 +2580,8 @@ def prior(
     --------
     .. code-block:: python
 
-        from pmrf.constraints import Positive
-        from pmrf.distributions import Normal
+        from pmrf.parameters.constraints import Positive
+        from pmrf.stats.distributions import Normal
 
         class Line(prf.Model):
             w: prf.Param = prf.param(constraint=Positive())   # validity

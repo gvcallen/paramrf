@@ -15,13 +15,13 @@ except ImportError:
 
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
-from pmrf.evaluators import MarginalLogLikelihood, GibbsMarginalLogLikelihood
-from pmrf.likelihoods import GaussianLikelihood
+from pmrf.objectives.evaluators import MarginalLogLikelihood, GibbsMarginalLogLikelihood
+from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.infer import sample, AbstractSampler
 from pmrf.fitting.result import FitResult
 from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.parameters import Param, Random
-from pmrf.distributions import Uniform
+from pmrf.stats.distributions import Uniform
 
 PyTreeT = TypeVar('PyTreeT', bound=PyTree)
 
@@ -61,26 +61,26 @@ def fit_sample(
     features : str | list[str] | Callable[[PyTree, Frequency], jnp.ndarray], default='s'
         The RF features to condition on.
         Can either be function, a callable PyTree with optional parameters, or a string,
-        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
+        in which case a 'feature' evaluator is created (see :class:`pmrf.objectives.evaluators.Feature`).
         Defaults to all S-parameters.
     likelihood : Callable[[jnp.ndarray], AbstractDistribution], optional
         The likelihood model, which accepts a model prediction (in event space)
         and returns a distribution representing the probability of observing the data.
         Can be a function or a callable PyTree with optional parameters.
-        See :mod:`pmrf.likelihoods` for common likelihoods.
+        See :mod:`pmrf.stats.likelihoods` for common likelihoods.
         Mutually exclusive with `loss`.
     noise : prf.Param | Callable[[jnp.ndarray], jnp.ndarray], optional
         Likelihood noise (variance), either a fixed parameter, or a callable that accepts
         a model prediction (in event space) and returns noise parameters
         for a Gaussian likelihood. Mutually exclusive with `likelihood` and `loss`.
         For the function case, can be a callable PyTree with optional parameters.
-        See :mod:`pmrf.noise_models` for built-in noise models.
+        See :mod:`pmrf.stats.noise_models` for built-in noise models.
         Defaults to `None`, in which case uniform variance from 0.0 to 0.1 is constructed internally.
     loss : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray], optional
         A loss function between the model prediction and the data to construct a Gibbs measure.
         Can be a function or a callable PyTree with optional parameters.
         Mutually exclusive with `likelihood` and `noise`. If neither `loss` nor `likelihood` 
-        is passed, a :class:`pmrf.likelihoods.GaussianLikelihood` is constructed.
+        is passed, a :class:`pmrf.stats.likelihoods.GaussianLikelihood` is constructed.
     discrepancy : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray | AbstractDistribution], optional
         A discrepancy model, which caters for the discrepancy between the model and measured data.
         Can either be a function, or a callable PyTree with optional parameters.

@@ -4,8 +4,8 @@ import jax.numpy as jnp
 from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
-from pmrf.problems import AbstractProblem, problem_terms
-from pmrf.terms import TermFn
+from pmrf.objectives.problems import AbstractProblem, problem_terms
+from pmrf.objectives.terms import TermFn
 
 
 PyTreeT = TypeVar('PyTreeT', bound=PyTree)

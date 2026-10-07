@@ -11,7 +11,7 @@ import parax.distributions as dd
 
 import pmrf as prf
 from pmrf.parameters import Param, Random, prior
-from pmrf.distributions import Normal
+from pmrf.stats.distributions import Normal
 from pmrf.infer.sample import sample
 from pmrf.infer.solvers.blackjax import NUTS
 from pmrf.infer.result import InferResult

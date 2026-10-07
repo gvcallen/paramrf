@@ -8,8 +8,8 @@ import equinox as eqx
 import parax.distributions as dd
 
 from pmrf.parameters import Random, Fixed, Constrained, prior
-from pmrf.constraints import Positive
-from pmrf.distributions import Normal, Uniform
+from pmrf.parameters.constraints import Positive
+from pmrf.stats.distributions import Normal, Uniform
 from pmrf.infer import base
 
 

@@ -8,7 +8,7 @@ from pmrf.models import Model
 from pmrf.frequency import Frequency
 from pmrf.types import ArrayLike
 from pmrf.parameters import Param, param
-from pmrf.constraints import Positive
+from pmrf.parameters.constraints import Positive
 from pmrf.rf import MNAStamp
 
 

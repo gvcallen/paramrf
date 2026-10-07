@@ -15,7 +15,7 @@ import numpy as np
 from jaxtyping import ArrayLike
 from jax.scipy.special import i1
 
-from pmrf.constraints import Interval, Positive, RealLine
+from pmrf.parameters.constraints import Interval, Positive, RealLine
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
 

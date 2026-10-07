@@ -9,8 +9,8 @@ import pytest
 
 import pmrf as prf
 from pmrf._solver_view import SolverView
-from pmrf.constraints import Interval, Positive
-from pmrf.distributions import Normal, Uniform
+from pmrf.parameters.constraints import Interval, Positive
+from pmrf.stats.distributions import Normal, Uniform
 from pmrf.optimize import base as optimize_base
 from pmrf.optimize.solvers.jaxopt import LBFGSB
 from pmrf.optimize.solvers.optimistix import BFGS

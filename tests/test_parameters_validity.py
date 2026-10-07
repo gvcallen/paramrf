@@ -16,8 +16,8 @@ import parax.distributions as dd
 import pytest
 
 import pmrf as prf
-from pmrf.constraints import Interval, Positive
-from pmrf.distributions import Normal, Uniform
+from pmrf.parameters.constraints import Interval, Positive
+from pmrf.stats.distributions import Normal, Uniform
 from pmrf.modules import Probabilistic
 from pmrf.models import DatasheetLine, Resistor
 

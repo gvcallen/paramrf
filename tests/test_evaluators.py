@@ -9,20 +9,20 @@ import pmrf as prf
 
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
-from pmrf.covariance_kernels import (
+from pmrf.stats.covariance_kernels import (
     AutoCrossKernel, Matern52Kernel, PeriodicKernel, RBFKernel, SharedIndependentKernel,
     cross_gram, gram,
 )
-from pmrf.distributions import RelativeTruncatedNormal
-from pmrf.discrepancy_models import GaussianProcess
-from pmrf.likelihoods import GaussianLikelihood
-from pmrf.evaluators import (
+from pmrf.stats.distributions import RelativeTruncatedNormal
+from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.stats.likelihoods import GaussianLikelihood
+from pmrf.objectives.evaluators import (
     Feature, GibbsMarginalLogLikelihood, Goal, MarginalLogLikelihood, Negated,
     TargetLoss, _orthogonal_projection,
 )
 
 import parax.distributions as dist
-losses = pytest.importorskip("pmrf.losses")
+losses = pytest.importorskip("pmrf.objectives.losses")
 
 # ---------------------------------------------------------
 # Dummy Concrete Models for Testing

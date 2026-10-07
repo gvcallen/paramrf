@@ -10,7 +10,7 @@ from pmrf.models import CoaxialLine
 from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_sample
 from pmrf.parameters import Fixed, Random
-from pmrf.distributions import Normal
+from pmrf.stats.distributions import Normal
 from pmrf.infer import NUTS
 
 @pytest.fixture
@@ -100,7 +100,7 @@ def test_fit_sample_missing_freq_error(starting_model, fit_freq):
         fit_sample(starting_model, dummy_s, frequency=None)
 
 def test_fit_sample_specific_feature(truth_model, starting_model, fit_freq):
-    from pmrf.evaluators import Feature
+    from pmrf.objectives.evaluators import Feature
     s21_mag_target = Feature('s21_mag')(truth_model, fit_freq)
     
     key = jax.random.key(42)

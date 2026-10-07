@@ -8,7 +8,7 @@ import numpy as np
 
 spec = importlib.util.spec_from_file_location(
     'line_internal_discrepancy_example',
-    Path(__file__).parents[1] / 'docs/examples/line_internal_discrepancy.py',
+    Path(__file__).parents[1] / 'docs/tutorials/line_internal_discrepancy.py',
 )
 example = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(example)

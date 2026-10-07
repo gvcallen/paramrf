@@ -13,7 +13,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from scipy.constants import mu_0
 
-from pmrf.constraints import Positive
+from pmrf.parameters.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import roughness as _roughness
 from pmrf.modules.base import Module

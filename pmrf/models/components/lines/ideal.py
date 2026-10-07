@@ -4,7 +4,7 @@ Ideal transmission lines (phase, constant RLGC)
 import jax.numpy as jnp
 
 from pmrf.frequency import Frequency
-from pmrf.constraints import Positive, NonNegative
+from pmrf.parameters.constraints import Positive, NonNegative
 from pmrf.utils import field
 from pmrf.parameters import Param, param
 from pmrf.models.components.lines.base import AbstractUniformLine, AbstractImmittanceLine, ImmittanceResult

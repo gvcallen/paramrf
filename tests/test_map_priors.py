@@ -6,10 +6,10 @@ import jax.numpy as jnp
 
 import pmrf as prf
 from pmrf.models import Resistor, Capacitor
-from pmrf.distributions import Normal, Uniform
-from pmrf.problems import SummedTerms, PriorPenalized
+from pmrf.stats.distributions import Normal, Uniform
+from pmrf.objectives.problems import SummedTerms, PriorPenalized
 from pmrf.parameters import tree_param_distributions, tree_param_log_prob
-from pmrf.terms import as_terms
+from pmrf.objectives.terms import as_terms
 from pmrf.utils import unwrap
 
 

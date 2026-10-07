@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 import pmrf as prf
-from pmrf.constraints import Positive
-from pmrf.distributions import Uniform
+from pmrf.parameters.constraints import Positive
+from pmrf.stats.distributions import Uniform
 from pmrf.models import Resistor
 
 from tests._jit import assert_same_jit_key

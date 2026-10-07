@@ -7,14 +7,14 @@ import pytest
 import pmrf as prf
 from pmrf.models import (BasisLineDiscrepancy, GridLineDiscrepancy, LineCorrected,
                          RLGCLine, line_internal_features, reference_line_features)
-from pmrf.evaluators import MarginalLogLikelihood
-from pmrf.likelihoods import GaussianLikelihood
-from pmrf.discrepancy_models import GaussianProcess
-from pmrf.covariance_kernels import RBFKernel
+from pmrf.objectives.evaluators import MarginalLogLikelihood
+from pmrf.stats.likelihoods import GaussianLikelihood
+from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.stats.covariance_kernels import RBFKernel
 from pmrf.models import Circuit, CoaxialLine, MicrostripLine, Port, PortCorrected, GridPortDiscrepancy
 from pmrf.materials import BulkConductor
-from pmrf.distributions import Normal
-from pmrf.linearization import posterior_covariance
+from pmrf.stats.distributions import Normal
+from pmrf.stats.linearization import posterior_covariance
 from pmrf.optimize import minimize, ScipyMinimize
 from pmrf.models import project_line_basis_joint
 

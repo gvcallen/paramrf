@@ -8,8 +8,8 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
-from pmrf.problems import AbstractProblem, problem_terms
-from pmrf.terms import TermFn
+from pmrf.objectives.problems import AbstractProblem, problem_terms
+from pmrf.objectives.terms import TermFn
 from pmrf.utils import field, batch_mask, partition, combine
 from pmrf.utils.random import compress_samples
 

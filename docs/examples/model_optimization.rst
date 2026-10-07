@@ -26,13 +26,13 @@ It is best practice to apply a scaling factor to our values in order to keep the
 Running the Optimizer
 ~~~~~~~~~~~~~~~~~~~~~
 
-Next, we define our design goals. In this case, we want to ensure good matching (low reflection) across our passband. We can use the :class:`~pmrf.evaluators.Goal` evaluator and pass it to the :func:`~pmrf.optimize.minimize` function alongside our frequency range:
+Next, we define our design goals. In this case, we want to ensure good matching (low reflection) across our passband. We can use the :class:`~pmrf.objectives.Goal` evaluator and pass it to the :func:`~pmrf.optimize.minimize` function alongside our frequency range:
 
 .. plot::
    :context:
    :include-source:
 
-   from pmrf.evaluators import Goal
+   from pmrf.objectives import Goal
    from pmrf.optimize import minimize, ScipyMinimize
 
    match_goal = Goal('s11_db', '<', -20)
@@ -71,6 +71,6 @@ For more complex designs, the :func:`~pmrf.optimize.minimize` function can accep
        (Goal('s21_db', '<', -40), stopband),
    ], lpf, solver=ScipyMinimize(method='L-BFGS-B'))
 
-See the :doc:`/core_concepts/optimization_and_inference` page for how to weight such goals against one another. For even more advanced optimization, custom losses can be specified, either using the built-in losses in :mod:`~pmrf.losses`; using a custom callable; or by creating a custom :class:`~pmrf.evaluators.AbstractEvaluator`. The last example is the most powerful, allowing the specification of arbitrary, tunable hyper-parameters.
+See the :doc:`/core_concepts/optimization_and_inference` page for how to weight such goals against one another. For even more advanced optimization, custom losses can be specified, either using the built-in losses in :mod:`~pmrf.objectives`; using a custom callable; or by creating a custom :class:`~pmrf.objectives.AbstractEvaluator`. The last example is the most powerful, allowing the specification of arbitrary, tunable hyper-parameters.
 
 Note that ParamRF also provides convenience functions for fitting models directly to data in :func:`~pmrf.fitting`. See the tutorial for a detailed guide.

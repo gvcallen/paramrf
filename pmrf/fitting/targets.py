@@ -11,7 +11,7 @@ try:
 except ImportError:
     pass
 
-from pmrf.evaluators import Feature
+from pmrf.objectives.evaluators import Feature
 from pmrf.frequency import Frequency
 from pmrf.models import SkrfNetwork
 from pmrf.network_collection import NetworkCollection

@@ -24,7 +24,7 @@ from pmrf.math import CONVERSION_LOOKUP
 from pmrf.utils.type import is_overridden
 from pmrf.utils import field, unwrap, unwrap_self
 from pmrf.utils.tree import pytree_cached_property
-from pmrf.distributions import AbstractDistribution
+from pmrf.stats.distributions import AbstractDistribution
 from pmrf.modules.base import Module, validate
 
 T = TypeVar('T')
