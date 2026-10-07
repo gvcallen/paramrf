@@ -4,12 +4,8 @@ import jax.numpy as jnp
 import numpy as np
 
 import pmrf as prf
-from pmrf.stats.covariance_kernels import RBFKernel
-from pmrf.stats.discrepancy_models import GaussianProcess
-from pmrf.stats.distributions import Normal
-from pmrf.objectives.evaluators import MarginalLogLikelihood
-from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.linearization import posterior_covariance
+from pmrf.objectives import MarginalLogLikelihood
+from pmrf.stats import GaussianLikelihood, GaussianProcess, Normal, RBFKernel, posterior_covariance
 from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.models import (
     BasisLineDiscrepancy, CoaxialLine, GridLineDiscrepancy,

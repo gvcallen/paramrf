@@ -6,7 +6,7 @@ A fitted Gaussian-process discrepancy can be predicted at new frequencies, with 
 Fitting with a Discrepancy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We add a slow ripple and measurement noise to the line's S11, then fit the dielectric constant with a :class:`~pmrf.stats.discrepancy_models.GaussianProcess` for the discrepancy. The kernel length scale uses the fit frequency's unit, MHz:
+We add a slow ripple and measurement noise to the line's S11, then fit the dielectric constant with a :class:`~pmrf.stats.GaussianProcess` for the discrepancy. The kernel length scale uses the fit frequency's unit, MHz:
 
 .. plot::
    :context: reset
@@ -18,9 +18,7 @@ We add a slow ripple and measurement noise to the line's S11, then fit the diele
    from pmrf.models import CoaxialLine
    from pmrf.materials import BulkConductor, ConstantDielectric
    from pmrf.fitting import fit
-   from pmrf.stats.likelihoods import GaussianLikelihood
-   from pmrf.stats.discrepancy_models import GaussianProcess
-   from pmrf.stats.covariance_kernels import Matern52Kernel
+   from pmrf.stats import GaussianLikelihood, GaussianProcess, Matern52Kernel
 
    def coax(ep_r):
        return CoaxialLine(
@@ -48,7 +46,7 @@ We add a slow ripple and measurement noise to the line's S11, then fit the diele
 Predicting the Discrepancy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~pmrf.objectives.evaluators.MarginalLogLikelihood.predict_discrepancy` uses the fitted model and residuals to predict the discrepancy. The new frequency grid extends beyond the fit band and uses GHz; the method handles the unit conversion.
+:meth:`~pmrf.objectives.MarginalLogLikelihood.predict_discrepancy` uses the fitted model and residuals to predict the discrepancy. The new frequency grid extends beyond the fit band and uses GHz; the method handles the unit conversion.
 
 .. plot::
    :context:
