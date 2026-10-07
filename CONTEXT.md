@@ -176,8 +176,8 @@ impedance — so it belongs to the material, not the geometry: it is a field of
 
 A fit in Kennedy–O'Hagan form treats an observation as $\tilde h = h(\theta) +
 \delta + \varepsilon$: the model prediction, a **discrepancy** and measurement
-noise. `MarginalLogLikelihood` scores it; see `pmrf.discrepancy_models` and
-`pmrf.likelihoods`.
+noise. `MarginalLogLikelihood` scores it; see `pmrf.stats.discrepancy_models` and
+`pmrf.stats.likelihoods`.
 
 ### Event space and event block
 
