@@ -60,7 +60,7 @@ The code below demonstrate how to define and optimize an RLC model to satisfy a 
   C = prf.Bounded(0.0, 100.0, scale=1e-12, name='C')
   
   model = Resistor(R) ** Inductor(L) ** Capacitor(C)
-  goal = prf.evaluators.Goal('s11_db', '<', -20)
+  goal = prf.objectives.Goal('s11_db', '<', -20)
   passband = prf.Frequency(2, 5, 101, 'GHz')
   
   result = prf.optimize.minimize(goal, model, passband, solver=prf.optimize.NelderMead())
