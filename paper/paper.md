@@ -60,13 +60,14 @@ The following snippet demonstrates ParamRF's syntax and optimization API. A stan
 ```python
 import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
+from pmrf.objectives import Goal
 
 R = prf.Unconstrained(50.0)
 L = prf.Bounded(0.0, 100.0, scale=1e-9)
 C = prf.Bounded(0.0, 100.0, scale=1e-12)
 
 model = Resistor(R) ** Inductor(L) ** Capacitor(C)
-goal = prf.evaluators.Goal('s11_db', '<', -20)
+goal = Goal('s11_db', '<', -20)
 passband = prf.Frequency(2, 5, 101, 'GHz')
 
 result = prf.optimize.minimize(
