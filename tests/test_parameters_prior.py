@@ -7,7 +7,7 @@ import parax as prx
 import pytest
 
 import pmrf as prf
-from pmrf.distributions import Normal, Uniform, truncate
+from pmrf.stats.distributions import Normal, Uniform, truncate
 from pmrf.infer import base as infer_base
 from pmrf.models import Resistor
 
@@ -79,7 +79,7 @@ def test_prior_replaces_an_existing_prior():
 def test_prior_already_within_bounds_is_not_truncated():
     """A prior whose support lies inside the bounds needs no truncation, so it is kept
     as given, even when it cannot be truncated."""
-    m = RC(R=prf.Constrained(prf.constraints.Positive(), 40.0), C=prf.Unconstrained(2.0))
+    m = RC(R=prf.Constrained(prf.parameters.constraints.Positive(), 40.0), C=prf.Unconstrained(2.0))
     prior = dist.Gamma(4.0, 0.1)
     attached = prf.prior(m, "R", prior)
     assert isinstance(prx.as_unwrapped(attached.R.distribution), dist.Gamma)

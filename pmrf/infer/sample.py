@@ -6,8 +6,8 @@ from jaxtyping import PyTree
 
 from pmrf.modules.base import validate
 from pmrf.frequency import Frequency
-from pmrf.problems import AbstractProblem, SummedTerms
-from pmrf.terms import TermLike, as_terms
+from pmrf.objectives.problems import AbstractProblem, SummedTerms
+from pmrf.objectives.terms import TermLike, as_terms
 from pmrf.infer.base import AbstractSampler, run_sampler
 from pmrf.infer.result import InferResult
 from pmrf.utils.random import generate_key

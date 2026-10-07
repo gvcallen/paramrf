@@ -3,7 +3,7 @@ A convenience grouping for a dielectric sheet of known height, with its metalliz
 """
 from __future__ import annotations
 
-from pmrf.constraints import Positive
+from pmrf.parameters.constraints import Positive
 from pmrf.materials.conductor import AbstractConductor, BulkConductor, as_conductor
 from pmrf.materials.dielectric import AbstractDielectric, ConstantDielectric, as_dielectric
 from pmrf.modules.base import Module

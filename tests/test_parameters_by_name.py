@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import pmrf as prf
-from pmrf.distributions import Uniform
+from pmrf.stats.distributions import Uniform
 from pmrf.models import Capacitor, Cascade, Resistor
 
 from tests._jit import assert_same_jit_key
@@ -172,7 +172,7 @@ def test_log_prior_on_tuple():
 def test_log_prior_raw_agrees_with_prior_penalized():
     """PriorPenalized scores the declared density, so the raw log prior differs from
     it by the Jacobian term alone."""
-    from pmrf.problems import PriorPenalized, SummedTerms
+    from pmrf.objectives.problems import PriorPenalized, SummedTerms
 
     m = RC(R=prf.Random(Uniform(0.0, 100.0), value=40.0), C=prf.Fixed(2.0))
     problem = SummedTerms(model=m, terms=(lambda model: jnp.asarray(0.0),))
@@ -184,7 +184,7 @@ def test_log_prior_raw_agrees_with_prior_penalized():
 def test_log_prior_declared_agrees_with_prior_penalized_when_scaled():
     """With a scale, PriorPenalized still matches the declared log prior, and the
     physical one differs from it by n log|scale|."""
-    from pmrf.problems import PriorPenalized, SummedTerms
+    from pmrf.objectives.problems import PriorPenalized, SummedTerms
 
     m = _scaled_bounded()
     penalty = PriorPenalized(SummedTerms(model=m, terms=(lambda model: jnp.asarray(0.0),)))()

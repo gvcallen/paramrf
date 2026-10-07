@@ -5,7 +5,7 @@ from typing import Any, Callable
 import parax as prx
 from jax import Array
 
-from pmrf.distributions import AbstractDistribution
+from pmrf.stats.distributions import AbstractDistribution
 from pmrf.modules.base import Module
 from pmrf.parameters import Space
 from pmrf.utils import field, freeze

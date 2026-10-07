@@ -4,8 +4,8 @@ import jax.numpy as jnp
 import pmrf as prf
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.problems import SummedTerms
-from pmrf.terms import AbstractTerm, BoundEvaluator, as_terms
+from pmrf.objectives.problems import SummedTerms
+from pmrf.objectives.terms import AbstractTerm, BoundEvaluator, as_terms
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers.scipy import ScipyMinimize
 
@@ -164,27 +164,27 @@ def test_optimize_result_objective_holds_every_term(model, low_band, high_band):
     assert all(isinstance(t, BoundEvaluator) for t in result.objective)
 
 def test_optimize_result_objective_for_single_term(model, low_band):
-    goal = prf.evaluators.Goal('s11_db', '<', -20)
+    goal = prf.objectives.evaluators.Goal('s11_db', '<', -20)
     # The hinge is flat beyond the threshold and its RMSE derivative is undefined at
     # the zero-loss plateau, so this structural integration check uses SciPy differences.
     result = minimize(goal, model, low_band, solver=ScipyMinimize(use_grad=False))
 
     assert len(result.objective) == 1
-    assert isinstance(result.objective[0].evaluator, prf.evaluators.Goal)
+    assert isinstance(result.objective[0].evaluator, prf.objectives.evaluators.Goal)
 
 # ---------------------------------------------------------
 # Misuse should say what is wrong
 # ---------------------------------------------------------
 
 def test_problem_rejects_empty_terms(model):
-    from pmrf.problems import SummedTerms
+    from pmrf.objectives.problems import SummedTerms
 
     with pytest.raises(ValueError, match="at least one term"):
         SummedTerms(model=model, terms=())
 
 def test_prior_penalized_rejects_double_wrapping(model, low_band):
     """Penalizing twice would count every prior twice."""
-    from pmrf.problems import SummedTerms, PriorPenalized
+    from pmrf.objectives.problems import SummedTerms, PriorPenalized
 
     problem = PriorPenalized(SummedTerms(model=model, terms=(BoundEvaluator(lambda m, f: jnp.asarray(0.0), low_band),)))
 
@@ -193,7 +193,7 @@ def test_prior_penalized_rejects_double_wrapping(model, low_band):
 
 def test_minimize_rejects_a_problem_alongside_a_model(model, low_band):
     """The problem already binds them, so passing both is ambiguous."""
-    from pmrf.problems import SummedTerms
+    from pmrf.objectives.problems import SummedTerms
 
     problem = SummedTerms(model=model, terms=(BoundEvaluator(lambda m, f: jnp.asarray(0.0), low_band),))
 

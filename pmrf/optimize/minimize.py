@@ -5,8 +5,8 @@ from jaxtyping import PyTree
 
 from pmrf.modules.base import validate
 from pmrf.frequency import Frequency
-from pmrf.problems import AbstractProblem, SummedTerms
-from pmrf.terms import TermLike, as_terms
+from pmrf.objectives.problems import AbstractProblem, SummedTerms
+from pmrf.objectives.terms import TermLike, as_terms
 from pmrf.optimize.base import AbstractMinimizer, run_minimizer
 from pmrf.optimize.result import OptimizeResult
 from pmrf.optimize.solvers.scipy import ScipyMinimize
@@ -31,7 +31,7 @@ def minimize(
     objective : TermLike | Sequence[TermLike] | pmrf.AbstractProblem
         An already-built problem, or the objective function to minimize. Can be a function or a callable PyTree
         with optional parameters. If a sequence of objectives is provided,
-        they are automatically summed. See :meth:`pmrf.evaluators.Goal`
+        they are automatically summed. See :meth:`pmrf.objectives.evaluators.Goal`
         for an easy way to define goal-based objectives.
 
         Each objective may instead be an ``(objective, frequency)`` pair, or a

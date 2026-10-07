@@ -54,7 +54,7 @@ The code below demonstrates this by extending the previous class, while constrai
    :include-source:
 
    # <previous imports>
-   from pmrf.constraints import Positive
+   from pmrf.parameters.constraints import Positive
    
    class Capacitor(Capacitor):
        C: prf.Param = prf.param(constraint=Positive(), as_free=True, scale=1e-12)

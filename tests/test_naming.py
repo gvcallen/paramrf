@@ -141,7 +141,7 @@ def test_tied_nested_namespace():
 
 import numpy as np
 import skrf
-from pmrf.distributions import Uniform
+from pmrf.stats.distributions import Uniform
 from pmrf.models import DatasheetLine, FloatingLine, Touchstone
 
 

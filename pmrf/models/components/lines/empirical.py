@@ -2,7 +2,7 @@
 import jax.numpy as jnp
 from scipy.constants import c
 
-from pmrf.constraints import GreaterThan, NonNegative, Positive
+from pmrf.parameters.constraints import GreaterThan, NonNegative, Positive
 from pmrf.frequency import Frequency
 from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
 from pmrf.parameters import Param, param

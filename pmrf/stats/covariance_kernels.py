@@ -1,7 +1,7 @@
 """
 Covariance kernels for Gaussian processes.
 
-Useful for discrepancy modeling. See :mod:`pmrf.discrepancy_models`
+Useful for discrepancy modeling. See :mod:`pmrf.stats.discrepancy_models`
 for more details.
 """
 from abc import abstractmethod
@@ -80,7 +80,7 @@ def gram(
         The covariance kernel. Accepts two input points of identical shape and
         returns an array broadcastable to the kernel's batch shape.
         Can be a function or a callable PyTree.
-        See :mod:`pmrf.covariance_kernels` for built-in covariance kernels.
+        See :mod:`pmrf.stats.covariance_kernels` for built-in covariance kernels.
     x : jnp.ndarray
         The input points. An array of shape ``(N,)`` is treated as ``N``
         one-dimensional features; an array of shape ``(N, d)`` is treated as
@@ -136,7 +136,7 @@ class AbstractCovarianceKernel(Module):
         """
         Build the Gram (covariance) matrix of this kernel evaluated at ``x``.
 
-        Equivalent to ``pmrf.covariance_kernels.gram(self, x, jitter=jitter)``.
+        Equivalent to ``pmrf.stats.covariance_kernels.gram(self, x, jitter=jitter)``.
 
         Parameters
         ----------
@@ -153,11 +153,11 @@ class AbstractCovarianceKernel(Module):
         return gram(self, x, jitter=jitter)
 
     def __add__(self, other: 'AbstractCovarianceKernel') -> 'AbstractCovarianceKernel':
-        from pmrf.covariance_kernels import SumKernel
+        from pmrf.stats.covariance_kernels import SumKernel
         return SumKernel(self, other)
 
     def __mul__(self, other: 'AbstractCovarianceKernel | Param | float') -> 'AbstractCovarianceKernel':
-        from pmrf.covariance_kernels import ProductKernel, ConstantKernel
+        from pmrf.stats.covariance_kernels import ProductKernel, ConstantKernel
         
         if isinstance(other, AbstractCovarianceKernel):
             return ProductKernel(self, other)    

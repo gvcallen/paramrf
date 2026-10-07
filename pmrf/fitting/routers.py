@@ -9,10 +9,10 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
-from pmrf.evaluators import EvaluatorLike
+from pmrf.objectives.evaluators import EvaluatorLike
 from pmrf.optimize import is_minimizer, OptimizeResult, ScipyMinimize, AbstractMinimizer
 from pmrf.infer import is_sampler, InferResult, AbstractSampler
-from pmrf.evaluators import Feature
+from pmrf.objectives.evaluators import Feature
 from pmrf.models import SkrfNetwork
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.minimize import fit_minimize
@@ -59,7 +59,7 @@ def fit(
     features : EvaluatorLike | None, default='s'
         The RF features to fit. Defaults to all S-parameters.
         Can either be an instance of :class:`pmrf.Evaluator` or a string,
-        in which case a 'feature' evaluator is created (see :class:`pmrf.evaluators.Feature`).
+        in which case a 'feature' evaluator is created (see :class:`pmrf.objectives.evaluators.Feature`).
     **kwargs : dict
         Additional arguments passed to the underlying solver.
 

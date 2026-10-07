@@ -24,7 +24,7 @@ class AbstractLikelihood(Module):
     * For deterministic predictions, returns the conditional distribution $p(y_{true} \mid y_{pred})$.
     * For probabilistic predictions, returns the marginal distribution $p(y_{true})$ over $y_{pred}$.
     
-    See :mod:`pmrf.likelihoods` for built-in likelihood models.
+    See :mod:`pmrf.stats.likelihoods` for built-in likelihood models.
     """
     @abstractmethod
     def __call__(self, y_event: jnp.ndarray | AbstractDistribution) -> AbstractDistribution:

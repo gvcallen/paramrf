@@ -11,13 +11,13 @@ import pytest
 from jax.flatten_util import ravel_pytree
 
 import pmrf as prf
-from pmrf.distributions import Normal
-from pmrf.distributions import RelativeTruncatedNormal as RTNormal
+from pmrf.stats.distributions import Normal
+from pmrf.stats.distributions import RelativeTruncatedNormal as RTNormal
 from pmrf.infer import base as infer_base
 from pmrf.models import Capacitor, Resistor, Wrapped
 from pmrf.modules import Probabilistic
 from pmrf.parameters import tree_param_distributions, tree_param_log_prob
-from pmrf.problems import PriorPenalized, SummedTerms
+from pmrf.objectives.problems import PriorPenalized, SummedTerms
 
 
 MU = jnp.array([3.9, 3.9])
@@ -192,14 +192,14 @@ def test_a_value_outside_the_bounds_scores_minus_infinity():
 
 class _PositiveResistor(prf.Model):
     """A resistor whose resistance has a validity: it is positive."""
-    R: prf.Param = prf.param(constraint=prf.constraints.Positive())
+    R: prf.Param = prf.param(constraint=prf.parameters.constraints.Positive())
 
     def s(self, freq):
         return jnp.zeros((len(freq), 1, 1), dtype=complex)
 
 
 class _ArrayPriorModel(prf.Model):
-    value: prf.Param = prf.param(as_free=True, constraint=prf.constraints.Positive())
+    value: prf.Param = prf.param(as_free=True, constraint=prf.parameters.constraints.Positive())
 
 
 class _OutsidePriorModel(prf.Model):
@@ -400,10 +400,10 @@ def test_unnormalised_joint_prior_requires_declared_or_physical_event():
 
 def test_unnormalised_physical_joint_prior_keeps_density_and_applies_scale_jacobian_once():
     parts = {
-        "a": prf.as_param(50.0, constraint=prf.constraints.Positive(), as_free=True),
+        "a": prf.as_param(50.0, constraint=prf.parameters.constraints.Positive(), as_free=True),
         "c": prf.as_param(
             2.0,
-            constraint=prf.constraints.Positive(),
+            constraint=prf.parameters.constraints.Positive(),
             scale=1e-12,
             as_free=True,
         ),

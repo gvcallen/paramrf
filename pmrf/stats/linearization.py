@@ -6,7 +6,7 @@ $J = -\partial r / \partial \theta$ of the event-space residual with respect to 
 model's free parameters, with the discrepancy's hyperparameters held fixed, and the
 Fisher matrix $F = \sum_b J_b^\top \Sigma_{D,b}^{-1} J_b$ with
 $\Sigma_D = K + \Sigma_n$ per event block. Build one with
-:meth:`pmrf.evaluators.MarginalLogLikelihood.linearize`, and combine one or more with
+:meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, and combine one or more with
 the prior in :func:`posterior_covariance`.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 from jaxtyping import Array, PyTree
 
-from pmrf.discrepancy_models import _group_by_matrix
+from pmrf.stats.discrepancy_models import _group_by_matrix
 from pmrf.parameters import Space, _check_space, log_prior, update, values as _values
 from pmrf.utils import field
 
@@ -28,7 +28,7 @@ from pmrf.utils import field
 class Linearization(eqx.Module):
     r"""The linearisation of one fit at a model.
 
-    Built by :meth:`pmrf.evaluators.MarginalLogLikelihood.linearize`. Columns of
+    Built by :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`. Columns of
     :attr:`J`, and rows and columns of :attr:`F`, follow the free parameters in
     :attr:`names` order, each flattened in C order to its size in :attr:`shapes`.
     """
@@ -99,7 +99,7 @@ def _linearize(
     """Linearise a residual function of a model, given the factor of its covariance.
 
     The evaluator-facing entry point is
-    :meth:`pmrf.evaluators.MarginalLogLikelihood.linearize`, which supplies
+    :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, which supplies
     `residual_fn` and `chol`.
 
     Parameters

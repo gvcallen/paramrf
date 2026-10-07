@@ -14,7 +14,7 @@ import jax.scipy as jsp
 import jax.numpy as jnp
 import parax.distributions as dist
 
-from pmrf.covariance_kernels import cross_gram, gram
+from pmrf.stats.covariance_kernels import cross_gram, gram
 from pmrf.utils import field
 from pmrf.modules.base import Module
 
@@ -31,9 +31,9 @@ class AbstractDiscrepancyModel(Module):
     Here, probability events (e.g. frequency) are moved to the **last axis**.
     
     These models are commonly used in conjuction with a likelihood function
-    via :class:`pmrf.evaluators.MarginalLogLikelihood`.
+    via :class:`pmrf.objectives.evaluators.MarginalLogLikelihood`.
     
-    See :mod:`pmrf.discrepancy_models` for built-in discrepancy models.
+    See :mod:`pmrf.stats.discrepancy_models` for built-in discrepancy models.
     """
     @abstractmethod
     def __call__(self, y_event: jnp.ndarray) -> jnp.ndarray | dist.AbstractDistribution:
@@ -160,13 +160,13 @@ class GaussianProcess(AbstractDiscrepancyModel):
     with parameters of shape (D,).
     
     See :class:`pmrf.DiscrepancyModel` for more information on general discrepancy models.
-    See :mod:`pmrf.covariance_kernels` for built-in covariance kernels.
+    See :mod:`pmrf.stats.covariance_kernels` for built-in covariance kernels.
 
     Parameters
     ----------
     kernel : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
         The covariance kernel function that computes the correlation between two input arrays.
-        Can be a function or a callable PyTree. See :mod:`pmrf.covariance_kernels`
+        Can be a function or a callable PyTree. See :mod:`pmrf.stats.covariance_kernels`
         for built-in covariance kernels.
     jitter : float, default=1e-10
         A small scalar added to the diagonal of the covariance matrix for numerical stability.
@@ -189,7 +189,7 @@ class GaussianProcess(AbstractDiscrepancyModel):
         Each batch entry of ``observed`` is distributed as
         $\mathcal{N}(y, K + \Sigma_n)$, with $\Sigma_n = \mathrm{diag}(\sigma^2)$.
         Equal to the log probability of the distribution built by :meth:`__call__` and
-        :class:`pmrf.likelihoods.GaussianLikelihood`, summed over the batch.
+        :class:`pmrf.stats.likelihoods.GaussianLikelihood`, summed over the batch.
 
         ``M = K + Sigma_n`` is formed and factorized at the broadcast batch shape of the
         kernel's Gram batch and ``noise_variance``, rather than the full batch shape,
@@ -388,7 +388,7 @@ class GaussianProcess(AbstractDiscrepancyModel):
             
         See Also
         --------
-        pmrf.covariance_kernels.gram : Builds the covariance matrix used here.
+        pmrf.stats.covariance_kernels.gram : Builds the covariance matrix used here.
         """
         K = gram(self.kernel, x, jitter=self.jitter)
         

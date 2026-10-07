@@ -45,6 +45,9 @@ Main Modules
    pmrf.models
    pmrf.modules
    pmrf.materials
+   pmrf.parameters
+   pmrf.stats
+   pmrf.objectives
    pmrf.optimize
    pmrf.infer
    pmrf.fitting
@@ -56,18 +59,7 @@ Other Modules
    :toctree: generated/
    :recursive:
 
-   pmrf.constraints
-   pmrf.covariance_kernels
-   pmrf.discrepancy_models
-   pmrf.distributions
-   pmrf.evaluators
-   pmrf.problems
-   pmrf.terms
-   pmrf.likelihoods
-   pmrf.losses
    pmrf.math
-   pmrf.noise_models
-   pmrf.parameters
    pmrf.rf
    pmrf.serialization
    pmrf.viz

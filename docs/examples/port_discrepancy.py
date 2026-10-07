@@ -13,11 +13,11 @@ from distreqx.distributions import Normal
 from scipy.optimize import minimize
 
 import pmrf as prf
-from pmrf.covariance_kernels import Matern52Kernel
-from pmrf.discrepancy_models import GaussianProcess
-from pmrf.evaluators import MarginalLogLikelihood
-from pmrf.likelihoods import GaussianLikelihood
-from pmrf.linearization import posterior_covariance
+from pmrf.stats.covariance_kernels import Matern52Kernel
+from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.objectives.evaluators import MarginalLogLikelihood
+from pmrf.stats.likelihoods import GaussianLikelihood
+from pmrf.stats.linearization import posterior_covariance
 from pmrf.models import CoaxialLine, GridPortDiscrepancy, Load, PortCorrected, RLGCLine, SModel
 from pmrf.materials import BulkConductor, ConstantDielectric
 

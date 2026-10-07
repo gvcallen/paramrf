@@ -15,7 +15,7 @@ from pmrf.models.components.lines.base import AbstractUniformLine
 from pmrf.models.port_discrepancy import _values_on_grid
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, Random, param
-from pmrf.distributions import Normal
+from pmrf.stats.distributions import Normal
 from pmrf.utils import field, freeze, unwrap, unwrap_self
 
 

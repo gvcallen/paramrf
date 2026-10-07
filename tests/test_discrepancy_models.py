@@ -6,14 +6,14 @@ import numpy as np
 import pytest
 
 import pmrf  # noqa: F401  (enables jax_enable_x64)
-from pmrf.covariance_kernels import (
+from pmrf.stats.covariance_kernels import (
     AutoCrossKernel,
     Matern52Kernel,
     RBFKernel,
     SharedIndependentKernel,
     gram,
 )
-from pmrf.discrepancy_models import GaussianProcess
+from pmrf.stats.discrepancy_models import GaussianProcess
 
 #: Event batch: (port i, port j, Re/Im).
 BATCH = (2, 2, 2)

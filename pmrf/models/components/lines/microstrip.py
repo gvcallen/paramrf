@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 from scipy.constants import c, epsilon_0, mu_0
 
-from pmrf.constraints import Positive
+from pmrf.parameters.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import BulkConductor, ConstantDielectric, Substrate, as_substrate
 from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, HalfSpaceSurfaceImpedance, RootSumSquareSlabSurfaceImpedance

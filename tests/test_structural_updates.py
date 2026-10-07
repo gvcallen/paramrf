@@ -11,7 +11,7 @@ import pytest
 import pmrf as prf
 from pmrf.math import CONVERSION_LOOKUP
 from pmrf.models.base import PLOT_DOMAINS
-from pmrf.distributions import RelativeTruncatedNormal as RTNormal
+from pmrf.stats.distributions import RelativeTruncatedNormal as RTNormal
 from pmrf.models import Capacitor, Cascade, Resistor, Short, Wrapped
 from pmrf.modules import Tied
 

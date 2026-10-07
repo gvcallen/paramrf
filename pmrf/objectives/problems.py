@@ -11,7 +11,7 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 from pmrf.parameters import _log_scale, tree_param_distributions, tree_param_log_prob
-from pmrf.terms import TermFn
+from pmrf.objectives.terms import TermFn
 from pmrf.utils import field, freeze, unwrap
 
 

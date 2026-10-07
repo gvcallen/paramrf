@@ -9,13 +9,13 @@ from pmrf.models import CoaxialLine, Model, RLGCLine
 from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_minimize
 from pmrf.parameters import Fixed, Bounded, Param, Random, update, values
-from pmrf.losses import MSELoss, RMSELoss
+from pmrf.objectives.losses import MSELoss, RMSELoss
 from pmrf.optimize import ScipyMinimize
 from pmrf.optimize.solvers import scipy as scipy_solver
-from pmrf.distributions import LogNormal, Normal
-from pmrf.covariance_kernels import Matern52Kernel
-from pmrf.discrepancy_models import GaussianProcess
-from pmrf.likelihoods import GaussianLikelihood
+from pmrf.stats.distributions import LogNormal, Normal
+from pmrf.stats.covariance_kernels import Matern52Kernel
+from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.stats.likelihoods import GaussianLikelihood
 
 @pytest.fixture
 def fit_freq():
@@ -80,7 +80,7 @@ def test_fit_missing_freq_error(starting_model, fit_freq):
         fit_minimize(starting_model, dummy_s, frequency=None)
 
 def test_fit_specific_feature(truth_model, starting_model, fit_freq):
-    from pmrf.evaluators import Feature
+    from pmrf.objectives.evaluators import Feature
     s21_mag_target = Feature('s21_mag')(truth_model, fit_freq)
     # |S21| barely moves with length, so the MSE starts near 5e-7. SciPy's default
     # gtol, and its ftol (absolute below an objective of 1), stop L-BFGS-B there.

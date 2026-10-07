@@ -18,11 +18,11 @@ import parax.bijectors as bij
 from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Index
 
 from pmrf.frequency import Frequency
-from pmrf.losses import HingeLoss, RMSELoss
-from pmrf.likelihoods import GaussianLikelihood
-from pmrf.covariance_kernels import cross_gram, gram
-from pmrf.discrepancy_models import GaussianProcess, _add_noise
-from pmrf.linearization import Linearization, _linearize, posterior_covariance
+from pmrf.objectives.losses import HingeLoss, RMSELoss
+from pmrf.stats.likelihoods import GaussianLikelihood
+from pmrf.stats.covariance_kernels import cross_gram, gram
+from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise
+from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance
 from pmrf.modules.base import Module
 from pmrf.parameters import Space, values as _values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
@@ -214,7 +214,7 @@ class TargetLoss(AbstractEvaluator):
     loss
         The loss function that takes (y_true, y_pred) and returns a loss metric.
         Can be a function or a PyTree with optional parameters.
-        See :mod:`pmrf.losses` for common losses.
+        See :mod:`pmrf.objectives.losses` for common losses.
     """
     #: The active predictor instance.
     predictor: Callable[[PyTree, Frequency], jnp.ndarray]
@@ -253,14 +253,14 @@ class MarginalLogLikelihood(AbstractEvaluator):
     likelihood
         The likelihood function that takes the model prediction and returns the probability of observing some data.
         Can be a function or a PyTree with optional parameters.
-        See :mod:`pmrf.likelihoods` for common likelihoods.
+        See :mod:`pmrf.stats.likelihoods` for common likelihoods.
     discrepancy
         An optional discrepancy model to cater for model misspecification.
         Can be a function or a PyTree with optional parameters.
-        See :class:`pmrf.discrepancy_models` for common discrepancy models.
-        A :class:`~pmrf.discrepancy_models.GaussianProcess` with a
-        :class:`~pmrf.likelihoods.GaussianLikelihood` is evaluated in closed form
-        (:meth:`~pmrf.discrepancy_models.GaussianProcess.log_prob`), which factorizes
+        See :mod:`pmrf.stats.discrepancy_models` for common discrepancy models.
+        A :class:`~pmrf.stats.discrepancy_models.GaussianProcess` with a
+        :class:`~pmrf.stats.likelihoods.GaussianLikelihood` is evaluated in closed form
+        (:meth:`~pmrf.stats.discrepancy_models.GaussianProcess.log_prob`), which factorizes
         each distinct covariance matrix once. The noise may be constant or vary along
         the event axis.
     use_orthogonal_discrepancy
@@ -534,9 +534,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
         The residual $r = \tilde h - h(\theta)$ of ``model`` at the fit ``frequency`` is
         formed in event space, with the resolved event transform applied to both the
         prediction and the observation, as in :meth:`__call__`. The noise variance is
-        read from the :class:`~pmrf.likelihoods.GaussianLikelihood` as in the
+        read from the :class:`~pmrf.stats.likelihoods.GaussianLikelihood` as in the
         closed-form log-likelihood, and may vary along frequency. Both are passed to
-        :meth:`~pmrf.discrepancy_models.GaussianProcess.predict`.
+        :meth:`~pmrf.stats.discrepancy_models.GaussianProcess.predict`.
 
         Kernel length scales are in the fit frequency's unit, so ``new_frequency`` is
         converted to that unit first.
@@ -563,8 +563,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
         ------
         TypeError
             If the discrepancy is not a
-            :class:`~pmrf.discrepancy_models.GaussianProcess`, or the likelihood is not
-            a :class:`~pmrf.likelihoods.GaussianLikelihood`.
+            :class:`~pmrf.stats.discrepancy_models.GaussianProcess`, or the likelihood is not
+            a :class:`~pmrf.stats.likelihoods.GaussianLikelihood`.
         ValueError
             If orthogonal discrepancy is enabled.
         """
@@ -630,7 +630,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         covariance : jnp.ndarray or None, default=None
             Parameter covariance in declared space and the linearisation's name
             order. If omitted, computed from this fit and the model's prior with
-            :func:`pmrf.linearization.posterior_covariance`. Supply a covariance
+            :func:`pmrf.stats.linearization.posterior_covariance`. Supply a covariance
             from combined linearisations when several fits inform the parameters.
         **kwargs
             Passed to the predictor.
@@ -712,7 +712,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         hyperparameters and the noise are held at their values in this evaluator.
 
         $\Sigma_D = K + \Sigma_n$ is factorized per event block, with the noise
-        variance read from the :class:`~pmrf.likelihoods.GaussianLikelihood` at
+        variance read from the :class:`~pmrf.stats.likelihoods.GaussianLikelihood` at
         ``model``'s prediction. It may vary along frequency. Without a discrepancy,
         $\Sigma_D = \Sigma_n$.
 
@@ -730,16 +730,16 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
         Returns
         -------
-        pmrf.linearization.Linearization
+        pmrf.stats.linearization.Linearization
             The Jacobian, residual, factor of $\Sigma_D$ and Fisher matrix. Pass it to
-            :func:`pmrf.linearization.posterior_covariance`.
+            :func:`pmrf.stats.linearization.posterior_covariance`.
 
         Raises
         ------
         TypeError
             If the discrepancy is neither ``None`` nor a
-            :class:`~pmrf.discrepancy_models.GaussianProcess`, or the likelihood is
-            not a :class:`~pmrf.likelihoods.GaussianLikelihood`.
+            :class:`~pmrf.stats.discrepancy_models.GaussianProcess`, or the likelihood is
+            not a :class:`~pmrf.stats.likelihoods.GaussianLikelihood`.
         ValueError
             If orthogonal discrepancy is enabled.
         """
@@ -1001,11 +1001,11 @@ class Negated(AbstractEvaluator):
     Computes the negative of another evaluator.
     
     This is a general sign flip: it reads nothing from the wrapped evaluator beyond
-    calling it, so it works for any :class:`pmrf.evaluators.AbstractEvaluator`.
+    calling it, so it works for any :class:`pmrf.objectives.evaluators.AbstractEvaluator`.
     
     Its most common use is turning a log-likelihood into a quantity to minimize, for
-    example wrapping :class:`pmrf.evaluators.MarginalLogLikelihood` or
-    :class:`pmrf.evaluators.GibbsMarginalLogLikelihood` for Maximum Likelihood
+    example wrapping :class:`pmrf.objectives.evaluators.MarginalLogLikelihood` or
+    :class:`pmrf.objectives.evaluators.GibbsMarginalLogLikelihood` for Maximum Likelihood
     Estimation.
 
     Parameters
@@ -1059,7 +1059,7 @@ class Goal(TargetLoss):
             Default is None.
         loss : str or Any, optional
             The base loss function. Defaults to RMSE.
-            See :mod:`pmrf.losses` for common losses.
+            See :mod:`pmrf.objectives.losses` for common losses.
         multioutput : str or Any, optional
             Defines how to aggregate losses across multiple outputs. 
             Default is 'uniform_average'.

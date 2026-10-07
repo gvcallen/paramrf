@@ -4,7 +4,7 @@ from abc import abstractmethod
 import jax.numpy as jnp
 from scipy.constants import mu_0
 
-from pmrf.constraints import NonNegative
+from pmrf.parameters.constraints import NonNegative
 from pmrf.frequency import Frequency
 from pmrf.modules.base import Module
 from pmrf.parameters import Param, param

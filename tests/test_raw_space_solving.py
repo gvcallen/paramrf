@@ -11,9 +11,9 @@ from jax.scipy.stats import norm
 
 import pmrf as prf
 from pmrf._solver_view import SolverView
-from pmrf.constraints import GreaterThan, Interval, LessThan
-from pmrf.distributions import Normal, Uniform
-from pmrf.distributions import LogNormal
+from pmrf.parameters.constraints import GreaterThan, Interval, LessThan
+from pmrf.stats.distributions import Normal, Uniform
+from pmrf.stats.distributions import LogNormal
 from pmrf.infer import base as infer_base
 from pmrf.models import Resistor
 from pmrf.optimize import base as optimize_base

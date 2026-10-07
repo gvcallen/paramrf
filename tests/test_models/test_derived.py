@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 import pmrf as prf
-from pmrf.constraints import Interval
-from pmrf.distributions import Uniform
+from pmrf.parameters.constraints import Interval
+from pmrf.stats.distributions import Uniform
 from pmrf.models import Cascade, CoaxialLine, FloatingTwoPort, Resistor
 from tests._jit import assert_same_jit_key
 

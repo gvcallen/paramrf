@@ -4,7 +4,7 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
-from pmrf.evaluators import AbstractEvaluator
+from pmrf.objectives.evaluators import AbstractEvaluator
 from pmrf.optimize import OptimizeResult
 from pmrf.infer import InferResult
 

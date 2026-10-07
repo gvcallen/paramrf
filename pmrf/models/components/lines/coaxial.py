@@ -5,7 +5,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from scipy.constants import epsilon_0, mu_0
 
-from pmrf.constraints import Positive
+from pmrf.parameters.constraints import Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import AbstractConductor, AbstractDielectric, BulkConductor, ConstantDielectric, ConductorProperties, DielectricProperties, as_conductor, as_dielectric
 from pmrf.materials.surface_impedance import AbstractSurfaceImpedance, SchelkunoffRodSurfaceImpedance, SchelkunoffTubeSurfaceImpedance, TescheRodSurfaceImpedance, TescheTubeSurfaceImpedance
