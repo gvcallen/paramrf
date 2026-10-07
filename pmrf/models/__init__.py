@@ -16,6 +16,15 @@ from pmrf.models.port_discrepancy import (
     GridPortDiscrepancy as GridPortDiscrepancy,
     PortCorrected as PortCorrected,
 )
+from pmrf.models.line_discrepancy import (
+    AbstractLineDiscrepancy as AbstractLineDiscrepancy,
+    GridLineDiscrepancy as GridLineDiscrepancy,
+    LineCorrected as LineCorrected,
+    reference_line_features as reference_line_features,
+    line_internal_features as line_internal_features,
+    BasisLineDiscrepancy as BasisLineDiscrepancy,
+    project_line_basis_joint as project_line_basis_joint,
+)
 
 # Adapters
 from pmrf.models.adapters.delegated import (
