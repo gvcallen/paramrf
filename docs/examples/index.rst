@@ -15,5 +15,3 @@ This chapter includes some basic examples to demonstrate ParamRF's core features
    multiple_models_one_parameter_set
    shared_modules
    discrepancy_prediction
-   port_discrepancy
-   line_internal_discrepancy

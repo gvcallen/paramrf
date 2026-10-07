@@ -1,6 +1,6 @@
 """Transfer a constrained joint Gaussian prior to a reflection-only fit.
 
-Run with ``python docs/examples/port_discrepancy.py``.
+Run with ``python docs/tutorials/port_discrepancy.py``.
 """
 from time import perf_counter
 

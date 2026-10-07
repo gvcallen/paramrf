@@ -5,7 +5,6 @@ A model normally owns its modules and their parameters. To share one module acro
 several models, store it on an :class:`pmrf.models.AbstractBuilder` and pass it to
 each model in ``build``. This board shares one substrate between two traces.
 
-
 .. jupyter-execute::
 
    import pmrf as prf

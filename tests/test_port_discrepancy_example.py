@@ -9,7 +9,7 @@ import pytest
 
 spec = importlib.util.spec_from_file_location(
     'port_discrepancy_example',
-    Path(__file__).parents[1] / 'docs/examples/port_discrepancy.py',
+    Path(__file__).parents[1] / 'docs/tutorials/port_discrepancy.py',
 )
 example = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(example)
