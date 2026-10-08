@@ -66,6 +66,53 @@ class PhaseLine(AbstractUniformLine):
         return zc, gammaL
 
 
+class DelayLine(AbstractUniformLine):
+    r"""
+    Ideal, lossless, and dispersionless transmission line defined by 
+    a constant time delay. Characteristic impedance is real and constant; 
+    phase scales linearly with frequency.
+
+    **Mathematical Formulation**
+
+    $$Z_c(\omega) = Z_c$$
+    $$\gamma L(\omega) = j \cdot \omega \cdot t_d$$
+
+    Example
+    --------
+    .. code-block:: python
+
+        import pmrf as prf
+        from pmrf.models import DelayLine
+
+        # Create an ideal 1 ns delay line with 50-ohm characteristic impedance
+        line = DelayLine(
+            z0=50.0,
+            td=1.0e-9
+        )
+
+        freq = prf.Frequency(start=0.5, stop=1.5, npoints=101, unit='ghz')
+        s = line.s(freq)
+
+    Parameters
+    ----------
+    z0 : Param, default=50.0
+        Characteristic impedance in Ohms.
+    td : Param, default=1.0e-9
+        Time delay in seconds.
+    """
+    #: Characteristic impedance
+    z0: Param = param(default=50.0, constraint=Positive())
+    
+    #: Time delay
+    td: Param = param(default=1.0e-9, constraint=Positive())
+
+    def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
+        zc = self.z0 * jnp.ones(frequency.npoints, dtype=complex)
+        gammaL = 1j * frequency.w * self.td
+        
+        return zc, gammaL
+
+
 class RLGCLine(AbstractImmittanceLine):
     r"""
     Transmission line with specified RLGC parameters.

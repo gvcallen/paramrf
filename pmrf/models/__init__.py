@@ -96,6 +96,7 @@ from pmrf.models.components.lines.nodal import (
 )
 
 from pmrf.models.components.lines.ideal import (
+    DelayLine as DelayLine,
     PhaseLine as PhaseLine,
     RLGCLine as RLGCLine,
 )
