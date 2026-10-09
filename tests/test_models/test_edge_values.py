@@ -52,13 +52,14 @@ import pmrf.models
 from pmrf.frequency import Frequency
 from pmrf.materials import ColeColeDielectric, MultipoleDebyeDielectric, RoughConductor
 from pmrf.parameters import Param
+from pmrf.parameters.constraints import Interval
 from pmrf.models import (
     Model, Circuit, Port,
     GlobalMNACircuitSolver, GlobalScatteringCircuitSolver,
     Load, Short, Open, Match, Ground, Transformer, CentreTappedTransformer,
     Autotransformer, Balun, SourceConverter, MixedModeConverter, Isolator, Splitter,
     Tee, Attenuator, Amplifier, DirectionalCoupler,
-    PhaseLine, RLGCLine, PhysicalLine, DatasheetLine, CoaxialLine, MicrostripLine,
+    PhaseLine, DelayLine, RLGCLine, PhysicalLine, DatasheetLine, CoaxialLine, MicrostripLine,
     StriplineLine, FloatingLine,
     Resistor, Capacitor, Inductor, CoupledInductors, SeriesRL, Impedance, Admittance,
     ShuntResistor, ShuntCapacitor, ShuntInductor, CapacitorQ, InductorQ,
@@ -91,6 +92,12 @@ EXAMPLES = {
     Amplifier: lambda: Amplifier(gain=10.0),
     DirectionalCoupler: lambda: DirectionalCoupler(coupling=10.0),
     PhaseLine: lambda: PhaseLine(z0=50.0, theta=90.0, f0=0.5e9),
+    # Both built-in bounds are open or infinite. A finite fitting limit gives the
+    # sweep a closed edge for DelayLine's delay parameter to evaluate.
+    DelayLine: lambda: DelayLine(
+        z0=50.0,
+        td=Param(value=0.25e-9, validity=Interval(0.0, 0.3e-9, closed=(False, True))),
+    ),
     # Not a multiple of a half wavelength on FREQ. There a nearly lossless line's Y has a
     # pole, and the MNA solver, which stamps lines from `y()`, loses precision: at
     # length=0.1 (half a wavelength at 1 GHz) with R = 0, MNA and scattering differ by 7e-6.
