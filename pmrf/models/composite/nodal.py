@@ -203,6 +203,52 @@ class Shunt(Model):
         return renormalize_s(S_shunt, z0_eval, z0, 'power', 'power')
     
 
+class Series(Model):
+    r"""Connect a 1-port impedance in series along a 2-port line.
+
+    **Mathematical Formulation**
+
+    At a common reference impedance of 50 ohms, the wrapped 1-port's
+    reflection coefficient $\Gamma$ gives
+
+    $$S_{11} = S_{22} = \frac{1 + \Gamma}{3 - \Gamma}, \qquad
+    S_{21} = S_{12} = \frac{2(1 - \Gamma)}{3 - \Gamma}.$$
+
+    The resulting two-port is then renormalized to the requested reference
+    impedance. This form also covers ideal shorts and opens without converting
+    the wrapped reflection coefficient to an impedance.
+
+    Parameters
+    ----------
+    series : Model
+        The 1-port model to insert in series.
+
+    References
+    ----------
+    D. M. Pozar, *Microwave Engineering*, 4th ed., Wiley, 2012, sec. 4.4.
+    """
+    #: The 1-port model to insert in series.
+    series: Model
+
+    def __post_init__(self):
+        if self.series.nports != 1:
+            raise ValueError(
+                f"Series requires a 1-port model. Received a {self.series.nports}-port model."
+            )
+
+    def s(self, freq: Frequency, z0: ArrayLike = 50.0) -> jnp.ndarray:
+        z0_eval = 50.0
+        gamma = self.series.s(freq, z0=z0_eval)[:, 0, 0]
+        denom = 3.0 - gamma
+        s11 = (1.0 + gamma) / denom
+        s21 = 2.0 * (1.0 - gamma) / denom
+        s_series = jnp.array([
+            [s11, s21],
+            [s21, s11],
+        ]).transpose(2, 0, 1)
+        return renormalize_s(s_series, z0_eval, z0, 'power', 'power')
+
+
 class CoupledOnePorts(Model):
     r"""
     (experimental) Wraps N 1-port models (e.g. inductors) and couples them via a given K-matrix.
