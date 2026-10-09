@@ -33,6 +33,7 @@ from pmrf.models.components.lines.base import TransmissionLine
 from pmrf.models import (
     CoaxialLine,
     DatasheetLine,
+    DelayLine,
     FloatingLine,
     MicrostripLine,
     PhaseLine,
@@ -55,6 +56,7 @@ def dc_freq():
 
 LINES = {
     "PhaseLine": PhaseLine(z0=50.0, theta=90.0, f0=5e9),
+    "DelayLine": DelayLine(z0=50.0, td=1e-9),
     "RLGCLine": RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.1),
     "RLGCLine (lossless)": RLGCLine(R=0.0, L=250e-9, G=0.0, C=100e-12, length=0.1),
     "PhysicalLine": PhysicalLine(
