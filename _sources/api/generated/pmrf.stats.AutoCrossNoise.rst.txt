@@ -1,0 +1,12 @@
+
+
+
+AutoCrossNoise
+==============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: AutoCrossNoise
+   :members:
+   :show-inheritance:
+   :inherited-members:

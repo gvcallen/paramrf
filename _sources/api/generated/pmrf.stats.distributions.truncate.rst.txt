@@ -1,0 +1,9 @@
+
+
+
+truncate
+========
+
+.. currentmodule:: pmrf.stats.distributions
+
+.. autofunction:: truncate

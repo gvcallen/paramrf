@@ -1,0 +1,9 @@
+
+
+
+_phi
+====
+
+.. currentmodule:: pmrf.models.components.lines.profiles
+
+.. autofunction:: _phi

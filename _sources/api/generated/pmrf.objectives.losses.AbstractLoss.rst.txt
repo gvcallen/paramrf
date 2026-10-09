@@ -1,0 +1,12 @@
+
+
+
+AbstractLoss
+============
+
+.. currentmodule:: pmrf.objectives.losses
+
+.. autoclass:: AbstractLoss
+   :members:
+   :show-inheritance:
+   :inherited-members:

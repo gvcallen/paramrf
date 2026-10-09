@@ -1,0 +1,54 @@
+
+
+
+bessel
+======
+
+.. automodule:: pmrf.math.bessel
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   _i1_series
+
+   _i_ratio_asymptotic
+
+   _i_ratio_series
+
+   _i_series_terms
+
+   _k1_series
+
+   _k_ratio_asymptotic
+
+   _k_ratio_series
+
+   _k_series
+
+   _poly_in_inverse
+
+   i0_over_i1
+
+   i1e
+
+   k0_over_k1
+
+   k1e
+
+

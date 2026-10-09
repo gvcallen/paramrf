@@ -1,0 +1,9 @@
+
+
+
+meter_2_feet
+============
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: meter_2_feet

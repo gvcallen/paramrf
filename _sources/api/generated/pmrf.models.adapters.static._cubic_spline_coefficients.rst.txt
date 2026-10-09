@@ -1,0 +1,9 @@
+
+
+
+_cubic_spline_coefficients
+==========================
+
+.. currentmodule:: pmrf.models.adapters.static
+
+.. autofunction:: _cubic_spline_coefficients

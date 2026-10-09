@@ -1,0 +1,12 @@
+
+
+
+Leafwise
+========
+
+.. currentmodule:: pmrf.stats.bijectors
+
+.. autoclass:: Leafwise
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+prior
+=====
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: prior

@@ -1,0 +1,12 @@
+
+
+
+Identity
+========
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Identity
+   :members:
+   :show-inheritance:
+   :inherited-members:

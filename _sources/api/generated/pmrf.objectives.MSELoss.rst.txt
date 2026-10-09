@@ -1,0 +1,12 @@
+
+
+
+MSELoss
+=======
+
+.. currentmodule:: pmrf.objectives
+
+.. autoclass:: MSELoss
+   :members:
+   :show-inheritance:
+   :inherited-members:

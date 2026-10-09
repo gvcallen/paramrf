@@ -1,0 +1,9 @@
+
+
+
+is_minimizer
+============
+
+.. currentmodule:: pmrf.optimize
+
+.. autofunction:: is_minimizer

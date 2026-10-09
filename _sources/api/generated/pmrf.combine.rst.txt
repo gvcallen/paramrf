@@ -1,0 +1,9 @@
+﻿
+
+
+**combine** (pmrf.combine)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: combine

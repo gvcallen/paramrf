@@ -1,0 +1,431 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fitting and transferring discrepancy &mdash; paramrf 0.37.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=ba31a2ca"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Model Hierarchy" href="../models/index.html" />
+    <link rel="prev" title="Fitting on Chip Inductors (1-40 GHz)" href="2_chip_inductor_fitting.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="1_cable_fitting.html">Fitting a Cable from 1 to 10 GHz (Part 1)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_chip_inductor_fitting.html">Fitting on Chip Inductors (1-40 GHz)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Fitting and transferring discrepancy</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#A-reference-line-and-a-shorter-target">A reference line and a shorter target</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Learn-an-internal-correction">Learn an internal correction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#When-only-S-parameters-are-measured">When only S-parameters are measured</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Port-discrepancy-in-a-later-circuit">Port discrepancy in a later circuit</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Tutorials</a></li>
+      <li class="breadcrumb-item active">Fitting and transferring discrepancy</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/tutorials/3_discrepancy_transfer.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Fitting-and-transferring-discrepancy">
+<h1>Fitting and transferring discrepancy<a class="headerlink" href="#Fitting-and-transferring-discrepancy" title="Link to this heading"></a></h1>
+<p>A discrepancy describes the part of a measured response that a physical model misses. This tutorial fits a lossy coax with a small conductor error, predicts the correction with its uncertainty, and carries it to a new line length. It then shows how a port discrepancy can carry a joint parameter and correction prediction into a terminated circuit.</p>
+<p>The <a class="reference internal" href="../examples/discrepancy_prediction.html"><span class="doc">discrepancy prediction example</span></a> is the short introduction. The code here uses small synthetic data sets so every result can be checked against a known line.</p>
+<section id="A-reference-line-and-a-shorter-target">
+<h2>A reference line and a shorter target<a class="headerlink" href="#A-reference-line-and-a-shorter-target" title="Link to this heading"></a></h2>
+<p>The reference line is 30 cm long; the target is 15 cm. The nominal line has 10% excess conductor loss. A port correction belongs to the reference response, while an internal correction changes characteristic impedance, attenuation, and phase per unit length. That distinction matters when the line length changes.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">minimize</span> <span class="k">as</span> <span class="n">scipy_minimize</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.materials</span><span class="w"> </span><span class="kn">import</span> <span class="n">BulkConductor</span><span class="p">,</span> <span class="n">ConstantDielectric</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CoaxialLine</span><span class="p">,</span> <span class="n">GridLineDiscrepancy</span><span class="p">,</span> <span class="n">GridPortDiscrepancy</span><span class="p">,</span> <span class="n">LineCorrected</span><span class="p">,</span>
+    <span class="n">Load</span><span class="p">,</span> <span class="n">PortCorrected</span><span class="p">,</span> <span class="n">line_internal_features</span><span class="p">,</span> <span class="n">project_line_basis_joint</span><span class="p">,</span>
+    <span class="n">reference_line_features</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.objectives</span><span class="w"> </span><span class="kn">import</span> <span class="n">MarginalLogLikelihood</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScipyMinimize</span><span class="p">,</span> <span class="n">minimize</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.stats</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">GaussianLikelihood</span><span class="p">,</span> <span class="n">GaussianProcess</span><span class="p">,</span> <span class="n">Matern52Kernel</span><span class="p">,</span> <span class="n">RBFKernel</span><span class="p">,</span> <span class="n">posterior_covariance</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">tutorial_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">tutorial_dir</span> <span class="o">/</span> <span class="s2">"line_internal_discrepancy.py"</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+    <span class="n">tutorial_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"docs/tutorials"</span><span class="p">)</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">tutorial_dir</span><span class="o">.</span><span class="n">resolve</span><span class="p">()))</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">line_internal_discrepancy</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MODEL_SIGMA</span><span class="p">,</span> <span class="n">TRUTH_SIGMA</span><span class="p">,</span> <span class="n">_basis</span><span class="p">,</span> <span class="n">compare_transfer</span><span class="p">,</span>
+    <span class="n">exact_values</span><span class="p">,</span> <span class="n">frequency</span><span class="p">,</span> <span class="n">line</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">port_discrepancy</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReciprocalEventTransform</span><span class="p">,</span> <span class="n">reciprocal_predictor</span>
+
+<span class="n">f</span> <span class="o">=</span> <span class="n">frequency</span><span class="p">()</span>
+<span class="n">comparison</span> <span class="o">=</span> <span class="n">compare_transfer</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">errors</span> <span class="ow">in</span> <span class="n">comparison</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: RMS S21 error = </span><span class="si">{</span><span class="n">errors</span><span class="p">[</span><span class="s1">'rms_s21'</span><span class="p">]</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">, eta bias = </span><span class="si">{</span><span class="n">errors</span><span class="p">[</span><span class="s1">'eta_bias'</span><span class="p">]</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+uncorrected: RMS S21 error = 0.04652, eta bias = -0.01492
+port: RMS S21 error = 0.06091, eta bias = 0.02524
+internal: RMS S21 error = 1.404e-16, eta bias = -1.983e-18
+</pre></div></div>
+</div>
+<p>The internal correction follows the shorter line’s electrical length. The port correction uses the reference line’s S-parameter error as if it belonged to the shorter line.</p>
+</section>
+<section id="Learn-an-internal-correction">
+<h2>Learn an internal correction<a class="headerlink" href="#Learn-an-internal-correction" title="Link to this heading"></a></h2>
+<p>Here the reference measurement supplies characteristic impedance <span class="math notranslate nohighlight">\(Z_c\)</span> and propagation constant <span class="math notranslate nohighlight">\(\gamma\)</span>. <code class="docutils literal notranslate"><span class="pre">reference_line_features</span></code> converts them to the four log-ratio channels used by <code class="docutils literal notranslate"><span class="pre">GridLineDiscrepancy</span></code>: real and imaginary <span class="math notranslate nohighlight">\(\log Z_c\)</span>, log attenuation, and log phase constant. The likelihood variance is specified in this transformed event space.</p>
+<p>The nominal model has a free conductor parameter. <code class="docutils literal notranslate"><span class="pre">predict_joint</span></code> returns one Gaussian over that parameter and the correction grid, preserving their covariance.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">reference</span> <span class="o">=</span> <span class="n">line</span><span class="p">(</span><span class="mf">0.30</span><span class="p">,</span> <span class="n">TRUTH_SIGMA</span><span class="p">)</span>
+<span class="n">zc</span><span class="p">,</span> <span class="n">gamma_length</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">zc_and_gammaL</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="n">observed</span> <span class="o">=</span> <span class="n">reference_line_features</span><span class="p">(</span><span class="n">zc</span><span class="p">,</span> <span class="n">gamma_length</span> <span class="o">/</span> <span class="mf">0.30</span><span class="p">)</span>
+<span class="n">nominal</span> <span class="o">=</span> <span class="n">line</span><span class="p">(</span><span class="mf">0.30</span><span class="p">,</span> <span class="n">MODEL_SIGMA</span><span class="p">,</span> <span class="n">free_sigma</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">reference_likelihood</span> <span class="o">=</span> <span class="n">MarginalLogLikelihood</span><span class="p">(</span>
+    <span class="n">predictor</span><span class="o">=</span><span class="n">line_internal_features</span><span class="p">,</span>
+    <span class="n">observed</span><span class="o">=</span><span class="n">observed</span><span class="p">,</span>
+    <span class="n">likelihood</span><span class="o">=</span><span class="n">GaussianLikelihood</span><span class="p">(</span><span class="mf">1e-10</span><span class="p">),</span>
+    <span class="n">discrepancy</span><span class="o">=</span><span class="n">GaussianProcess</span><span class="p">(</span><span class="n">RBFKernel</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">jitter</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">names</span><span class="p">,</span> <span class="n">joint</span> <span class="o">=</span> <span class="n">reference_likelihood</span><span class="o">.</span><span class="n">predict_joint</span><span class="p">(</span><span class="n">nominal</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Joint dimensions:"</span><span class="p">,</span> <span class="n">joint</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"parameter names:"</span><span class="p">,</span> <span class="n">names</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Joint dimensions: 29 parameter names: (&#39;conductor.sigma&#39;,)
+</pre></div></div>
+</div>
+<p>The same prediction can be attached to a shorter line. The joint prior keeps the conductor parameter correlated with the discrepancy values. <code class="docutils literal notranslate"><span class="pre">truncate='unnormalised'</span></code> respects the conductor’s validity range for MAP work; it is unsuitable for sampling or evidence calculations.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">carrier</span> <span class="o">=</span> <span class="n">GridLineDiscrepancy</span><span class="o">.</span><span class="n">from_prediction</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">joint</span><span class="p">,</span> <span class="n">joint</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">short_line</span> <span class="o">=</span> <span class="n">LineCorrected</span><span class="p">(</span><span class="n">line</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="n">MODEL_SIGMA</span><span class="p">,</span> <span class="n">free_sigma</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">carrier</span><span class="p">)</span>
+<span class="n">short_line</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">prior</span><span class="p">(</span>
+    <span class="n">short_line</span><span class="p">,</span> <span class="p">[</span><span class="o">*</span><span class="n">names</span><span class="p">,</span> <span class="s2">"discrepancy.values"</span><span class="p">],</span> <span class="n">joint</span><span class="p">,</span>
+    <span class="n">truncate</span><span class="o">=</span><span class="s2">"unnormalised"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">truth_short</span> <span class="o">=</span> <span class="n">line</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="n">TRUTH_SIGMA</span><span class="p">)</span>
+<span class="n">rms_s21</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">short_line</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">-</span> <span class="n">truth_short</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">f</span><span class="p">))[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Transferred RMS S21 error:"</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">rms_s21</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Transferred RMS S21 error: 9.892791668383594e-08
+</pre></div></div>
+</div>
+<p>The joint mean contains the conductor parameter first, then four correction channels. Its diagonal gives marginal uncertainty in each channel; the off-diagonal entries still matter when the correction is used with the conductor parameter.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">joint</span><span class="o">.</span><span class="n">mean</span><span class="p">())[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">npoints</span><span class="p">)</span>
+<span class="n">std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">joint</span><span class="o">.</span><span class="n">covariance</span><span class="p">()))[</span><span class="mi">1</span><span class="p">:])</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">npoints</span><span class="p">)</span>
+<span class="n">truth</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">exact_values</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"log Zc real"</span><span class="p">,</span> <span class="s2">"log Zc imaginary"</span><span class="p">,</span> <span class="s2">"log attenuation"</span><span class="p">,</span> <span class="s2">"log phase"</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">axis</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">predicted</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">actual</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="o">.</span><span class="n">flat</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">mean</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">std</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">truth</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)):</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">,</span> <span class="n">actual</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"injected"</span><span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">,</span> <span class="n">predicted</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"predicted"</span><span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">f_scaled</span><span class="p">,</span> <span class="n">predicted</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">sigma</span><span class="p">,</span> <span class="n">predicted</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">sigma</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+    <span class="n">axis</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/tutorials_3_discrepancy_transfer_9_0.png" src="../_images/tutorials_3_discrepancy_transfer_9_0.png" />
+</div>
+</div>
+</section>
+<section id="When-only-S-parameters-are-measured">
+<h2>When only S-parameters are measured<a class="headerlink" href="#When-only-S-parameters-are-measured" title="Link to this heading"></a></h2>
+<p>The preceding route uses <span class="math notranslate nohighlight">\(Z_c\)</span> and <span class="math notranslate nohighlight">\(\gamma\)</span>. If the reference only provides complex S-parameters, represent the internal correction with basis coefficients and fit them through the line response. The <a class="reference external" href="line_internal_discrepancy.py">supporting script</a> defines the basis from an RBF spectral density; the fit and projection are shown below.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">basis</span> <span class="o">=</span> <span class="n">_basis</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="n">nominal_s</span> <span class="o">=</span> <span class="n">LineCorrected</span><span class="p">(</span><span class="n">line</span><span class="p">(</span><span class="mf">0.30</span><span class="p">,</span> <span class="n">MODEL_SIGMA</span><span class="p">),</span> <span class="n">basis</span><span class="p">)</span>
+<span class="n">observed_s</span> <span class="o">=</span> <span class="n">line</span><span class="p">(</span><span class="mf">0.30</span><span class="p">,</span> <span class="n">TRUTH_SIGMA</span><span class="p">)</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="n">s_likelihood</span> <span class="o">=</span> <span class="n">MarginalLogLikelihood</span><span class="p">(</span>
+    <span class="n">predictor</span><span class="o">=</span><span class="k">lambda</span> <span class="n">model</span><span class="p">,</span> <span class="n">grid</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span>
+    <span class="n">observed</span><span class="o">=</span><span class="n">observed_s</span><span class="p">,</span>
+    <span class="n">likelihood</span><span class="o">=</span><span class="n">GaussianLikelihood</span><span class="p">(</span><span class="mf">1e-8</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">objective</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">model</span><span class="p">:</span> <span class="o">-</span><span class="n">s_likelihood</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="o">-</span> <span class="n">prf</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<span class="n">fitted_s</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">(</span><span class="n">objective</span><span class="p">,</span> <span class="n">nominal_s</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="n">ScipyMinimize</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">"BFGS"</span><span class="p">),</span> <span class="n">max_iter</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span><span class="o">.</span><span class="n">model</span>
+<span class="n">fitted_basis</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="n">basis</span><span class="p">,</span> <span class="s2">"coefficients"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">fitted_s</span><span class="p">)[</span><span class="s2">"discrepancy.coefficients"</span><span class="p">]</span>
+<span class="p">)</span>
+<span class="n">linearization</span> <span class="o">=</span> <span class="n">s_likelihood</span><span class="o">.</span><span class="n">linearize</span><span class="p">(</span><span class="n">fitted_s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+<span class="n">covariance</span> <span class="o">=</span> <span class="n">posterior_covariance</span><span class="p">([</span><span class="n">linearization</span><span class="p">],</span> <span class="n">fitted_s</span><span class="p">)</span>
+<span class="n">names_s</span><span class="p">,</span> <span class="n">joint_s</span> <span class="o">=</span> <span class="n">project_line_basis_joint</span><span class="p">(</span>
+    <span class="n">fitted_s</span><span class="p">,</span> <span class="n">fitted_basis</span><span class="p">,</span> <span class="n">linearization</span><span class="p">,</span> <span class="n">covariance</span><span class="p">,</span> <span class="n">f</span>
+<span class="p">)</span>
+<span class="n">carrier_s</span> <span class="o">=</span> <span class="n">GridLineDiscrepancy</span><span class="o">.</span><span class="n">from_prediction</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">joint_s</span><span class="p">,</span> <span class="n">joint</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">short_s</span> <span class="o">=</span> <span class="n">LineCorrected</span><span class="p">(</span><span class="n">line</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="n">MODEL_SIGMA</span><span class="p">),</span> <span class="n">carrier_s</span><span class="p">)</span>
+<span class="n">rms_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">short_s</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">-</span> <span class="n">truth_short</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">f</span><span class="p">))[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+<span class="n">mean_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">joint_s</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">npoints</span><span class="p">)</span>
+<span class="n">std_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">joint_s</span><span class="o">.</span><span class="n">covariance</span><span class="p">())))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">npoints</span><span class="p">)</span>
+<span class="n">coverage</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">exact_values</span><span class="p">(</span><span class="n">f</span><span class="p">))</span> <span class="o">-</span> <span class="n">mean_s</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">std_s</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Transferred RMS S21 error:"</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">rms_s</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Injected values within mean ± 2σ:"</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">coverage</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"version_major": 2, "version_minor": 0, "model_id": "e346d6ac39be4e99a6f3f6186ddedef1"}</script></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Transferred RMS S21 error: 7.115958079928517e-13
+Injected values within mean ± 2σ: 1.0
+</pre></div></div>
+</div>
+</section>
+<section id="Port-discrepancy-in-a-later-circuit">
+<h2>Port discrepancy in a later circuit<a class="headerlink" href="#Port-discrepancy-in-a-later-circuit" title="Link to this heading"></a></h2>
+<p>A port correction applies when the fitted component stays the same and its surrounding circuit changes. Here the reference fit estimates a bounded coax length and a reciprocal port discrepancy. The <a class="reference external" href="port_discrepancy.py">supporting script</a> defines the event transform used for symmetric transmission and contains independent covariance checks. We use that transform below, then carry the joint prediction into a terminated circuit.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">cable</span><span class="p">(</span><span class="n">length</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">CoaxialLine</span><span class="p">(</span>
+        <span class="n">length</span><span class="o">=</span><span class="n">length</span><span class="p">,</span>
+        <span class="n">d_in</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mf">1.12e-3</span><span class="p">),</span> <span class="n">d_out</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mf">3.2e-3</span><span class="p">),</span>
+        <span class="n">dielectric</span><span class="o">=</span><span class="n">ConstantDielectric</span><span class="p">(</span><span class="n">ep_r</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mf">1.384</span><span class="p">),</span> <span class="n">tand</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mf">0.001</span><span class="p">)),</span>
+        <span class="n">conductor</span><span class="o">=</span><span class="n">BulkConductor</span><span class="p">(</span><span class="n">sigma</span><span class="o">=</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mf">1.6e-8</span><span class="p">)),</span>
+    <span class="p">)</span>
+
+<span class="n">reference_f</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="s2">"MHz"</span><span class="p">)</span>
+<span class="n">transfer_f</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">480</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">"MHz"</span><span class="p">)</span>
+<span class="n">true_cable</span> <span class="o">=</span> <span class="n">cable</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">Fixed</span><span class="p">(</span><span class="mf">0.1</span><span class="p">))</span>
+<span class="n">initial_cable</span> <span class="o">=</span> <span class="n">cable</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">Bounded</span><span class="p">(</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">0.095</span><span class="p">))</span>
+<span class="n">reference_port</span> <span class="o">=</span> <span class="n">MarginalLogLikelihood</span><span class="p">(</span>
+    <span class="n">predictor</span><span class="o">=</span><span class="n">reciprocal_predictor</span><span class="p">,</span>
+    <span class="n">observed</span><span class="o">=</span><span class="n">reciprocal_predictor</span><span class="p">(</span><span class="n">true_cable</span><span class="p">,</span> <span class="n">reference_f</span><span class="p">),</span>
+    <span class="n">likelihood</span><span class="o">=</span><span class="n">GaussianLikelihood</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">reference_f</span><span class="o">.</span><span class="n">npoints</span><span class="p">),</span> <span class="mf">1e-8</span><span class="p">)),</span>
+    <span class="n">discrepancy</span><span class="o">=</span><span class="n">GaussianProcess</span><span class="p">(</span><span class="n">Matern52Kernel</span><span class="p">(</span><span class="mf">80.0</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e-6</span><span class="p">,</span> <span class="n">jitter</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">),</span>
+    <span class="n">event_transform</span><span class="o">=</span><span class="n">ReciprocalEventTransform</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">port_loss</span><span class="p">(</span><span class="n">length</span><span class="p">):</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">reference_port</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">initial_cable</span><span class="p">,</span> <span class="p">{</span><span class="s2">"length"</span><span class="p">:</span> <span class="n">length</span><span class="p">}),</span> <span class="n">reference_f</span><span class="p">)</span>
+
+<span class="n">value_gradient</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">port_loss</span><span class="p">))</span>
+<span class="n">fit_result</span> <span class="o">=</span> <span class="n">scipy_minimize</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value_gradient</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">))),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.095</span><span class="p">]),</span> <span class="n">jac</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"L-BFGS-B"</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="p">[(</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">)],</span>
+    <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="s2">"maxiter"</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span> <span class="s2">"gtol"</span><span class="p">:</span> <span class="mf">1e-10</span><span class="p">,</span> <span class="s2">"ftol"</span><span class="p">:</span> <span class="mf">1e-14</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">fit_result</span><span class="o">.</span><span class="n">success</span>
+<span class="n">fitted_cable</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">initial_cable</span><span class="p">,</span> <span class="p">{</span><span class="s2">"length"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fit_result</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])})</span>
+<span class="n">port_names</span><span class="p">,</span> <span class="n">port_joint</span> <span class="o">=</span> <span class="n">reference_port</span><span class="o">.</span><span class="n">predict_joint</span><span class="p">(</span><span class="n">fitted_cable</span><span class="p">,</span> <span class="n">reference_f</span><span class="p">,</span> <span class="n">transfer_f</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Fitted length:"</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">fitted_cable</span><span class="p">)[</span><span class="s2">"length"</span><span class="p">]))</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Fitted length: 0.09999999999999998
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">port_mean</span> <span class="o">=</span> <span class="n">port_joint</span><span class="o">.</span><span class="n">mean</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">transfer_f</span><span class="o">.</span><span class="n">npoints</span><span class="p">)</span>
+<span class="n">corrected_cable</span> <span class="o">=</span> <span class="n">PortCorrected</span><span class="p">(</span>
+    <span class="n">fitted_cable</span><span class="p">,</span>
+    <span class="n">GridPortDiscrepancy</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">Unconstrained</span><span class="p">(</span><span class="n">port_mean</span><span class="p">),</span> <span class="n">transfer_f</span><span class="p">,</span> <span class="p">(</span><span class="s2">"11"</span><span class="p">,</span> <span class="s2">"22"</span><span class="p">,</span> <span class="s2">"s21"</span><span class="p">)),</span>
+<span class="p">)</span>
+<span class="n">corrected_cable</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">prior</span><span class="p">(</span>
+    <span class="n">corrected_cable</span><span class="p">,</span> <span class="p">[</span><span class="o">*</span><span class="n">port_names</span><span class="p">,</span> <span class="s2">"discrepancy.values"</span><span class="p">],</span> <span class="n">port_joint</span><span class="p">,</span>
+    <span class="n">truncate</span><span class="o">=</span><span class="s2">"unnormalised"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">load</span> <span class="o">=</span> <span class="n">Load</span><span class="p">(</span><span class="n">gamma</span><span class="o">=</span><span class="p">(</span><span class="mf">75.0</span> <span class="o">-</span> <span class="mf">50.0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">75.0</span> <span class="o">+</span> <span class="mf">50.0</span><span class="p">),</span> <span class="n">z0</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)</span>
+<span class="n">transfer_circuit</span> <span class="o">=</span> <span class="n">corrected_cable</span><span class="o">.</span><span class="n">terminated</span><span class="p">(</span><span class="n">load</span><span class="p">)</span>
+<span class="n">observed_reflection</span> <span class="o">=</span> <span class="n">true_cable</span><span class="o">.</span><span class="n">terminated</span><span class="p">(</span><span class="n">load</span><span class="p">)</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">transfer_f</span><span class="p">,</span> <span class="n">z0</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="n">transfer_likelihood</span> <span class="o">=</span> <span class="n">MarginalLogLikelihood</span><span class="p">(</span>
+    <span class="n">predictor</span><span class="o">=</span><span class="k">lambda</span> <span class="n">model</span><span class="p">,</span> <span class="n">grid</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">z0</span><span class="o">=</span><span class="mf">50.0</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+    <span class="n">observed</span><span class="o">=</span><span class="n">observed_reflection</span><span class="p">,</span>
+    <span class="n">likelihood</span><span class="o">=</span><span class="n">GaussianLikelihood</span><span class="p">(</span><span class="mf">1e-6</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">transfer_linearization</span> <span class="o">=</span> <span class="n">transfer_likelihood</span><span class="o">.</span><span class="n">linearize</span><span class="p">(</span>
+    <span class="n">transfer_circuit</span><span class="p">,</span> <span class="n">transfer_f</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s2">"declared"</span>
+<span class="p">)</span>
+<span class="n">transfer_covariance</span> <span class="o">=</span> <span class="n">posterior_covariance</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">transfer_linearization</span><span class="p">],</span> <span class="n">transfer_circuit</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s2">"declared"</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Joint dimension:"</span><span class="p">,</span> <span class="n">port_joint</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Transferred log prior:"</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">prf</span><span class="o">.</span><span class="n">log_prior</span><span class="p">(</span><span class="n">transfer_circuit</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s2">"declared"</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Posterior variance, first coordinate:"</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">transfer_covariance</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]))</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Joint dimension: 37
+Transferred log prior: 305.72558741009493
+Posterior variance, first coordinate: 4.566409745486896e-09
+</pre></div></div>
+</div>
+<p>The carrier follows what stays physically common between fits: use an internal line correction across lengths, or a port correction when moving the same component into another circuit. The joint distribution retains parameter–discrepancy covariance in each later calculation. The <a class="reference external" href="port_discrepancy.py">port script</a> compares the final covariance with a NumPy Kalman update and checks the transferred prior’s precision.</p>
+<script type="application/vnd.jupyter.widget-state+json">
+{"state": {"2ae7ccb9e1eb4acead9b3b4c5ad5d2d6": {"model_name": "LayoutModel", "model_module": "@jupyter-widgets/base", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "d069f33fc7614a249673a3db0908a33c": {"model_name": "ProgressStyleModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "ProgressStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "bar_color": null, "description_width": ""}}, "68a77518c1a347af99d0ea34784342af": {"model_name": "FloatProgressModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "FloatProgressModel", "_view_count": null, "_view_module": "@jupyter-widgets/controls", "_view_module_version": "2.0.0", "_view_name": "ProgressView", "bar_style": "danger", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_2ae7ccb9e1eb4acead9b3b4c5ad5d2d6", "max": 400.0, "min": 0.0, "orientation": "horizontal", "style": "IPY_MODEL_d069f33fc7614a249673a3db0908a33c", "tabbable": null, "tooltip": null, "value": 44.0}}, "32ddda4f4c1d44d29ed428ad78c934c0": {"model_name": "LayoutModel", "model_module": "@jupyter-widgets/base", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "f68f0d1c8c9b4f16b606453f5d641a4f": {"model_name": "HTMLStyleModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "background": null, "description_width": "", "font_size": null, "text_color": null}}, "3a9da78c0e9640c1a388c3fa5227156a": {"model_name": "HTMLModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLModel", "_view_count": null, "_view_module": "@jupyter-widgets/controls", "_view_module_version": "2.0.0", "_view_name": "HTMLView", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_32ddda4f4c1d44d29ed428ad78c934c0", "placeholder": "\u200b", "style": "IPY_MODEL_f68f0d1c8c9b4f16b606453f5d641a4f", "tabbable": null, "tooltip": null, "value": "SciPy\u2007BFGS:\u2007\u200711%"}}, "9dddfbad0f6445139b914835135cdb09": {"model_name": "LayoutModel", "model_module": "@jupyter-widgets/base", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "423143ccb8e8405199603406101895b3": {"model_name": "HTMLStyleModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "background": null, "description_width": "", "font_size": null, "text_color": null}}, "b1bf4aa22763440fa7fa39d148261b87": {"model_name": "HTMLModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLModel", "_view_count": null, "_view_module": "@jupyter-widgets/controls", "_view_module_version": "2.0.0", "_view_name": "HTMLView", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_9dddfbad0f6445139b914835135cdb09", "placeholder": "\u200b", "style": "IPY_MODEL_423143ccb8e8405199603406101895b3", "tabbable": null, "tooltip": null, "value": "\u200744/400\u2007[00:01&lt;06:43,\u2007\u20071.13s/it,\u2007loss=-464]"}}, "fa5d5d0f9d4f40168d0a49aeedec3135": {"model_name": "LayoutModel", "model_module": "@jupyter-widgets/base", "model_module_version": "2.0.0", "state": {"_model_module": "@jupyter-widgets/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "e346d6ac39be4e99a6f3f6186ddedef1": {"model_name": "HBoxModel", "model_module": "@jupyter-widgets/controls", "model_module_version": "2.0.0", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets/controls", "_model_module_version": "2.0.0", "_model_name": "HBoxModel", "_view_count": null, "_view_module": "@jupyter-widgets/controls", "_view_module_version": "2.0.0", "_view_name": "HBoxView", "box_style": "", "children": ["IPY_MODEL_3a9da78c0e9640c1a388c3fa5227156a", "IPY_MODEL_68a77518c1a347af99d0ea34784342af", "IPY_MODEL_b1bf4aa22763440fa7fa39d148261b87"], "layout": "IPY_MODEL_fa5d5d0f9d4f40168d0a49aeedec3135", "tabbable": null, "tooltip": null}}}, "version_major": 2, "version_minor": 0}
+</script></section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="2_chip_inductor_fitting.html" class="btn btn-neutral float-left" title="Fitting on Chip Inductors (1-40 GHz)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../models/index.html" class="btn btn-neutral float-right" title="Model Hierarchy" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

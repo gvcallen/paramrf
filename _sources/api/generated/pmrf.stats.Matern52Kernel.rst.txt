@@ -1,0 +1,12 @@
+
+
+
+Matern52Kernel
+==============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Matern52Kernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+AbstractSurfaceImpedance
+========================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: AbstractSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+Shift
+=====
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Shift
+   :members:
+   :show-inheritance:
+   :inherited-members:

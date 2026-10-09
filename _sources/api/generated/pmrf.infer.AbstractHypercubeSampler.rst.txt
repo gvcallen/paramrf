@@ -1,0 +1,12 @@
+
+
+
+AbstractHypercubeSampler
+========================
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: AbstractHypercubeSampler
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+resolve
+=======
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: resolve

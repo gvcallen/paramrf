@@ -1,0 +1,12 @@
+
+
+
+Admittance
+==========
+
+.. currentmodule:: pmrf.models.components.lumped
+
+.. autoclass:: Admittance
+   :members:
+   :show-inheritance:
+   :inherited-members:

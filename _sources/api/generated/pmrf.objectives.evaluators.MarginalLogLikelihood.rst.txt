@@ -1,0 +1,12 @@
+
+
+
+MarginalLogLikelihood
+=====================
+
+.. currentmodule:: pmrf.objectives.evaluators
+
+.. autoclass:: MarginalLogLikelihood
+   :members:
+   :show-inheritance:
+   :inherited-members:

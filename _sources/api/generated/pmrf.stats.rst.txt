@@ -1,0 +1,161 @@
+﻿
+
+
+**stats** (pmrf.stats)
+======================
+
+.. automodule:: pmrf.stats
+   :no-members:
+   :no-inherited-members:
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/module.rst
+   :recursive:
+
+
+   bijectors
+
+   covariance_kernels
+
+   discrepancy_models
+
+   distributions
+
+   likelihoods
+
+   linearization
+
+   noise_models
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractBijector
+
+   AbstractCovarianceKernel
+
+   AbstractDiscrepancyModel
+
+   AbstractDistribution
+
+   AbstractLikelihood
+
+   AbstractNoiseModel
+
+   AutoCrossKernel
+
+   AutoCrossNoise
+
+   Chain
+
+   ConstantKernel
+
+   CosineKernel
+
+   DiagLinear
+
+   Exp
+
+   Gamma
+
+   GaussianLikelihood
+
+   GaussianProcess
+
+   Identity
+
+   Inverse
+
+   Joint
+
+   Leafwise
+
+   Linearization
+
+   LogNormal
+
+   Matern32Kernel
+
+   Matern52Kernel
+
+   Normal
+
+   PeriodicKernel
+
+   Permute
+
+   ProductKernel
+
+   R2ToComplex
+
+   RBFKernel
+
+   ScalarAffine
+
+   SharedIndependentKernel
+
+   Shift
+
+   Sigmoid
+
+   Softplus
+
+   SumKernel
+
+   Tanh
+
+   Transformed
+
+   Transpose
+
+   TriangularLinear
+
+   TruncatedNormal
+
+   Uniform
+
+   WhiteNoiseKernel
+
+   ZeroKernel
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   CenteredUniform
+
+   RelativeNormal
+
+   RelativeTruncatedNormal
+
+   cross_gram
+
+   gram
+
+   posterior_covariance
+
+   truncate
+
+

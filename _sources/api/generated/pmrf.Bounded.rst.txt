@@ -1,0 +1,9 @@
+﻿
+
+
+**Bounded** (pmrf.Bounded)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: Bounded

@@ -1,0 +1,12 @@
+
+
+
+TabulatedDielectric
+===================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: TabulatedDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+_cosh_sqrt
+==========
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autofunction:: _cosh_sqrt

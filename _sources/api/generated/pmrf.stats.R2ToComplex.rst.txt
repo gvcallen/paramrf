@@ -1,0 +1,12 @@
+
+
+
+R2ToComplex
+===========
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: R2ToComplex
+   :members:
+   :show-inheritance:
+   :inherited-members:

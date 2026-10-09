@@ -1,0 +1,12 @@
+
+
+
+DirectionalCoupler
+==================
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: DirectionalCoupler
+   :members:
+   :show-inheritance:
+   :inherited-members:

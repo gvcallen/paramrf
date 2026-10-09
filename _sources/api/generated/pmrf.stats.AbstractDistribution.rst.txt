@@ -1,0 +1,12 @@
+
+
+
+AbstractDistribution
+====================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: AbstractDistribution
+   :members:
+   :show-inheritance:
+   :inherited-members:

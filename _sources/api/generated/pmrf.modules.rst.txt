@@ -1,0 +1,46 @@
+﻿
+
+
+**modules** (pmrf.modules)
+==========================
+
+.. automodule:: pmrf.modules
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   Module
+
+   Probabilistic
+
+   Tied
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   is_module
+
+   validate
+
+

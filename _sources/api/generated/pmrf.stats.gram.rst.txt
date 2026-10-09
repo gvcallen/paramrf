@@ -1,0 +1,9 @@
+
+
+
+gram
+====
+
+.. currentmodule:: pmrf.stats
+
+.. autofunction:: gram

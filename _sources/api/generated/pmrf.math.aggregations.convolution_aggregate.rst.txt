@@ -1,0 +1,9 @@
+
+
+
+convolution_aggregate
+=====================
+
+.. currentmodule:: pmrf.math.aggregations
+
+.. autofunction:: convolution_aggregate

@@ -1,0 +1,12 @@
+
+
+
+TraceGroundCurrentDistribution
+==============================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: TraceGroundCurrentDistribution
+   :members:
+   :show-inheritance:
+   :inherited-members:

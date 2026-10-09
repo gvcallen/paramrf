@@ -1,0 +1,12 @@
+
+
+
+TescheRodSurfaceImpedance
+=========================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: TescheRodSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

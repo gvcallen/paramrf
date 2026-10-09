@@ -1,0 +1,330 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Normal &mdash; paramrf 0.37.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=ba31a2ca"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="PeriodicKernel" href="pmrf.stats.PeriodicKernel.html" />
+    <link rel="prev" title="Matern52Kernel" href="pmrf.stats.Matern52Kernel.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#working-with-parameters">Working with Parameters</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.stats.html"><strong>stats</strong> (pmrf.stats)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.bijectors.html">bijectors</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.covariance_kernels.html">covariance_kernels</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.discrepancy_models.html">discrepancy_models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.distributions.html">distributions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.likelihoods.html">likelihoods</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.linearization.html">linearization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.noise_models.html">noise_models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AbstractBijector.html">AbstractBijector</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AbstractCovarianceKernel.html">AbstractCovarianceKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AbstractDiscrepancyModel.html">AbstractDiscrepancyModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AbstractDistribution.html">AbstractDistribution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AbstractLikelihood.html">AbstractLikelihood</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AbstractNoiseModel.html">AbstractNoiseModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AutoCrossKernel.html">AutoCrossKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.AutoCrossNoise.html">AutoCrossNoise</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Chain.html">Chain</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.ConstantKernel.html">ConstantKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.CosineKernel.html">CosineKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.DiagLinear.html">DiagLinear</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Exp.html">Exp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Gamma.html">Gamma</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.GaussianLikelihood.html">GaussianLikelihood</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.GaussianProcess.html">GaussianProcess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Identity.html">Identity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Inverse.html">Inverse</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Joint.html">Joint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Leafwise.html">Leafwise</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Linearization.html">Linearization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.LogNormal.html">LogNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Matern32Kernel.html">Matern32Kernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Matern52Kernel.html">Matern52Kernel</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Normal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.PeriodicKernel.html">PeriodicKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Permute.html">Permute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.ProductKernel.html">ProductKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.R2ToComplex.html">R2ToComplex</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.RBFKernel.html">RBFKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.ScalarAffine.html">ScalarAffine</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.SharedIndependentKernel.html">SharedIndependentKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Shift.html">Shift</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Sigmoid.html">Sigmoid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Softplus.html">Softplus</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.SumKernel.html">SumKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Tanh.html">Tanh</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Transformed.html">Transformed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Transpose.html">Transpose</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.TriangularLinear.html">TriangularLinear</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.TruncatedNormal.html">TruncatedNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.Uniform.html">Uniform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.WhiteNoiseKernel.html">WhiteNoiseKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.ZeroKernel.html">ZeroKernel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.CenteredUniform.html">CenteredUniform</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.RelativeNormal.html">RelativeNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.RelativeTruncatedNormal.html">RelativeTruncatedNormal</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.cross_gram.html">cross_gram</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.gram.html">gram</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.posterior_covariance.html">posterior_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.stats.truncate.html">truncate</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.objectives.html"><strong>objectives</strong> (pmrf.objectives)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.stats.html"><strong>stats</strong> (pmrf.stats)</a></li>
+      <li class="breadcrumb-item active">Normal</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.stats.Normal.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="normal">
+<h1>Normal<a class="headerlink" href="#normal" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.stats.Normal">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.stats.</span></span><span class="sig-name descname"><span class="pre">Normal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">loc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.stats.Normal" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractProbDistribution</span></code></p>
+<p>Normal distribution with location <cite>loc</cite> and <cite>scale</cite> parameters.</p>
+<p>Initializes a Normal distribution.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>loc</cite>: Mean of the distribution.</p></li>
+<li><p><cite>scale</cite>: Standard deviation of the distribution.</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.cdf">
+<span class="sig-name descname"><span class="pre">cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.cdf" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.cdf</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.entropy">
+<span class="sig-name descname"><span class="pre">entropy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.entropy" title="Link to this definition"></a></dt>
+<dd><p>Calculates the Shannon entropy (in nats).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.icdf">
+<span class="sig-name descname"><span class="pre">icdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.icdf" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.icdf</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.kl_divergence">
+<span class="sig-name descname"><span class="pre">kl_divergence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other_dist</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.kl_divergence" title="Link to this definition"></a></dt>
+<dd><p>Calculates the KL divergence to another distribution.</p>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><cite>other_dist</cite>: A compatible disteqx distribution.</p></li>
+<li><p><cite>kwargs</cite>: Additional kwargs.</p></li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The KL divergence <cite>KL(self || other_dist)</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.log_cdf">
+<span class="sig-name descname"><span class="pre">log_cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.log_cdf" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.log_cdf</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.log_prob">
+<span class="sig-name descname"><span class="pre">log_prob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.log_prob" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.log_prob</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.log_survival_function">
+<span class="sig-name descname"><span class="pre">log_survival_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.log_survival_function" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.log_survival_function</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.mean" title="Link to this definition"></a></dt>
+<dd><p>Calculates the mean.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.median">
+<span class="sig-name descname"><span class="pre">median</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.median" title="Link to this definition"></a></dt>
+<dd><p>Calculates the median.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.mode" title="Link to this definition"></a></dt>
+<dd><p>Calculates the mode.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Key</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">''</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.sample" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.sample</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.sample_and_log_prob">
+<span class="sig-name descname"><span class="pre">sample_and_log_prob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Key</span><span class="p"><span class="pre">[</span></span><span class="pre">jaxlib._jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">''</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#pmrf.stats.Normal.sample_and_log_prob" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.sample_and_log_prob</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.stddev">
+<span class="sig-name descname"><span class="pre">stddev</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.stddev" title="Link to this definition"></a></dt>
+<dd><p>Calculates the standard deviation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.survival_function">
+<span class="sig-name descname"><span class="pre">survival_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.survival_function" title="Link to this definition"></a></dt>
+<dd><p>See <cite>Distribution.survival_function</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.variance">
+<span class="sig-name descname"><span class="pre">variance</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.variance" title="Link to this definition"></a></dt>
+<dd><p>Calculates the variance.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.event_shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">event_shape</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pmrf.stats.Normal.event_shape" title="Link to this definition"></a></dt>
+<dd><p>Shape of event of distribution samples.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.loc">
+<span class="sig-name descname"><span class="pre">loc</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.stats.Normal.loc" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.stats.Normal.scale">
+<span class="sig-name descname"><span class="pre">scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#pmrf.stats.Normal.scale" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.stats.Matern52Kernel.html" class="btn btn-neutral float-left" title="Matern52Kernel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.stats.PeriodicKernel.html" class="btn btn-neutral float-right" title="PeriodicKernel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

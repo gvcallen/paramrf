@@ -1,0 +1,12 @@
+
+
+
+SchelkunoffRodSurfaceImpedance
+==============================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: SchelkunoffRodSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+DebyePole
+=========
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: DebyePole
+   :members:
+   :show-inheritance:
+   :inherited-members:

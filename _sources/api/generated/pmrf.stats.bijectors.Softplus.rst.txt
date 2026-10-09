@@ -1,0 +1,12 @@
+
+
+
+Softplus
+========
+
+.. currentmodule:: pmrf.stats.bijectors
+
+.. autoclass:: Softplus
+   :members:
+   :show-inheritance:
+   :inherited-members:

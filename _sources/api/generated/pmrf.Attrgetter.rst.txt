@@ -1,0 +1,12 @@
+﻿
+
+
+**Attrgetter** (pmrf.Attrgetter)
+================================
+
+.. currentmodule:: pmrf
+
+.. autoclass:: Attrgetter
+   :members:
+   :show-inheritance:
+   :inherited-members:

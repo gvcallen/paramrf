@@ -1,0 +1,12 @@
+
+
+
+ExponentialProfile
+==================
+
+.. currentmodule:: pmrf.models.components.lines.profiles
+
+.. autoclass:: ExponentialProfile
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,40 @@
+
+
+
+linearization
+=============
+
+.. automodule:: pmrf.stats.linearization
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   Linearization
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   posterior_covariance
+
+

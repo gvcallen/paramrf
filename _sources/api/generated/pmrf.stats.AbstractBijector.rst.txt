@@ -1,0 +1,12 @@
+
+
+
+AbstractBijector
+================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: AbstractBijector
+   :members:
+   :show-inheritance:
+   :inherited-members:

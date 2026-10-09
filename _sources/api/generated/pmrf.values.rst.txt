@@ -1,0 +1,9 @@
+﻿
+
+
+**values** (pmrf.values)
+========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: values

@@ -1,0 +1,12 @@
+
+
+
+AbstractDielectric
+==================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: AbstractDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

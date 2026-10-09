@@ -1,0 +1,95 @@
+﻿
+
+
+**objectives** (pmrf.objectives)
+================================
+
+.. automodule:: pmrf.objectives
+   :no-members:
+   :no-inherited-members:
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/module.rst
+   :recursive:
+
+
+   evaluators
+
+   losses
+
+   problems
+
+   terms
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractEvaluator
+
+   AbstractLoss
+
+   AbstractProblem
+
+   AbstractTerm
+
+   BoundEvaluator
+
+   Feature
+
+   GibbsMarginalLogLikelihood
+
+   Goal
+
+   HingeLoss
+
+   HuberLoss
+
+   LogMSELoss
+
+   MAPELoss
+
+   MSELoss
+
+   MarginalLogLikelihood
+
+   Negated
+
+   PriorPenalized
+
+   RMSELoss
+
+   SummedTerms
+
+   TargetLoss
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   as_terms
+
+   problem_terms
+
+
