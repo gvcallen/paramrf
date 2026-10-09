@@ -1,6 +1,8 @@
 import logging
 import warnings
 import os
+from importlib import import_module
+from typing import TYPE_CHECKING
 
 # Stop thread contention between vmap and CPU backend multithreading
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -102,20 +104,31 @@ from pmrf.utils import (
 
 # Public packages
 from pmrf import (
-    fitting as fitting,
-    infer as infer,
     materials as materials,
     math as math,
     models as models,
     modules as modules,
     objectives as objectives,
-    optimize as optimize,
     parameters as parameters,
     rf as rf,
     serialization as serialization,
     stats as stats,
-    viz as viz,
 )
+
+# These packages pull in objective implementations. Expose them on first access.
+if TYPE_CHECKING:
+    from pmrf import fitting as fitting, infer as infer, optimize as optimize, viz as viz
+
+def __getattr__(name):
+    if name in ("fitting", "infer", "optimize", "viz"):
+        module = import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
 
 __all__ = [
     # Base/Core

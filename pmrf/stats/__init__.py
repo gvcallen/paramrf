@@ -1,6 +1,75 @@
 """Public stats modules and their common entry points."""
 
 from importlib import import_module
+from typing import TYPE_CHECKING
+
+# Keep static analyzers aware of the public names without loading them at runtime.
+if TYPE_CHECKING:
+    from .bijectors import (
+        AbstractBijector as AbstractBijector,
+        Chain as Chain,
+        DiagLinear as DiagLinear,
+        Exp as Exp,
+        Identity as Identity,
+        Inverse as Inverse,
+        Leafwise as Leafwise,
+        Permute as Permute,
+        R2ToComplex as R2ToComplex,
+        ScalarAffine as ScalarAffine,
+        Shift as Shift,
+        Sigmoid as Sigmoid,
+        Softplus as Softplus,
+        Tanh as Tanh,
+        Transpose as Transpose,
+        TriangularLinear as TriangularLinear,
+    )
+    from .covariance_kernels import (
+        AbstractCovarianceKernel as AbstractCovarianceKernel,
+        AutoCrossKernel as AutoCrossKernel,
+        ConstantKernel as ConstantKernel,
+        CosineKernel as CosineKernel,
+        Matern32Kernel as Matern32Kernel,
+        Matern52Kernel as Matern52Kernel,
+        PeriodicKernel as PeriodicKernel,
+        ProductKernel as ProductKernel,
+        RBFKernel as RBFKernel,
+        SharedIndependentKernel as SharedIndependentKernel,
+        SumKernel as SumKernel,
+        WhiteNoiseKernel as WhiteNoiseKernel,
+        ZeroKernel as ZeroKernel,
+        cross_gram as cross_gram,
+        gram as gram,
+    )
+    from .discrepancy_models import (
+        AbstractDiscrepancyModel as AbstractDiscrepancyModel,
+        GaussianProcess as GaussianProcess,
+    )
+    from .distributions import (
+        AbstractDistribution as AbstractDistribution,
+        CenteredUniform as CenteredUniform,
+        Gamma as Gamma,
+        Joint as Joint,
+        LogNormal as LogNormal,
+        Normal as Normal,
+        RelativeNormal as RelativeNormal,
+        RelativeTruncatedNormal as RelativeTruncatedNormal,
+        Transformed as Transformed,
+        TruncatedNormal as TruncatedNormal,
+        Uniform as Uniform,
+        truncate as truncate,
+    )
+    from .likelihoods import (
+        AbstractLikelihood as AbstractLikelihood,
+        GaussianLikelihood as GaussianLikelihood,
+    )
+    from .linearization import (
+        Linearization as Linearization,
+        posterior_covariance as posterior_covariance,
+    )
+    from .noise_models import (
+        AbstractNoiseModel as AbstractNoiseModel,
+        AutoCrossNoise as AutoCrossNoise,
+    )
 
 _EXPORTS = {
     'AbstractBijector': 'bijectors',
