@@ -207,6 +207,7 @@ from pmrf.models.composite.transformed import (
 from pmrf.models.composite.nodal import (
     FloatingTwoPort as FloatingTwoPort,
     Shunt as Shunt,
+    Series as Series,
     GroundLifted as GroundLifted,
     GroundExposed as GroundExposed,
     CoupledOnePorts as CoupledOnePorts,

@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 import jax.numpy as jnp
 import equinox as eqx
+from skrf.media import DefinedGammaZ0
 
 from pmrf.frequency import Frequency
 from pmrf.parameters import Unconstrained
@@ -10,7 +11,8 @@ from pmrf.rf import s2y
 
 from pmrf.models import (
     Model, Cascade, Circuit, FloatingLine, FloatingTwoPort, GroundLifted,
-    GroundExposed, Shunt, PhaseLine, Port, RLGCLine, Resistor, Short, Open,
+    GroundExposed, Shunt, Series, PhaseLine, Port, RLGCLine, Resistor, Short, Open,
+    Load,
     Inductor
 )
 from pmrf.models.composite.nodal import CoupledOnePorts, CoupledTwoPorts
@@ -281,6 +283,44 @@ def test_shunt_invalid_port_count():
     
     with pytest.raises(ValueError, match="Shunt requires a 1-port model"):
         Shunt(shunt=res_model)
+
+# ---------------------------------------------------------
+# Series Tests
+# ---------------------------------------------------------
+
+@pytest.mark.parametrize("inner, reflection, transmission", [
+    (Short(), 0.0, 1.0),
+    (Open(), 1.0, 0.0),
+])
+def test_series_ideal_limits(inner, reflection, transmission, basic_freq):
+    s = Series(series=inner).s(basic_freq)
+
+    assert s.shape == (basic_freq.npoints, 2, 2)
+    assert jnp.all(jnp.isfinite(s))
+    np.testing.assert_allclose(s[:, 0, 0], reflection, atol=1e-12)
+    np.testing.assert_allclose(s[:, 1, 1], reflection, atol=1e-12)
+    np.testing.assert_allclose(s[:, 0, 1], transmission, atol=1e-12)
+    np.testing.assert_allclose(s[:, 1, 0], transmission, atol=1e-12)
+
+
+@pytest.mark.parametrize("resistance", [25.0, 50.0, 200.0])
+@pytest.mark.parametrize("z0", [50.0, 75.0, np.array([45.0, 75.0])])
+def test_series_resistance_matches_skrf(resistance, z0, basic_freq):
+    gamma = (resistance - 50.0) / (resistance + 50.0)
+    actual = Series(series=Load(gamma=gamma, z0=50.0)).s(basic_freq, z0=z0)
+
+    # A series element has a singular two-port Z matrix. Construct directly at
+    # the target z0: scikit-rf's S -> Z -> S renormalization perturbs that
+    # singularity and introduces errors of order 1e-8.
+    media = DefinedGammaZ0(basic_freq.to_skrf(), z0=50.0)
+    reference = media.resistor(resistance, z0=z0)
+
+    np.testing.assert_allclose(actual, reference.s, rtol=1e-12, atol=1e-12)
+
+
+def test_series_invalid_port_count():
+    with pytest.raises(ValueError, match="Series requires a 1-port model"):
+        Series(series=Resistor(R=50.0))
 
 # ---------------------------------------------------------
 # CoupledOnePorts Tests
