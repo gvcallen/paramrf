@@ -39,6 +39,7 @@ docs = [
 tests = [
     "pytest",
     "pytest-xdist",
+    "jedi==0.20.0",
     "filelock",
     "ipython",
     "scikit-rf",
