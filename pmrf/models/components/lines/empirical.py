@@ -20,9 +20,13 @@ class PhysicalLine(AbstractImmittanceLine):
 
     The per-unit-length parameters are
     $$R = 2 z_n \alpha_c$$
-    $$L = \frac{z_n \sqrt{\varepsilon_r}}{c}$$
+    $$L = \frac{z_n \sqrt{\varepsilon_r}}{c} + \frac{R}{\omega}$$
     $$G = \frac{2 \alpha_d}{z_n}$$
     $$C = \frac{\sqrt{\varepsilon_r}}{z_n c}$$
+
+    The skin-effect term adds conductor reactance to the series impedance:
+    $$Z = R + j\omega z_n\sqrt{\varepsilon_r}/c + jR.$$
+    This contribution vanishes at DC.
 
     Example
     --------
@@ -93,7 +97,11 @@ class PhysicalLine(AbstractImmittanceLine):
         G = G_val * ones
         C = C_val * ones
         
-        return ImmittanceResult.from_rlgc(R, L, G, C, freq.w)
+        return ImmittanceResult(
+            Z=R + 1j * (freq.w * L + R),
+            Y=G + 1j * freq.w * C,
+            omega=freq.w,
+        )
     
 
 class DatasheetLine(AbstractImmittanceLine):
@@ -108,9 +116,13 @@ class DatasheetLine(AbstractImmittanceLine):
 
     and the per-unit-length parameters are
     $$R = 2 z_n \alpha_c$$
-    $$L = \frac{z_n}{v_f c}$$
+    $$L = \frac{z_n}{v_f c} + \frac{R}{\omega}$$
     $$G = \frac{2 \alpha_d}{z_n}$$
     $$C = \frac{1}{z_n v_f c}$$
+
+    The skin-effect term adds conductor reactance to the series impedance:
+    $$Z = R + j\omega z_n/(v_f c) + jR.$$
+    This contribution vanishes at DC.
 
     Example
     --------
@@ -186,5 +198,9 @@ class DatasheetLine(AbstractImmittanceLine):
         L = (zn / (vf * c)) * jnp.ones_like(w)
         C = (1.0 / (zn * vf * c)) * jnp.ones_like(w)
         
-        return ImmittanceResult.from_rlgc(R, L, G, C, w)
+        return ImmittanceResult(
+            Z=R + 1j * (w * L + R),
+            Y=G + 1j * w * C,
+            omega=w,
+        )
 
