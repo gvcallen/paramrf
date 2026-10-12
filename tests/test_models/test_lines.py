@@ -25,8 +25,8 @@ from pmrf.materials import (
     DjordjevicSarkarDielectric,
     RoughConductor,
 )
-from pmrf.materials.surface_impedance import TescheTubeSurfaceImpedance
-from pmrf.models.components.lines.coaxial import TescheCoaxialFormulation
+from pmrf.materials.surface_impedance import HalfSpaceSurfaceImpedance, TescheTubeSurfaceImpedance
+from pmrf.models.components.lines.coaxial import SchelkunoffCoaxialFormulation, TescheCoaxialFormulation
 from pmrf.models.components.lines.microstrip import KirschningJansenMicrostripDispersion
 
 @pytest.fixture
@@ -117,6 +117,38 @@ def test_datasheet_line_attenuation(basic_freq):
     expected_mag = jnp.exp(-alpha_c * 10.0)
     
     assert jnp.allclose(jnp.abs(s[:, 1, 0]), expected_mag, atol=1e-4)
+
+
+@pytest.mark.parametrize("line_type", [DatasheetLine, PhysicalLine])
+@pytest.mark.parametrize("length", [1.0, 10.0])
+def test_empirical_line_matches_half_space_coax(line_type, length):
+    """Skin-effect loss has the same resistance and reactance as a coax half-space."""
+    d_in, d_out = 0.92e-3, 3.0e-3
+    ep_r, tand, sigma = 2.1, 1e-4, 5.8e7
+    a, b = d_in / 2, d_out / 2
+    zn = np.sqrt(mu_0 / epsilon_0) * np.log(b / a) / (2 * np.pi * np.sqrt(ep_r))
+    k1 = (2000 / np.log(10)) * np.sqrt(np.pi * 1e6 * mu_0 / sigma) * (1 / a + 1 / b) / (4 * np.pi * zn)
+    k2 = (2000 / np.log(10)) * np.pi * 1e6 * np.sqrt(ep_r) * tand / c
+
+    with jax.enable_x64():
+        freq = Frequency(start=10, stop=500, npoints=491, unit='MHz')
+        if line_type is DatasheetLine:
+            line = DatasheetLine(length=length, zn=zn, vf=1 / np.sqrt(ep_r), k1=k1, k2=k2)
+        else:
+            line = PhysicalLine(length=length, zn=zn, ep_r=ep_r, A=k1 / 1e5, f_A=1.0, tand=tand)
+        reference = CoaxialLine(
+            d_in=d_in, d_out=d_out, length=length,
+            dielectric=ConstantDielectric(ep_r=ep_r, tand=tand),
+            conductor=BulkConductor(sigma=sigma),
+            formulation=SchelkunoffCoaxialFormulation(
+                inner_impedance=HalfSpaceSurfaceImpedance(),
+                shield_impedance=HalfSpaceSurfaceImpedance(),
+            ),
+        )
+
+        difference = np.abs(np.asarray(line.s(freq) - reference.s(freq)))
+
+    assert np.max(difference) < 1e-8
 
 def test_coaxial_line_impedance(basic_freq):
     """Verify CoaxialLine matches the analytical Zc formula for a lossless coax."""
