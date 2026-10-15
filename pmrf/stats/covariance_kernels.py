@@ -304,6 +304,35 @@ class CosineKernel(AbstractCovarianceKernel):
         return jnp.cos(2 * jnp.pi * jnp.sum(x1 - x2) / self.period)
 
 
+class LogFrequencyKernel(AbstractCovarianceKernel):
+    r"""
+    Evaluate a kernel on log frequency.
+
+    $$k(x_1, x_2) = k_\text{inner}(\ln x_1, \ln x_2)$$
+
+    A stationary inner kernel depends on the ratio $x_1/x_2$. For a
+    :class:`CosineKernel` with period $p$, one cycle spans a factor of $e^p$
+    in frequency. The warp needs no frequency unit: rescaling all inputs adds
+    the same constant to their logarithms, leaving stationary inner kernels
+    unchanged. Inputs must be strictly positive.
+
+    Parameters
+    ----------
+    kernel : AbstractCovarianceKernel
+        The kernel evaluated on log frequency. Its batching is preserved.
+    """
+    #: The inner kernel.
+    kernel: AbstractCovarianceKernel
+
+    def __call__(self, x1, x2, key=None):
+        x1, x2 = jnp.asarray(x1), jnp.asarray(x2)
+        x1 = eqx.error_if(x1, jnp.any(x1 <= 0),
+                          "LogFrequencyKernel inputs must be strictly positive")
+        x2 = eqx.error_if(x2, jnp.any(x2 <= 0),
+                          "LogFrequencyKernel inputs must be strictly positive")
+        return self.kernel(jnp.log(x1), jnp.log(x2), key=key)
+
+
 class WhiteNoiseKernel(AbstractCovarianceKernel):
     """
     Kernel representing independent Gaussian noise.
