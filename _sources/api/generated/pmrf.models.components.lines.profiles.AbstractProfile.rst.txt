@@ -1,0 +1,12 @@
+
+
+
+AbstractProfile
+===============
+
+.. currentmodule:: pmrf.models.components.lines.profiles
+
+.. autoclass:: AbstractProfile
+   :members:
+   :show-inheritance:
+   :inherited-members:

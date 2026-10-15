@@ -1,0 +1,12 @@
+
+
+
+SumKernel
+=========
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: SumKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

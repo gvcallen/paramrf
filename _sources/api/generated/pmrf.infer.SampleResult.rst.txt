@@ -1,0 +1,12 @@
+
+
+
+SampleResult
+============
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: SampleResult
+   :members:
+   :show-inheritance:
+   :inherited-members:

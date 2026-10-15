@@ -1,0 +1,12 @@
+
+
+
+AbstractDiscrepancyModel
+========================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: AbstractDiscrepancyModel
+   :members:
+   :show-inheritance:
+   :inherited-members:

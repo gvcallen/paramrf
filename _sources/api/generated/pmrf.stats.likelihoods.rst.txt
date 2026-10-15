@@ -1,0 +1,32 @@
+
+
+
+likelihoods
+===========
+
+.. automodule:: pmrf.stats.likelihoods
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractLikelihood
+
+   GaussianLikelihood
+
+
+
+
+
+

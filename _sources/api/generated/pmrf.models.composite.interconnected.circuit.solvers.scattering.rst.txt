@@ -1,0 +1,48 @@
+
+
+
+scattering
+==========
+
+.. automodule:: pmrf.models.composite.interconnected.circuit.solvers.scattering
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   GlobalScatteringCircuitSolver
+
+   HierarchicalScatteringCircuitSolver
+
+   SequentialScatteringCircuitSolver
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   build_connection_matrix
+
+   build_local_connection_matrix
+
+   reduce_to_external
+
+

@@ -1,0 +1,12 @@
+
+
+
+AutoCrossKernel
+===============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: AutoCrossKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

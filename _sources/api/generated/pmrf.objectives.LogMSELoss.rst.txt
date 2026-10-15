@@ -1,0 +1,12 @@
+
+
+
+LogMSELoss
+==========
+
+.. currentmodule:: pmrf.objectives
+
+.. autoclass:: LogMSELoss
+   :members:
+   :show-inheritance:
+   :inherited-members:

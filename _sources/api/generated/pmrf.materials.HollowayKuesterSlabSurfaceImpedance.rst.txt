@@ -1,0 +1,12 @@
+
+
+
+HollowayKuesterSlabSurfaceImpedance
+===================================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: HollowayKuesterSlabSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

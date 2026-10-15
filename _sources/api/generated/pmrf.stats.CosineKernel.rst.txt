@@ -1,0 +1,12 @@
+
+
+
+CosineKernel
+============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: CosineKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

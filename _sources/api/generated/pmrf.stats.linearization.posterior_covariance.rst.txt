@@ -1,0 +1,9 @@
+
+
+
+posterior_covariance
+====================
+
+.. currentmodule:: pmrf.stats.linearization
+
+.. autofunction:: posterior_covariance

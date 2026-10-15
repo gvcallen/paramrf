@@ -1,0 +1,12 @@
+
+
+
+Amplifier
+=========
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: Amplifier
+   :members:
+   :show-inheritance:
+   :inherited-members:

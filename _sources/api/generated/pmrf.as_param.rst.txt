@@ -1,0 +1,9 @@
+﻿
+
+
+**as_param** (pmrf.as_param)
+============================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: as_param

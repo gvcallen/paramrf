@@ -1,0 +1,12 @@
+
+
+
+Normal
+======
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Normal
+   :members:
+   :show-inheritance:
+   :inherited-members:

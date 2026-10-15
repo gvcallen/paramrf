@@ -1,0 +1,9 @@
+
+
+
+_microstrip_conductance_factor
+==============================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autofunction:: _microstrip_conductance_factor

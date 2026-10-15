@@ -1,0 +1,9 @@
+﻿
+
+
+**derived** (pmrf.derived)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: derived

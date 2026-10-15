@@ -1,0 +1,12 @@
+
+
+
+AbstractCurrentDistribution
+===========================
+
+.. currentmodule:: pmrf.models.components.lines.planar
+
+.. autoclass:: AbstractCurrentDistribution
+   :members:
+   :show-inheritance:
+   :inherited-members:

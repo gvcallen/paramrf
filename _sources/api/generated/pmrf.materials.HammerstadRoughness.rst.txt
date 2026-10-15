@@ -1,0 +1,12 @@
+
+
+
+HammerstadRoughness
+===================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: HammerstadRoughness
+   :members:
+   :show-inheritance:
+   :inherited-members:

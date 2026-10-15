@@ -1,0 +1,12 @@
+
+
+
+PolyChord
+=========
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: PolyChord
+   :members:
+   :show-inheritance:
+   :inherited-members:
