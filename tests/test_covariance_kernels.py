@@ -16,6 +16,7 @@ from pmrf.stats.covariance_kernels import (
     ConstantKernel,
     CosineKernel,
     LogFrequencyKernel,
+    PowerEnvelopeKernel,
     AutoCrossKernel,
     SharedIndependentKernel,
 )
@@ -261,6 +262,84 @@ def test_log_frequency_kernel_rejects_nonpositive_inputs(invalid, side):
 def test_log_frequency_kernel_is_exported():
     from pmrf.stats import LogFrequencyKernel as PublicLogFrequencyKernel
     assert PublicLogFrequencyKernel is LogFrequencyKernel
+
+
+def test_power_envelope_kernel_value():
+    """The covariance is the outer product of two power-law amplitudes."""
+    kernel = PowerEnvelopeKernel(10e6, 0.5)
+    assert jnp.allclose(kernel(40e6, 90e6), 1 / 6, rtol=1e-14)
+
+
+def _damped_log_periodic_envelope(exponent=0.65, period=1.7, lengthscale=1.5):
+    return (PowerEnvelopeKernel(10e6, exponent)
+            * LogFrequencyKernel(CosineKernel(period) * Matern52Kernel(lengthscale))
+            * 2.5e-3 ** 2)
+
+
+def test_power_envelope_kernel_diagonal_and_psd(x_log):
+    """The envelope sets the prior variance and preserves positive semidefiniteness."""
+    kernel = _damped_log_periodic_envelope()
+    for index in [0, 150, 299]:
+        expected = 2.5e-3 ** 2 * (x_log[index] / 10e6) ** -1.3
+        assert jnp.allclose(kernel(x_log[index], x_log[index]), expected, rtol=1e-10)
+    eigenvalues = jnp.linalg.eigvalsh(kernel.gram(x_log))
+    assert eigenvalues.min() >= -1e-8 * eigenvalues.max()
+
+
+def test_power_envelope_kernel_batches_exponents(x_log):
+    """A vector of exponents gives the corresponding scalar Gram matrices."""
+    exponents = jnp.array([0.5, 1.0])
+    covariance = PowerEnvelopeKernel(10e6, exponents).gram(x_log)
+    assert covariance.shape == (2, 300, 300)
+    for index, exponent in enumerate(exponents):
+        expected = PowerEnvelopeKernel(10e6, exponent).gram(x_log)
+        assert jnp.allclose(covariance[index], expected)
+
+
+def test_power_envelope_kernel_composition_gradients_are_finite(x_log):
+    """Envelope, period, lengthscale, and coincident input gradients stay finite."""
+    def covariance_sum(parameters):
+        return _damped_log_periodic_envelope(*parameters).gram(x_log).sum()
+
+    gradients = jax.grad(covariance_sum)(jnp.array([0.65, 1.7, 1.5]))
+    assert jnp.all(jnp.isfinite(gradients))
+
+    kernel = _damped_log_periodic_envelope()
+    input_gradient = jax.grad(lambda x1: kernel(x1, jnp.array([10e6])))(jnp.array([10e6]))
+    assert jnp.all(jnp.isfinite(input_gradient))
+
+
+def test_power_envelope_kernel_composition_under_jit(x_log):
+    """Compilation preserves the composed covariance."""
+    kernel = _damped_log_periodic_envelope()
+    assert jnp.allclose(jax.jit(lambda x: kernel.gram(x))(x_log), kernel.gram(x_log))
+
+
+@pytest.mark.parametrize("invalid", [0.0, -1.0])
+@pytest.mark.parametrize("side", [0, 1])
+def test_power_envelope_kernel_rejects_nonpositive_inputs(invalid, side):
+    """Both arguments require positive frequencies, eagerly and under jit."""
+    kernel = PowerEnvelopeKernel(10e6, 0.65)
+    inputs = [jnp.array([10e6]), jnp.array([10e6])]
+    inputs[side] = jnp.array([invalid])
+    with pytest.raises(Exception, match="strictly positive"):
+        kernel(*inputs)
+    with pytest.raises(Exception, match="strictly positive"):
+        jax.jit(kernel)(*inputs)
+
+
+def test_power_envelope_kernel_rejects_multidimensional_inputs():
+    """A point with multiple features is rejected while tracing."""
+    kernel = PowerEnvelopeKernel(10e6, 0.65)
+    with pytest.raises(ValueError, match="one-dimensional"):
+        kernel(jnp.array([10e6, 20e6]), jnp.array([10e6]))
+    with pytest.raises(ValueError, match="one-dimensional"):
+        jax.jit(kernel)(jnp.array([10e6, 20e6]), jnp.array([10e6]))
+
+
+def test_power_envelope_kernel_is_exported():
+    from pmrf.stats import PowerEnvelopeKernel as PublicPowerEnvelopeKernel
+    assert PublicPowerEnvelopeKernel is PowerEnvelopeKernel
 
 
 _AUTO = RBFKernel(lengthscale=0.3)

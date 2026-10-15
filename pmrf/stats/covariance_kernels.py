@@ -333,6 +333,45 @@ class LogFrequencyKernel(AbstractCovarianceKernel):
         return self.kernel(jnp.log(x1), jnp.log(x2), key=key)
 
 
+class PowerEnvelopeKernel(AbstractCovarianceKernel):
+    r"""
+    Power-law amplitude envelope for a one-dimensional frequency input.
+
+    $$k(x_1, x_2) = s(x_1)s(x_2), \qquad
+    s(x) = \left(\frac{x}{x_\text{ref}}\right)^{-\alpha}$$
+
+    This rank-one kernel is singular on its own. Multiply it by another
+    kernel to make that kernel's prior standard deviation scale as $s(x)$.
+    Inputs must be strictly positive and contain exactly one feature.
+    ``reference`` must use the same units as the GP input (``frequency.f_scaled``
+    in the fitting path). A unit mismatch silently rescales the prior variance
+    by $(\text{unit ratio})^{-2\alpha}$.
+
+    Parameters
+    ----------
+    reference : ArrayLike
+        Input at which the amplitude is one, in the same units as the GP input.
+    exponent : ArrayLike
+        Decay exponent. A shape ``(D,)`` gives ``D`` batched kernels.
+    """
+    #: The reference input.
+    reference: ArrayLike
+
+    #: The decay exponent.
+    exponent: ArrayLike
+
+    def _amplitude(self, x):
+        x = jnp.asarray(x)
+        if x.size != 1:
+            raise ValueError("PowerEnvelopeKernel requires one-dimensional input points")
+        x = eqx.error_if(x, jnp.any(x <= 0),
+                         "PowerEnvelopeKernel inputs must be strictly positive")
+        return (x.reshape(()) / self.reference) ** (-jnp.asarray(self.exponent))
+
+    def __call__(self, x1, x2, key=None):
+        return self._amplitude(x1) * self._amplitude(x2)
+
+
 class WhiteNoiseKernel(AbstractCovarianceKernel):
     """
     Kernel representing independent Gaussian noise.
