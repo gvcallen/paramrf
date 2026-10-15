@@ -15,6 +15,7 @@ from pmrf.stats.covariance_kernels import (
     Matern52Kernel,
     ConstantKernel,
     CosineKernel,
+    LogFrequencyKernel,
     AutoCrossKernel,
     SharedIndependentKernel,
 )
@@ -36,6 +37,12 @@ def x():
 def x_periods():
     """Points spanning several periods of the cosine kernels below."""
     return jnp.linspace(0.0, 50.0, 200)
+
+
+@pytest.fixture
+def x_log():
+    assert jax.config.jax_enable_x64
+    return jnp.geomspace(10e6, 500e6, 300)
 
 
 def _damped_cosine():
@@ -208,6 +215,52 @@ def test_cosine_kernel_under_jit_and_vmap(x_periods):
     vmapped = jax.vmap(lambda p: CosineKernel(period=p).gram(x_periods))(periods)
     assert jnp.allclose(jitted, CosineKernel(period=3.0).gram(x_periods))
     assert jnp.allclose(vmapped, CosineKernel(period=periods).gram(x_periods))
+
+
+def test_log_frequency_kernel_has_ratio_period():
+    """One cycle in log frequency spans a fixed frequency ratio."""
+    period = 1.7
+    start = jnp.array([10e6])
+    kernel = LogFrequencyKernel(CosineKernel(period))
+    assert jnp.allclose(kernel(start, start * jnp.exp(period)), 1.0, atol=1e-12)
+    assert jnp.allclose(kernel(start, start * jnp.exp(period / 2)), -1.0, atol=1e-12)
+
+
+def test_log_frequency_kernel_unit_invariance_and_psd(x_log):
+    """Changing frequency units leaves the damped covariance unchanged and PSD."""
+    kernel = LogFrequencyKernel(CosineKernel(1.7) * Matern52Kernel(1.5))
+    covariance = kernel.gram(x_log)
+    assert jnp.max(jnp.abs(covariance - kernel.gram(x_log / 1e6))) < 1e-12
+    eigenvalues = jnp.linalg.eigvalsh(covariance)
+    assert eigenvalues.min() >= -1e-8 * eigenvalues.max()
+
+
+def test_log_frequency_kernel_preserves_inner_batching(x_log):
+    """A vector of inner periods gives one Gram matrix per period."""
+    periods = jnp.array([1.0, 2.0])
+    covariance = LogFrequencyKernel(CosineKernel(periods)).gram(x_log)
+    assert covariance.shape == (2, 300, 300)
+    for index, period in enumerate(periods):
+        expected = LogFrequencyKernel(CosineKernel(period)).gram(x_log)
+        assert jnp.allclose(covariance[index], expected)
+
+
+@pytest.mark.parametrize("invalid", [0.0, -1.0])
+@pytest.mark.parametrize("side", [0, 1])
+def test_log_frequency_kernel_rejects_nonpositive_inputs(invalid, side):
+    """Both arguments require positive frequencies, eagerly and under jit."""
+    kernel = LogFrequencyKernel(CosineKernel(1.7))
+    inputs = [jnp.array([10e6]), jnp.array([10e6])]
+    inputs[side] = jnp.array([invalid])
+    with pytest.raises(Exception, match="strictly positive"):
+        kernel(*inputs)
+    with pytest.raises(Exception, match="strictly positive"):
+        jax.jit(kernel)(*inputs)
+
+
+def test_log_frequency_kernel_is_exported():
+    from pmrf.stats import LogFrequencyKernel as PublicLogFrequencyKernel
+    assert PublicLogFrequencyKernel is LogFrequencyKernel
 
 
 _AUTO = RBFKernel(lengthscale=0.3)
