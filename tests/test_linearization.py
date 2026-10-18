@@ -14,8 +14,9 @@ from pmrf.stats.covariance_kernels import Matern52Kernel, cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess
 from pmrf.objectives.evaluators import MarginalLogLikelihood
 from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.linearization import posterior_covariance
+from pmrf.stats.linearization import Linearization, posterior_covariance, posterior_covariance_factor
 from pmrf.models import Wrapped
+from pmrf.models import PhysicalLine, PiSectionCLC, Resistor
 from pmrf.models.base import Model
 
 N = 12
@@ -282,6 +283,82 @@ def test_posterior_covariance_rejects_another_space():
         posterior_covariance([lin], model, space='raw')
 
 
+def test_ill_conditioned_covariance_uses_whitened_jacobian():
+    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    J = jnp.array([[1.0, 1.0], [0.0, 1e-8]])
+    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
+                        ('theta',), ((2,),), 'declared')
+    with mpmath.workdps(60):
+        matrix = mpmath.matrix([[1, 1], [0, mpmath.mpf('1e-8')]])
+        exact = mpmath.inverse(matrix.T * matrix)
+        expected = np.array(exact.tolist(), dtype=float)
+    covariance = np.asarray(posterior_covariance([lin], model))
+    factor = np.asarray(posterior_covariance_factor([lin], model))
+    assert np.isfinite(covariance).all()
+    assert np.isfinite(factor).all()
+    _assert_close(factor @ factor.T, expected, 1e-7)
+    np.testing.assert_allclose(covariance, covariance.T, rtol=0, atol=1e-14 * abs(expected).max())
+    _assert_close(covariance, expected, 1e-7)
+
+
+def test_uninformed_parameter_direction_raises_eager_and_jit():
+    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    J = jnp.array([[1.0, 0.0], [2.0, 0.0]])
+    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
+                        ('theta',), ((2,),), 'declared')
+    for covariance in (lambda: posterior_covariance([lin], model),
+                       jax.jit(lambda: posterior_covariance([lin], model))):
+        with pytest.raises(Exception, match='neither data nor prior information'):
+            covariance()
+
+
+@pytest.mark.parametrize('open_load', [True, False], ids=['open_load', '50_ohm_load'])
+def test_circuit_covariance_matches_high_precision_reference(open_load):
+    frequency = prf.Frequency(50, 130, 81, 'MHz')
+    gaussian = lambda value: prf.Random(prf.stats.Normal(1.0, 0.05), scale=value)
+    uniform = lambda value, scale: prf.Random(prf.stats.Uniform(0.0, 2.0), value=value, scale=scale)
+    load = (prf.Random(prf.stats.Uniform(1.0, 1000.0), value=100.0, scale=1e6)
+            if open_load else prf.Random(prf.stats.Normal(1.0, 0.05), scale=50.0))
+    model = (
+        PhysicalLine(length=gaussian(10.0), zn=gaussian(50.0),
+                     ep_r=prf.Random(prf.stats.Normal(1.45, 0.07)),
+                     A=gaussian(0.1), f_A=prf.Fixed(1e8), tand=gaussian(1e-4))
+        ** PiSectionCLC(C1=uniform(1.0, 1e-12), L=uniform(1.0, 1e-9),
+                        C2=uniform(1.0, 1e-12))
+        ** Resistor(R=load).terminated()
+    )
+    evaluator = MarginalLogLikelihood(
+        predictor=lambda candidate, freq: candidate.s(freq),
+        observed=np.asarray(model.s(frequency)), likelihood=GaussianLikelihood(1e-8),
+    )
+    lin = evaluator.linearize(model, frequency)
+    actual = np.asarray(posterior_covariance([lin], model))
+    assert np.isfinite(actual).all()
+    np.testing.assert_allclose(actual, actual.T, rtol=0.0, atol=1e-12 * abs(actual).max())
+
+    # Form the reference from the saved float64 Jacobian and covariance factor,
+    # accumulating their normal product at high precision rather than in float64.
+    with mpmath.workdps(60):
+        p = lin.J.shape[-1]
+        precision = mpmath.zeros(p)
+        for J, L in zip(np.asarray(lin.J).reshape(-1, lin.J.shape[-2], p),
+                        np.broadcast_to(np.asarray(lin.chol), lin.J.shape[:-2] + lin.chol.shape[-2:]).reshape(-1, lin.J.shape[-2], lin.J.shape[-2])):
+            lower = mpmath.matrix(L.tolist())
+            W = mpmath.matrix(J.tolist())
+            for row in range(W.rows):
+                for column in range(W.cols):
+                    W[row, column] = (W[row, column] - sum(
+                        lower[row, previous] * W[previous, column]
+                        for previous in range(row)
+                    )) / lower[row, row]
+            precision += W.T * W
+        names, shapes, x0, rebuild = prf.stats.linearization._flat(model, 'declared')
+        prior_hessian = np.asarray(-jax.hessian(lambda x: prf.log_prior(rebuild(x)))(x0))
+        precision += mpmath.matrix(prior_hessian.tolist())
+        reference = np.array(mpmath.inverse(precision).tolist(), dtype=float)
+    _assert_close(actual, reference, 1e-7 if open_load else 1e-10)
+
+
 def _mp_condition(mean, covariance, observed, size):
     """Condition a stacked Gaussian's first `size` entries on all remaining entries."""
     with mpmath.workdps(50):
@@ -335,7 +412,7 @@ def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
     # A second independent fit informs θ, while δ remains conditioned on this fit.
     covariance = posterior_covariance([lin, _mll(B, _observed(B, 1)).linearize(model, FREQ)], model)
     _, joint = mll.predict_joint(model, FREQ, new_frequency, covariance=covariance)
-    np.testing.assert_array_equal(joint.covariance()[:P, :P], covariance)
+    np.testing.assert_allclose(joint.covariance()[:P, :P], covariance, rtol=1e-14, atol=0)
     discrepancy = mll.predict_discrepancy(model, FREQ, new_frequency)
     cross = np.asarray(joint.covariance()[P:, :P])
     parameter_term = cross @ np.linalg.solve(np.asarray(covariance), cross.T)
@@ -345,6 +422,36 @@ def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
         _assert_close(remaining[sl, sl], np.asarray(discrepancy.covariance())[block], 1e-12)
     _assert_close(joint.mean()[P:], np.asarray(discrepancy.mean()).reshape(-1), 1e-12)
     np.testing.assert_allclose(remaining[:7, 7:], 0.0, atol=1e-15)
+
+
+def test_joint_prediction_accepts_combined_covariance_factor():
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(MU0))))
+    mll = _mll(A, _observed(A, 0))
+    lin_a = mll.linearize(model, FREQ)
+    lin_b = _mll(B, _observed(B, 1)).linearize(model, FREQ)
+    factor = posterior_covariance_factor([lin_a, lin_b], model)
+    _, joint = mll.predict_joint(model, FREQ, FREQ, covariance_factor=factor)
+    _assert_close(joint.covariance()[:P, :P], np.asarray(factor @ factor.T), 1e-10)
+    assert np.isfinite(joint.log_prob(joint.mean()))
+    with pytest.raises(ValueError, match="either covariance"):
+        mll.predict_joint(model, FREQ, FREQ, covariance=factor @ factor.T,
+                          covariance_factor=factor)
+
+
+@pytest.mark.parametrize('new_frequency', [FREQ, prf.Frequency(0.9, 5.3, 7, 'GHz')])
+def test_joint_prediction_ill_conditioned_gp_has_finite_density(new_frequency):
+    matrix = np.zeros((1, N, 2))
+    matrix[0, :, 0] = np.linspace(0.2, 1.1, N)
+    matrix[0, :, 1] = matrix[0, :, 0] + 1e-8 * np.linspace(-1, 1, N)
+    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    observed = _linear_predictor(matrix)(model, FREQ)
+    mll = _mll(matrix, observed, noise=1e-10, jitter=1e-12)
+    names, joint = mll.predict_joint(model, FREQ, new_frequency)
+    covariance = np.asarray(joint.covariance())
+    assert names == ('theta',)
+    assert np.isfinite(covariance).all()
+    assert np.all(np.diag(covariance) > 0)
+    assert np.isfinite(joint.log_prob(joint.mean()))
 
 
 def test_joint_prediction_as_transfer_prior_matches_joint_fit():

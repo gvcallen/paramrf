@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from .linearization import (
         Linearization as Linearization,
         posterior_covariance as posterior_covariance,
+        posterior_covariance_factor as posterior_covariance_factor,
     )
     from .noise_models import (
         AbstractNoiseModel as AbstractNoiseModel,
@@ -126,6 +127,7 @@ _EXPORTS = {
     'cross_gram': 'covariance_kernels',
     'gram': 'covariance_kernels',
     'posterior_covariance': 'linearization',
+    'posterior_covariance_factor': 'linearization',
     'truncate': 'distributions',
 }
 _MODULES = {'bijectors', 'discrepancy_models', 'linearization', 'likelihoods', 'noise_models', 'distributions', 'covariance_kernels'}

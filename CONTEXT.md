@@ -223,6 +223,12 @@ the prior precision $\Sigma_0^{-1}$ it gives the linearised posterior covariance
 $\Sigma_\text{post} = (F + \Sigma_0^{-1})^{-1}$, over parameter values in one space
 (declared by default). Fisher matrices of independent fits add.
 
+The **posterior covariance factor** $W$ is a square root of this covariance:
+$\Sigma_\text{post}=WW^\top$. It follows the same free-parameter order and space as
+the linearisation. For a stack $A$ of whitened Jacobians and a square root of the
+prior precision, $A=USV^\top$ gives $W=VS^{-1}$. Joint prediction uses $W$ to
+carry parameter uncertainty without first forming the Fisher matrix.
+
 ### Joint prediction
 
 The Gaussian over the free parameters and the discrepancy at new frequencies
