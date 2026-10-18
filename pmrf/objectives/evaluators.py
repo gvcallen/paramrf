@@ -22,7 +22,7 @@ from pmrf.objectives.losses import HingeLoss, RMSELoss
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.stats.covariance_kernels import cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise
-from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance
+from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance_factor
 from pmrf.modules.base import Module
 from pmrf.parameters import Space, values as _values, update
 from pmrf.utils import derivative, field, unwrap, unwrap_self
@@ -593,6 +593,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
         frequency: Frequency,
         new_frequency: Frequency,
         covariance: jnp.ndarray | None = None,
+        *,
+        covariance_factor: jnp.ndarray | None = None,
         **kwargs,
     ) -> tuple[tuple[str, ...], dist.AbstractDistribution]:
         r"""Predict the free parameters and discrepancy together as a joint prior.
@@ -600,13 +602,14 @@ class MarginalLogLikelihood(AbstractEvaluator):
         **Mathematical Formulation**
 
         At the fitted model, let $A = K_{*h}\Sigma_D^{-1}$ and let
-        $\Sigma_\text{post}$ be the linearised parameter covariance. Then
+        $W W^\top = \Sigma_\text{post}$ factor the linearised parameter
+        covariance. Then
 
         $$\hat\delta = A r, \qquad
         \Sigma_\delta = K_{**} - A K_{*h}^\top
-            + A J\Sigma_\text{post}J^\top A^\top$$
+            + (AJW)(AJW)^\top$$
 
-        $$\Sigma_{\delta\theta} = -A J\Sigma_\text{post}$$
+        $$\Sigma_{\delta\theta} = -(AJW)W^\top$$
 
         The parameter term couples event blocks, giving one dense Gaussian over
         $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
@@ -632,6 +635,12 @@ class MarginalLogLikelihood(AbstractEvaluator):
             order. If omitted, computed from this fit and the model's prior with
             :func:`pmrf.stats.linearization.posterior_covariance`. Supply a covariance
             from combined linearisations when several fits inform the parameters.
+        covariance_factor : jnp.ndarray or None, default=None
+            A factor $W$ of the parameter covariance in declared space and
+            linearisation name order, with $W W^\top$ equal to the covariance.
+            Obtain one from :func:`pmrf.stats.linearization.posterior_covariance_factor`
+            when several fits inform the parameters. Cannot be combined with
+            covariance.
         **kwargs
             Passed to the predictor.
 
@@ -653,18 +662,29 @@ class MarginalLogLikelihood(AbstractEvaluator):
             If the discrepancy is not a Gaussian process or the likelihood is not
             Gaussian.
         ValueError
-            If orthogonal discrepancy is enabled or ``covariance`` has the wrong
-            shape for the free parameters.
+            If orthogonal discrepancy is enabled, an input has the wrong shape,
+            or both covariance arguments are supplied.
         """
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError("Joint prediction requires a `GaussianProcess` discrepancy.")
         linearization = self.linearize(model, frequency, **kwargs)
         p = linearization.J.shape[-1]
-        if covariance is None:
-            covariance = posterior_covariance([linearization], model)
-        covariance = jnp.asarray(covariance)
-        if covariance.shape != (p, p):
-            raise ValueError(f"Parameter covariance must have shape {(p, p)}.")
+        if covariance is not None and covariance_factor is not None:
+            raise ValueError("Supply either covariance or covariance_factor, not both.")
+        if covariance_factor is None:
+            if covariance is None:
+                covariance_factor = posterior_covariance_factor([linearization], model)
+            else:
+                covariance = jnp.asarray(covariance)
+                if covariance.shape != (p, p):
+                    raise ValueError(f"Parameter covariance must have shape {(p, p)}.")
+                covariance_factor = jnp.linalg.cholesky(covariance)
+        covariance_factor = jnp.asarray(covariance_factor)
+        if covariance_factor.shape != (p, p):
+            raise ValueError(f"Parameter covariance factor must have shape {(p, p)}.")
+        # QR gives a triangular scale without first forming an ill-conditioned covariance.
+        _, R = jnp.linalg.qr(covariance_factor.T)
+        parameter_scale = R.T
 
         batch_shape = linearization.residual.shape[:-1]
         n = linearization.residual.shape[-1]
@@ -682,17 +702,19 @@ class MarginalLogLikelihood(AbstractEvaluator):
         conditional = conditional - jnp.swapaxes(V, -1, -2) @ V
         conditional = conditional.reshape((-1, n_new, n_new))
         blocks = conditional.shape[0]
-        conditional = jnp.einsum('bij,bc->bicj', conditional, jnp.eye(blocks)).reshape(
-            (blocks * n_new, blocks * n_new)
-        )
+        conditional_scale = jnp.linalg.cholesky(conditional)
+        conditional_scale = jnp.einsum(
+            'bij,bc->bicj', conditional_scale, jnp.eye(blocks)
+        ).reshape((blocks * n_new, blocks * n_new))
         AJ = (A @ linearization.J).reshape((-1, p))
-        cross = -AJ @ covariance
-        sigma_delta = conditional + AJ @ covariance @ AJ.T
-        joint_covariance = jnp.block([[covariance, cross.T], [cross, sigma_delta]])
+        joint_scale = jnp.block([
+            [parameter_scale, jnp.zeros((p, blocks * n_new))],
+            [-AJ @ parameter_scale, conditional_scale],
+        ])
         named_values = _values(model, free_only=True, space='declared')
         theta = jnp.concatenate([jnp.ravel(named_values[name]) for name in linearization.names])
         mean = jnp.concatenate([theta, mean_delta])
-        return linearization.names, dist.MultivariateNormalFullCovariance(mean, joint_covariance)
+        return linearization.names, dist.MultivariateNormalTri(mean, joint_scale)
 
     @unwrap_self
     def linearize(

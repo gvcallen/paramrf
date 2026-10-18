@@ -139,12 +139,12 @@ def _whitened_jacobian(J: Array, chol: Array) -> Array:
     return W.reshape(W.shape[:-1] + (p, -1))
 
 
-def posterior_covariance(
+def posterior_covariance_factor(
     linearizations: Sequence[Linearization],
     model: PyTree,
     space: Space = 'declared',
 ) -> Array:
-    r"""The linearised posterior covariance of a model's free parameters.
+    r"""A square root of the linearised posterior covariance of free parameters.
 
     **Mathematical Formulation**
 
@@ -153,7 +153,8 @@ def posterior_covariance(
 
     $$A = \begin{bmatrix}L_1^{-1}J_1 \\ \cdots \\ L_k^{-1}J_k \\
     \Sigma_0^{-1/2}\end{bmatrix}, \qquad
-    A = U S V^\top, \qquad \Sigma_\text{post} = V S^{-2} V^\top,$$
+    A = U S V^\top, \qquad W = V S^{-1}, \qquad
+    \Sigma_\text{post} = W W^\top,$$
 
     where $\Sigma_0^{-1} = -\nabla^2\log p(\theta)$ in `space`. Its symmetric
     eigendecomposition supplies the square root; negative eigenvalues are clipped to
@@ -174,8 +175,8 @@ def posterior_covariance(
     Returns
     -------
     jax.Array
-        The covariance, with shape ``(p, p)``, over the free parameters in the
-        linearisations' :attr:`~Linearization.names` order.
+        A factor ``W`` with shape ``(p, p)`` such that ``W @ W.T`` is the
+        covariance over free parameters in :attr:`~Linearization.names` order.
 
     Raises
     ------
@@ -211,10 +212,26 @@ def posterior_covariance(
         "A parameter direction has neither data nor prior information.",
     )
     V = vt.T
-    return (V / singular_values**2) @ V.T
+    return V / singular_values
+
+
+def posterior_covariance(
+    linearizations: Sequence[Linearization],
+    model: PyTree,
+    space: Space = 'declared',
+) -> Array:
+    r"""The linearised posterior covariance of a model's free parameters.
+
+    See :func:`posterior_covariance_factor` for the factorisation and its
+    assumptions. The result has shape ``(p, p)`` in the linearisations'
+    :attr:`~Linearization.names` order.
+    """
+    W = posterior_covariance_factor(linearizations, model, space)
+    return W @ W.T
 
 
 __all__ = [
     'Linearization',
     'posterior_covariance',
+    'posterior_covariance_factor',
 ]

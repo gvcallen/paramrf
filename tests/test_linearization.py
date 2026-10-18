@@ -14,7 +14,7 @@ from pmrf.stats.covariance_kernels import Matern52Kernel, cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess
 from pmrf.objectives.evaluators import MarginalLogLikelihood
 from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.linearization import Linearization, posterior_covariance
+from pmrf.stats.linearization import Linearization, posterior_covariance, posterior_covariance_factor
 from pmrf.models import Wrapped
 from pmrf.models import PhysicalLine, PiSectionCLC, Resistor
 from pmrf.models.base import Model
@@ -293,7 +293,10 @@ def test_ill_conditioned_covariance_uses_whitened_jacobian():
         exact = mpmath.inverse(matrix.T * matrix)
         expected = np.array(exact.tolist(), dtype=float)
     covariance = np.asarray(posterior_covariance([lin], model))
+    factor = np.asarray(posterior_covariance_factor([lin], model))
     assert np.isfinite(covariance).all()
+    assert np.isfinite(factor).all()
+    _assert_close(factor @ factor.T, expected, 1e-7)
     np.testing.assert_allclose(covariance, covariance.T, rtol=0, atol=1e-14 * abs(expected).max())
     _assert_close(covariance, expected, 1e-7)
 
@@ -409,7 +412,7 @@ def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
     # A second independent fit informs θ, while δ remains conditioned on this fit.
     covariance = posterior_covariance([lin, _mll(B, _observed(B, 1)).linearize(model, FREQ)], model)
     _, joint = mll.predict_joint(model, FREQ, new_frequency, covariance=covariance)
-    np.testing.assert_array_equal(joint.covariance()[:P, :P], covariance)
+    np.testing.assert_allclose(joint.covariance()[:P, :P], covariance, rtol=1e-14, atol=0)
     discrepancy = mll.predict_discrepancy(model, FREQ, new_frequency)
     cross = np.asarray(joint.covariance()[P:, :P])
     parameter_term = cross @ np.linalg.solve(np.asarray(covariance), cross.T)
@@ -419,6 +422,36 @@ def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
         _assert_close(remaining[sl, sl], np.asarray(discrepancy.covariance())[block], 1e-12)
     _assert_close(joint.mean()[P:], np.asarray(discrepancy.mean()).reshape(-1), 1e-12)
     np.testing.assert_allclose(remaining[:7, 7:], 0.0, atol=1e-15)
+
+
+def test_joint_prediction_accepts_combined_covariance_factor():
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(MU0))))
+    mll = _mll(A, _observed(A, 0))
+    lin_a = mll.linearize(model, FREQ)
+    lin_b = _mll(B, _observed(B, 1)).linearize(model, FREQ)
+    factor = posterior_covariance_factor([lin_a, lin_b], model)
+    _, joint = mll.predict_joint(model, FREQ, FREQ, covariance_factor=factor)
+    _assert_close(joint.covariance()[:P, :P], np.asarray(factor @ factor.T), 1e-10)
+    assert np.isfinite(joint.log_prob(joint.mean()))
+    with pytest.raises(ValueError, match="either covariance"):
+        mll.predict_joint(model, FREQ, FREQ, covariance=factor @ factor.T,
+                          covariance_factor=factor)
+
+
+@pytest.mark.parametrize('new_frequency', [FREQ, prf.Frequency(0.9, 5.3, 7, 'GHz')])
+def test_joint_prediction_ill_conditioned_gp_has_finite_density(new_frequency):
+    matrix = np.zeros((1, N, 2))
+    matrix[0, :, 0] = np.linspace(0.2, 1.1, N)
+    matrix[0, :, 1] = matrix[0, :, 0] + 1e-8 * np.linspace(-1, 1, N)
+    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    observed = _linear_predictor(matrix)(model, FREQ)
+    mll = _mll(matrix, observed, noise=1e-10, jitter=1e-12)
+    names, joint = mll.predict_joint(model, FREQ, new_frequency)
+    covariance = np.asarray(joint.covariance())
+    assert names == ('theta',)
+    assert np.isfinite(covariance).all()
+    assert np.all(np.diag(covariance) > 0)
+    assert np.isfinite(joint.log_prob(joint.mean()))
 
 
 def test_joint_prediction_as_transfer_prior_matches_joint_fit():
