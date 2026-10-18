@@ -122,15 +122,21 @@ def _linearize(
     residual = residual_fn(model)
     J = -jax.jacfwd(lambda x: residual_fn(rebuild(x)))(x0)
 
+    W = _whitened_jacobian(J, chol)
+    F = jnp.einsum('...nps,...nqs->pq', W, W)
+    return Linearization(J, residual, chol, F, names, shapes, space)
+
+
+def _whitened_jacobian(J: Array, chol: Array) -> Array:
+    """Return $L^{-1}J$ grouped by shared covariance factors."""
+
     # Event blocks sharing a factor are solved together, with the parameter axis
     # carried as one more batch axis the factor is shared along.
     n, p = J.shape[-2], J.shape[-1]
     matrix_shape, R, _ = _group_by_matrix(chol.shape[:-2], jnp.moveaxis(J, -1, 0))
     L = jnp.broadcast_to(chol, chol.shape[:-2] + (n, n)).reshape(matrix_shape + (n, n))
     W = jsp.linalg.solve_triangular(L, R, lower=True)
-    W = W.reshape(W.shape[:-1] + (p, -1))
-    F = jnp.einsum('...nps,...nqs->pq', W, W)
-    return Linearization(J, residual, chol, F, names, shapes, space)
+    return W.reshape(W.shape[:-1] + (p, -1))
 
 
 def posterior_covariance(
@@ -142,14 +148,18 @@ def posterior_covariance(
 
     **Mathematical Formulation**
 
-    The Fisher matrices of independent fits add, and the prior enters through its
-    precision at `model`:
+    Stack the whitened Jacobians of independent fits with a square root of the
+    prior precision, then use the singular values of that stack:
 
-    $$\Sigma_\text{post} = \left(\sum_k F_k + \Sigma_0^{-1}\right)^{-1}, \qquad
-    \Sigma_0^{-1} = -\nabla^2 \log p(\theta)$$
+    $$A = \begin{bmatrix}L_1^{-1}J_1 \\ \cdots \\ L_k^{-1}J_k \\
+    \Sigma_0^{-1/2}\end{bmatrix}, \qquad
+    A = U S V^\top, \qquad \Sigma_\text{post} = V S^{-2} V^\top,$$
 
-    with the Hessian of :func:`pmrf.log_prior` taken in `space`. A parameter without a
-    prior, or with a uniform prior inside its bounds, adds zero to $\Sigma_0^{-1}$.
+    where $\Sigma_0^{-1} = -\nabla^2\log p(\theta)$ in `space`. Its symmetric
+    eigendecomposition supplies the square root; negative eigenvalues are clipped to
+    zero. This local approximation is only meaningful where the prior is log-concave.
+    A parameter without a prior, or with a uniform prior inside its bounds, adds zero
+    prior precision.
 
     Parameters
     ----------
@@ -185,11 +195,23 @@ def posterior_covariance(
                 "A linearisation is over different free parameters from the model: "
                 f"{linearization.names} rather than {names}."
             )
-    fisher = sum(linearization.F for linearization in linearizations)
     prior_precision = -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
-    precision = fisher + prior_precision
-    chol = jnp.linalg.cholesky(0.5 * (precision + precision.T))
-    return jsp.linalg.cho_solve((chol, True), jnp.eye(precision.shape[-1], dtype=precision.dtype))
+    eigenvalues, eigenvectors = jnp.linalg.eigh(0.5 * (prior_precision + prior_precision.T))
+    prior_root = jnp.sqrt(jnp.maximum(eigenvalues, 0.0))[:, None] * eigenvectors.T
+    p = x0.size
+    factors = [
+        jnp.moveaxis(_whitened_jacobian(lin.J, lin.chol), -2, -1).reshape(-1, p)
+        for lin in linearizations
+    ]
+    A = jnp.concatenate([*factors, prior_root], axis=0)
+    _, singular_values, vt = jnp.linalg.svd(A, full_matrices=False)
+    threshold = singular_values[0] * max(A.shape) * jnp.finfo(A.dtype).eps
+    singular_values = eqx.error_if(
+        singular_values, singular_values[-1] <= threshold,
+        "A parameter direction has neither data nor prior information.",
+    )
+    V = vt.T
+    return (V / singular_values**2) @ V.T
 
 
 __all__ = [

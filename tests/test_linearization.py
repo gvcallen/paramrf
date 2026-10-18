@@ -14,8 +14,9 @@ from pmrf.stats.covariance_kernels import Matern52Kernel, cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess
 from pmrf.objectives.evaluators import MarginalLogLikelihood
 from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.linearization import posterior_covariance
+from pmrf.stats.linearization import Linearization, posterior_covariance
 from pmrf.models import Wrapped
+from pmrf.models import PhysicalLine, PiSectionCLC, Resistor
 from pmrf.models.base import Model
 
 N = 12
@@ -280,6 +281,79 @@ def test_posterior_covariance_rejects_another_space():
     lin = _mll(A, _observed(A, 0)).linearize(model, FREQ)
     with pytest.raises(ValueError, match="space"):
         posterior_covariance([lin], model, space='raw')
+
+
+def test_ill_conditioned_covariance_uses_whitened_jacobian():
+    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    J = jnp.array([[1.0, 1.0], [0.0, 1e-8]])
+    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
+                        ('theta',), ((2,),), 'declared')
+    with mpmath.workdps(60):
+        matrix = mpmath.matrix([[1, 1], [0, mpmath.mpf('1e-8')]])
+        exact = mpmath.inverse(matrix.T * matrix)
+        expected = np.array(exact.tolist(), dtype=float)
+    covariance = np.asarray(posterior_covariance([lin], model))
+    assert np.isfinite(covariance).all()
+    np.testing.assert_allclose(covariance, covariance.T, rtol=0, atol=1e-14 * abs(expected).max())
+    _assert_close(covariance, expected, 1e-7)
+
+
+def test_uninformed_parameter_direction_raises_eager_and_jit():
+    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    J = jnp.array([[1.0, 0.0], [2.0, 0.0]])
+    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
+                        ('theta',), ((2,),), 'declared')
+    for covariance in (lambda: posterior_covariance([lin], model),
+                       jax.jit(lambda: posterior_covariance([lin], model))):
+        with pytest.raises(Exception, match='neither data nor prior information'):
+            covariance()
+
+
+@pytest.mark.parametrize('open_load', [True, False], ids=['open_load', '50_ohm_load'])
+def test_circuit_covariance_matches_high_precision_reference(open_load):
+    frequency = prf.Frequency(50, 130, 81, 'MHz')
+    gaussian = lambda value: prf.Random(prf.stats.Normal(1.0, 0.05), scale=value)
+    uniform = lambda value, scale: prf.Random(prf.stats.Uniform(0.0, 2.0), value=value, scale=scale)
+    load = (prf.Random(prf.stats.Uniform(1.0, 1000.0), value=100.0, scale=1e6)
+            if open_load else prf.Random(prf.stats.Normal(1.0, 0.05), scale=50.0))
+    model = (
+        PhysicalLine(length=gaussian(10.0), zn=gaussian(50.0),
+                     ep_r=prf.Random(prf.stats.Normal(1.45, 0.07)),
+                     A=gaussian(0.1), f_A=prf.Fixed(1e8), tand=gaussian(1e-4))
+        ** PiSectionCLC(C1=uniform(1.0, 1e-12), L=uniform(1.0, 1e-9),
+                        C2=uniform(1.0, 1e-12))
+        ** Resistor(R=load).terminated()
+    )
+    evaluator = MarginalLogLikelihood(
+        predictor=lambda candidate, freq: candidate.s(freq),
+        observed=np.asarray(model.s(frequency)), likelihood=GaussianLikelihood(1e-8),
+    )
+    lin = evaluator.linearize(model, frequency)
+    actual = np.asarray(posterior_covariance([lin], model))
+    assert np.isfinite(actual).all()
+    np.testing.assert_allclose(actual, actual.T, rtol=0.0, atol=1e-12 * abs(actual).max())
+
+    # Form the reference from the saved float64 Jacobian and covariance factor,
+    # accumulating their normal product at high precision rather than in float64.
+    with mpmath.workdps(60):
+        p = lin.J.shape[-1]
+        precision = mpmath.zeros(p)
+        for J, L in zip(np.asarray(lin.J).reshape(-1, lin.J.shape[-2], p),
+                        np.broadcast_to(np.asarray(lin.chol), lin.J.shape[:-2] + lin.chol.shape[-2:]).reshape(-1, lin.J.shape[-2], lin.J.shape[-2])):
+            lower = mpmath.matrix(L.tolist())
+            W = mpmath.matrix(J.tolist())
+            for row in range(W.rows):
+                for column in range(W.cols):
+                    W[row, column] = (W[row, column] - sum(
+                        lower[row, previous] * W[previous, column]
+                        for previous in range(row)
+                    )) / lower[row, row]
+            precision += W.T * W
+        names, shapes, x0, rebuild = prf.stats.linearization._flat(model, 'declared')
+        prior_hessian = np.asarray(-jax.hessian(lambda x: prf.log_prior(rebuild(x)))(x0))
+        precision += mpmath.matrix(prior_hessian.tolist())
+        reference = np.array(mpmath.inverse(precision).tolist(), dtype=float)
+    _assert_close(actual, reference, 1e-7 if open_load else 1e-10)
 
 
 def _mp_condition(mean, covariance, observed, size):
