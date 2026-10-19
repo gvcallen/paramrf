@@ -1161,7 +1161,7 @@ def test_orthogonal_discrepancy_rejects_noise_varying_along_frequency(gp_freq):
         mll(_sloped_two_port(), gp_freq)
 
 
-def test_discrepancy_prediction_rejects_orthogonal_discrepancy(gp_freq, new_freq):
+def test_discrepancy_prediction_rejects_off_grid_orthogonal_discrepancy(gp_freq, new_freq):
     mll = MarginalLogLikelihood(
         predictor=Feature('s'),
         observed=_observed_two_port(gp_freq),
@@ -1171,5 +1171,5 @@ def test_discrepancy_prediction_rejects_orthogonal_discrepancy(gp_freq, new_freq
         orthogonal_rcond=1e-10,
         orthogonal_recompute=True,
     )
-    with pytest.raises(ValueError, match="orthogonal"):
+    with pytest.raises(ValueError, match="not on the fit frequencies"):
         mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)

@@ -527,6 +527,41 @@ class MarginalLogLikelihood(AbstractEvaluator):
             basis,
         )
         return jnp.sum(log_probs), event_transform
+
+    def _projected_kernel(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        """Return the fit-grid covariance with a fixed tangent projection."""
+        basis = self.orthogonal_basis
+        if self.orthogonal_recompute:
+            basis = _orthogonal_projection(
+                lambda candidate: self._event(candidate, frequency, **kwargs)[0],
+                model, rcond=self.orthogonal_rcond,
+            )
+        elif basis is None:
+            raise ValueError(
+                "No fixed orthogonal reference is configured. Call "
+                "`with_orthogonal_reference(model, frequency)` once, or set "
+                "`orthogonal_recompute=True`."
+            )
+        Q1 = jax.lax.stop_gradient(basis.vectors)
+        n = Q1.shape[-2]
+        P = jnp.eye(n, dtype=Q1.dtype) - Q1 @ jnp.swapaxes(Q1, -1, -2)
+        K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
+        return P @ K @ jnp.swapaxes(P, -1, -2)
+
+    @staticmethod
+    def _fit_frequency_indices(frequency: Frequency, new_frequency: Frequency) -> jnp.ndarray:
+        """Locate each requested point on the fit grid, preserving its order."""
+        fit = np.asarray(frequency.f_scaled)
+        requested = np.asarray(new_frequency.f / frequency.multiplier)
+        indices = []
+        for point in requested:
+            matches = np.flatnonzero(np.isclose(fit, point, rtol=1e-9, atol=1e-12))
+            if not len(matches):
+                raise ValueError(
+                    f"Frequency {point:g} {frequency.unit} is not on the fit frequencies."
+                )
+            indices.append(matches[0])
+        return jnp.asarray(indices, dtype=jnp.int32)
     
     @unwrap_self
     def predict_discrepancy(
@@ -538,11 +573,18 @@ class MarginalLogLikelihood(AbstractEvaluator):
         formed in event space, with the resolved event transform applied to both the
         prediction and the observation, as in :meth:`__call__`. The noise variance is
         read from the :class:`~pmrf.stats.likelihoods.GaussianLikelihood` as in the
-        closed-form log-likelihood, and may vary along frequency. Both are passed to
-        :meth:`~pmrf.stats.discrepancy_models.GaussianProcess.predict`.
+        closed-form log-likelihood, and may vary along frequency for an ordinary
+        discrepancy. Both are passed to
+        :meth:`~pmrf.stats.discrepancy_models.GaussianProcess.predict` in that case.
+        Orthogonal discrepancy requires noise constant along the event axis.
 
         Kernel length scales are in the fit frequency's unit, so ``new_frequency`` is
-        converted to that unit first.
+        converted to that unit first. With orthogonal discrepancy, the covariance
+        is $K_P = P K P^\top$ on the fit grid, where $P$ uses the fixed tangent
+        basis at ``model`` (or a recomputed basis held fixed for this prediction).
+        In that case ``new_frequency`` must select fit frequencies; its order is
+        preserved. The conditional mean is $S K_P \Sigma_D^{-1}r$ and covariance
+        is $S(K_P - K_P\Sigma_D^{-1}K_P)S^\top$, excluding noise.
 
         Parameters
         ----------
@@ -569,7 +611,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
             :class:`~pmrf.stats.discrepancy_models.GaussianProcess`, or the likelihood is not
             a :class:`~pmrf.stats.likelihoods.GaussianLikelihood`.
         ValueError
-            If orthogonal discrepancy is enabled.
+            If an orthogonal prediction point is off the fit frequencies, or no
+            fixed orthogonal reference is configured and recomputation is disabled.
         """
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError(
@@ -581,11 +624,28 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 "Discrepancy prediction requires a `GaussianLikelihood`. "
                 f"Got {type(self.likelihood).__name__}."
             )
-        if self.use_orthogonal_discrepancy:
-            raise ValueError("Discrepancy prediction does not support orthogonal discrepancy.")
         pred_event, event_transform = self._event(model, frequency, **kwargs)
-        variance = self.likelihood._event_variance(pred_event)
+        variance = (self.likelihood.variance(pred_event)[..., None]
+                    if self.use_orthogonal_discrepancy
+                    else self.likelihood._event_variance(pred_event))
         residual = event_transform.forward(self.observed) - pred_event
+        if self.use_orthogonal_discrepancy:
+            indices = self._fit_frequency_indices(frequency, new_frequency)
+            K = self._projected_kernel(model, frequency, **kwargs)
+            batch_shape = residual.shape[:-1]
+            M = _add_noise(K, variance, batch_shape)
+            L = jnp.linalg.cholesky(M)
+            K_cross = jnp.take(K, indices, axis=-2)
+            K_new = jnp.take(K_cross, indices, axis=-1)
+            V = jsp.linalg.solve_triangular(L, jnp.swapaxes(K_cross, -1, -2), lower=True)
+            mean = K_cross @ jsp.linalg.cho_solve((L, True), residual[..., None])
+            covariance = K_new - jnp.swapaxes(V, -1, -2) @ V
+            mean = jnp.broadcast_to(mean[..., 0], batch_shape + (len(indices),))
+            covariance = jnp.broadcast_to(covariance, batch_shape + (len(indices), len(indices)))
+            init_fn = dist.MultivariateNormalFullCovariance
+            for _ in batch_shape:
+                init_fn = eqx.filter_vmap(init_fn)
+            return init_fn(mean, covariance)
         x_new = new_frequency.f / frequency.multiplier
         return self.discrepancy.predict(residual, frequency.f_scaled, x_new, variance)
 
@@ -617,6 +677,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
         The parameter term couples event blocks, giving one dense Gaussian over
         $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
         :meth:`linearize`. New frequencies are converted to the fit's unit.
+        With orthogonal discrepancy, $K_{*h}=S K_P$ and
+        $K_{**}=S K_P S^\top$, where the tangent projection is fixed at the
+        fitted model. Prediction is limited to subsets of the fit frequencies.
 
         If the Gaussian support leaves a selected parameter's validity, attach it with
         ``prf.prior(..., truncate='unnormalised')``. This retains the supplied density
@@ -665,8 +728,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
             If the discrepancy is not a Gaussian process or the likelihood is not
             Gaussian.
         ValueError
-            If orthogonal discrepancy is enabled, an input has the wrong shape,
-            or both covariance arguments are supplied.
+            If an orthogonal prediction point is off the fit frequencies, no fixed
+            orthogonal reference is configured, an input has the wrong shape, or
+            both covariance arguments are supplied.
         """
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError("Joint prediction requires a `GaussianProcess` discrepancy.")
@@ -691,8 +755,15 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
         batch_shape = linearization.residual.shape[:-1]
         n = linearization.residual.shape[-1]
-        x_new = new_frequency.f / frequency.multiplier
-        K_cross = cross_gram(self.discrepancy.kernel, x_new, frequency.f_scaled)
+        if self.use_orthogonal_discrepancy:
+            indices = self._fit_frequency_indices(frequency, new_frequency)
+            K = self._projected_kernel(model, frequency, **kwargs)
+            K_cross = jnp.take(K, indices, axis=-2)
+            conditional = jnp.take(K_cross, indices, axis=-1)
+        else:
+            x_new = new_frequency.f / frequency.multiplier
+            K_cross = cross_gram(self.discrepancy.kernel, x_new, frequency.f_scaled)
+            conditional = gram(self.discrepancy.kernel, x_new, jitter=self.discrepancy.jitter)
         n_new = K_cross.shape[-2]
         L = jnp.broadcast_to(linearization.chol, batch_shape + (n, n))
         K_cross = jnp.broadcast_to(K_cross, batch_shape + (n_new, n))
@@ -701,10 +772,20 @@ class MarginalLogLikelihood(AbstractEvaluator):
             jsp.linalg.solve_triangular(jnp.swapaxes(L, -1, -2), V, lower=False), -1, -2
         )
         mean_delta = (A @ linearization.residual[..., None]).reshape(-1)
-        conditional = gram(self.discrepancy.kernel, x_new, jitter=self.discrepancy.jitter)
         conditional = conditional - jnp.swapaxes(V, -1, -2) @ V
         conditional = conditional.reshape((-1, n_new, n_new))
         blocks = conditional.shape[0]
+        if self.use_orthogonal_discrepancy:
+            # The projected discrepancy has exact null directions. Roundoff in
+            # conditioning can make those eigenvalues slightly negative.
+            eigenvalues, eigenvectors = jnp.linalg.eigh(
+                0.5 * (conditional + jnp.swapaxes(conditional, -1, -2))
+            )
+            floor = (jnp.finfo(conditional.dtype).eps * 16
+                     * jnp.maximum(jnp.max(eigenvalues, axis=-1, keepdims=True), 1e-30))
+            conditional = (eigenvectors * jnp.maximum(eigenvalues, floor)[..., None, :]) @ (
+                jnp.swapaxes(eigenvectors, -1, -2)
+            )
         conditional_scale = jnp.linalg.cholesky(conditional)
         conditional_scale = jnp.einsum(
             'bij,bc->bicj', conditional_scale, jnp.eye(blocks)
@@ -738,8 +819,12 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
         $\Sigma_D = K + \Sigma_n$ is factorized per event block, with the noise
         variance read from the :class:`~pmrf.stats.likelihoods.GaussianLikelihood` at
-        ``model``'s prediction. It may vary along frequency. Without a discrepancy,
-        $\Sigma_D = \Sigma_n$.
+        ``model``'s prediction. It may vary along frequency for an ordinary
+        discrepancy; orthogonal discrepancy requires event-constant noise.
+        Without a discrepancy,
+        $\Sigma_D = \Sigma_n$. With orthogonal discrepancy it is
+        $\Sigma_D = P K P^\top + \Sigma_n$, using the fixed tangent basis at
+        ``model`` (or a recomputed basis held fixed during linearisation).
 
         Parameters
         ----------
@@ -766,7 +851,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
             :class:`~pmrf.stats.discrepancy_models.GaussianProcess`, or the likelihood is
             not a :class:`~pmrf.stats.likelihoods.GaussianLikelihood`.
         ValueError
-            If orthogonal discrepancy is enabled.
+            If orthogonal discrepancy has no fixed reference and recomputation is disabled.
         """
         if self.discrepancy is not None and not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError(
@@ -778,20 +863,21 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 "Linearisation requires a `GaussianLikelihood`. "
                 f"Got {type(self.likelihood).__name__}."
             )
-        if self.use_orthogonal_discrepancy:
-            raise ValueError("Linearisation does not support orthogonal discrepancy.")
-
         def residual_fn(candidate):
             pred_event, event_transform = self._event(candidate, frequency, **kwargs)
             return event_transform.forward(self.observed) - pred_event
 
         pred_event, _ = self._event(model, frequency, **kwargs)
         n = pred_event.shape[-1]
-        if self.discrepancy is None:
+        if self.use_orthogonal_discrepancy:
+            K = self._projected_kernel(model, frequency, **kwargs)
+        elif self.discrepancy is None:
             K = jnp.zeros((n, n), dtype=pred_event.dtype)
         else:
             K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
-        variance = self.likelihood._event_variance(pred_event)
+        variance = (self.likelihood.variance(pred_event)[..., None]
+                    if self.use_orthogonal_discrepancy
+                    else self.likelihood._event_variance(pred_event))
         chol = jnp.linalg.cholesky(_add_noise(K, variance, pred_event.shape[:-1]))
         return _linearize(residual_fn, model, chol, space)
 
