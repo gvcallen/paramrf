@@ -2109,7 +2109,9 @@ def update(
             raise form_error()
         replace_fn = fn if has_fn else (lambda _: node)
         if callable(selection):
-            updated = eqx.tree_at(selection, tree, replace_fn=replace_fn)
+            updated = eqx.tree_at(
+                selection, tree, replace_fn=replace_fn, is_leaf=lambda x: x is None,
+            )
         else:
             paths = _select_parts(tree, selection)
             if not paths:

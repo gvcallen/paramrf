@@ -267,13 +267,35 @@ def test_without_discrepancy_sigma_d_is_the_noise(noise):
     np.testing.assert_allclose(lin.F, expected, rtol=1e-12)
 
 
-def test_orthogonal_discrepancy_raises():
+def test_orthogonal_linearization_matches_projected_covariance_and_fisher():
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    mll = _mll(A, _observed(A, 0), use_orthogonal_discrepancy=True,
+               orthogonal_rcond=1e-10).with_orthogonal_reference(model, FREQ)
+    lin = mll.linearize(model, FREQ)
+    K = np.asarray(gram(_kernel(), FREQ.f_scaled, jitter=JITTER))
+    for block in range(2):
+        Q = np.asarray(mll.orthogonal_basis.vectors[block])
+        projection = np.eye(N) - Q @ Q.T
+        projected = projection @ K @ projection.T
+        _assert_close(lin.chol[block] @ lin.chol[block].T,
+                      projected + NOISE * np.eye(N), 1e-12)
+    _assert_close(lin.F, np.einsum('bnp,bnq->pq', A, A) / NOISE, 1e-8)
+    recomputed = _mll(A, _observed(A, 0), use_orthogonal_discrepancy=True,
+                      orthogonal_rcond=1e-10, orthogonal_recompute=True)
+    _assert_close(recomputed.linearize(model, FREQ).chol, lin.chol, 1e-10)
+
+
+def test_orthogonal_discrepancy_without_reference_raises():
     mll = _mll(
         A, _observed(A, 0),
-        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-10, orthogonal_recompute=True,
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-10,
     )
-    with pytest.raises(ValueError, match="orthogonal"):
-        mll.linearize(_Linear(theta=prf.Unconstrained(jnp.zeros(P))), FREQ)
+    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    for predict in (lambda: mll.linearize(model, FREQ),
+                    lambda: mll.predict_discrepancy(model, FREQ, FREQ),
+                    lambda: mll.predict_joint(model, FREQ, FREQ)):
+        with pytest.raises(ValueError, match="No fixed orthogonal reference is configured"):
+            predict()
 
 
 def test_posterior_covariance_rejects_another_space():
@@ -388,6 +410,84 @@ def _joint_reference(new_frequency, observed):
     ])
     mean = np.concatenate([MU0, np.zeros(K_star.shape[0]), H @ MU0])
     return _mp_condition(mean, covariance, np.asarray(observed).T.reshape(-1), size)
+
+
+def _orthogonal_reference(observed):
+    initial = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    mll = _mll(A, observed, use_orthogonal_discrepancy=True,
+               orthogonal_rcond=1e-10).with_orthogonal_reference(initial, FREQ)
+    K = np.asarray(gram(_kernel(), FREQ.f_scaled, jitter=JITTER))
+    blocks = []
+    for Q in np.asarray(mll.orthogonal_basis.vectors):
+        projection = np.eye(N) - Q @ Q.T
+        blocks.append(projection @ K @ projection.T)
+    projected = np.kron(np.eye(2), np.eye(N)) * 0
+    projected[:N, :N], projected[N:, N:] = blocks
+    sigma_d = np.stack([block + NOISE * np.eye(N) for block in blocks])
+    theta_map = _mp_map(A, sigma_d, np.asarray(observed).T)
+    model = prf.update(initial, {'theta': jnp.asarray(theta_map)})
+    return mll, model, projected
+
+
+@pytest.mark.parametrize('indices', [tuple(range(N)), (2, 5, 9), (8, 2, 6)],
+                         ids=['fit_grid', 'subset', 'reordered_mhz'])
+def test_orthogonal_predictions_match_dense_conditioning(indices):
+    observed = _observed(A, 0)
+    mll, model, projected = _orthogonal_reference(observed)
+    unit = 'MHz' if indices == (8, 2, 6) else 'GHz'
+    new_frequency = prf.Frequency.from_f(
+        np.asarray(FREQ.f)[list(indices)] / (1e6 if unit == 'MHz' else 1e9), unit)
+    selected = np.concatenate([np.asarray(indices), N + np.asarray(indices)])
+    H = A.reshape(2 * N, P)
+    fit_covariance = projected + NOISE * np.eye(2 * N)
+    residual = np.asarray(observed).T.reshape(-1) - H @ np.asarray(prf.values(model)['theta'])
+    cross = projected[selected]
+    expected_delta_mean = cross @ np.linalg.solve(fit_covariance, residual)
+    expected_delta_covariance = projected[np.ix_(selected, selected)] - (
+        cross @ np.linalg.solve(fit_covariance, cross.T))
+
+    prediction = mll.predict_discrepancy(model, FREQ, new_frequency)
+    _assert_close(prediction.mean(), expected_delta_mean.reshape(2, len(indices)), 1e-10)
+    for block in range(2):
+        sl = slice(block * len(indices), (block + 1) * len(indices))
+        _assert_close(prediction.covariance()[block], expected_delta_covariance[sl, sl], 1e-10)
+
+    # Block Gaussian conditioning, retaining the small projected cross terms
+    # without subtracting two nearly equal O(1) prior covariances.
+    theta_covariance = _mp_posterior(
+        A, [fit_covariance[:N, :N], fit_covariance[N:, N:]], np.linalg.inv(SIGMA0))
+    AJ = cross @ np.linalg.solve(fit_covariance, H)
+    expected_joint_mean = np.concatenate([np.asarray(prf.values(model)['theta']),
+                                          expected_delta_mean])
+    expected_joint_covariance = np.block([
+        [theta_covariance, -theta_covariance @ AJ.T],
+        [-AJ @ theta_covariance,
+         expected_delta_covariance + AJ @ theta_covariance @ AJ.T],
+    ])
+    names, joint = mll.predict_joint(model, FREQ, new_frequency)
+    assert names == ('theta',)
+    _assert_close(joint.mean(), expected_joint_mean, 1e-10)
+    _assert_close(joint.covariance(), expected_joint_covariance, 1e-10)
+    assert np.max(np.abs(np.asarray(joint.covariance())[P:, :P])) < 1e-10
+
+    recomputed = _mll(A, observed, use_orthogonal_discrepancy=True,
+                      orthogonal_rcond=1e-10, orthogonal_recompute=True)
+    _assert_close(recomputed.predict_discrepancy(model, FREQ, new_frequency).mean(),
+                  prediction.mean(), 1e-10)
+    _assert_close(recomputed.predict_discrepancy(model, FREQ, new_frequency).covariance(),
+                  prediction.covariance(), 1e-10)
+    recomputed_joint = recomputed.predict_joint(model, FREQ, new_frequency)[1]
+    _assert_close(recomputed_joint.mean(), joint.mean(), 1e-10)
+    _assert_close(recomputed_joint.covariance(), joint.covariance(), 1e-10)
+
+
+def test_orthogonal_prediction_names_off_grid_point():
+    observed = _observed(A, 0)
+    mll, model, _ = _orthogonal_reference(observed)
+    off_grid = prf.Frequency.from_f([1.0, 5.7], 'GHz')
+    for predict in (mll.predict_discrepancy, mll.predict_joint):
+        with pytest.raises(ValueError, match='5.7'):
+            predict(model, FREQ, off_grid)
 
 
 @pytest.mark.parametrize('new_frequency', [FREQ, prf.Frequency(900, 5300, 7, 'MHz')], ids=['fit_grid', 'new_grid_unit'])
@@ -507,18 +607,14 @@ def test_joint_prediction_as_transfer_prior_matches_joint_fit():
     _assert_close(transfer_covariance, expected_covariance, 1e-8)
 
 
-@pytest.mark.parametrize('unsupported', ['no_gp', 'non_gaussian', 'orthogonal'])
+@pytest.mark.parametrize('unsupported', ['no_gp', 'non_gaussian'])
 def test_joint_prediction_rejects_unsupported_combinations(unsupported):
     model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
     kwargs = {}
     if unsupported == 'no_gp':
         kwargs['discrepancy'] = False
-    elif unsupported == 'orthogonal':
-        kwargs['use_orthogonal_discrepancy'] = True
-        kwargs['orthogonal_rcond'] = 1e-10
     mll = _mll(A, _observed(A, 0), **kwargs)
     if unsupported == 'non_gaussian':
         mll = eqx.tree_at(lambda evaluator: evaluator.likelihood, mll, lambda event: dd.Normal(event, 1.0))
-    exception, match = (ValueError, 'orthogonal') if unsupported == 'orthogonal' else (TypeError, 'Gaussian')
-    with pytest.raises(exception, match=match):
+    with pytest.raises(TypeError, match='Gaussian'):
         mll.predict_joint(model, FREQ, FREQ)

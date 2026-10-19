@@ -40,6 +40,8 @@ def fit_minimize(
     noise: Param | Callable[[jnp.ndarray], jnp.ndarray] = None,
     discrepancy: Callable[[jnp.ndarray, jnp.ndarray], dist.AbstractDistribution] | None = None,    
     temperature: float = None,
+    use_orthogonal_discrepancy: bool = False,
+    orthogonal_rcond: float | None = None,
     **kwargs,
 ) -> FitResult[PyTreeT]:
     """
@@ -114,6 +116,12 @@ def fit_minimize(
         The temperature value for generalized Bayesian optimization.
         Only allowed if `inference` is 'bayesian' and `loss` is not None.
         Defaults to 1.0 internally.
+    use_orthogonal_discrepancy : bool, default=False
+        Fix the discrepancy's tangent basis at the initial model for each dataset.
+        Requires a discrepancy model.
+    orthogonal_rcond : float, optional
+        Relative cutoff for the tangent basis singular values. Required when
+        enabling orthogonal discrepancy.
     **kwargs : dict
         Additional keyword arguments passed to :func:`pmrf.optimize.minimize`
         and then underlying solver.
@@ -139,6 +147,8 @@ def fit_minimize(
         raise ValueError("Only one of either `loss` or `likelihood` can be past to `fit_minimize`")
     if discrepancy is not None and not (likelihood is not None or inference == 'bayesian'):
         raise ValueError("Discrepancy models can only be passed if `likelihood` is passed or `inference` is 'bayesian'`")
+    if use_orthogonal_discrepancy and discrepancy is None:
+        raise ValueError("`use_orthogonal_discrepancy=True` requires a discrepancy model")
     
     # Resolve data and features
     datasets = resolve_datasets(features, data, frequency)
@@ -161,10 +171,22 @@ def fit_minimize(
             evaluator = TargetLoss(predictor=dataset.predictor, target=dataset.target, loss=loss)
         else:
             if likelihood is not None:
-                mll = MarginalLogLikelihood(predictor=dataset.predictor, observed=dataset.target, likelihood=likelihood, discrepancy=discrepancy)
+                mll = MarginalLogLikelihood(
+                    predictor=dataset.predictor, observed=dataset.target, likelihood=likelihood,
+                    discrepancy=discrepancy,
+                    use_orthogonal_discrepancy=use_orthogonal_discrepancy,
+                    orthogonal_rcond=orthogonal_rcond,
+                )
             else:
                 temperature = temperature if temperature is not None else 1.0
-                mll = GibbsMarginalLogLikelihood(predictor=dataset.predictor, observed=dataset.target, loss=loss, discrepancy=discrepancy, temperature=temperature)
+                mll = GibbsMarginalLogLikelihood(
+                    predictor=dataset.predictor, observed=dataset.target, loss=loss,
+                    discrepancy=discrepancy, temperature=temperature,
+                    use_orthogonal_discrepancy=use_orthogonal_discrepancy,
+                    orthogonal_rcond=orthogonal_rcond,
+                )
+            if use_orthogonal_discrepancy:
+                mll = mll.with_orthogonal_reference(model, dataset.frequency)
             evaluator = Negated(mll)
         objective.append((evaluator, dataset.frequency))
 
