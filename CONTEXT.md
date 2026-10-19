@@ -184,9 +184,10 @@ noise. `pmrf.objectives.MarginalLogLikelihood` scores it; see
 The space in which probability is defined: the prediction after the event
 transform, with frequency as the last (event) axis. Every other axis is a batch
 axis. One entry of that batch, for example the real part of S21, is an **event
-block**. Blocks are independent: a kernel chooses the covariance *within* each
-block (`AutoCrossKernel` routes by block, `SharedIndependentKernel` shares
-hyperparameters across blocks) and never couples two blocks.
+block**. Under a `GaussianProcess` discrepancy, blocks are independent: a kernel
+chooses the covariance *within* each block (`AutoCrossKernel` routes by block,
+`SharedIndependentKernel` shares hyperparameters across blocks) and never couples
+two blocks. A **shared discrepancy** couples blocks, and datasets.
 
 *Avoid:* "output" or "task" for a block; "cross-covariance" for the kernel an
 `AutoCrossKernel` gives a transmission block.
@@ -194,8 +195,40 @@ hyperparameters across blocks) and never couples two blocks.
 ### Discrepancy
 
 $\delta$, the systematic misfit between model and reality, as opposed to noise
-$\varepsilon$. Either deterministic or a `GaussianProcess` over each event block.
-It is on the observable unless it is a port or internal discrepancy.
+$\varepsilon$. Either deterministic, a `GaussianProcess` over each event block, or
+a shared discrepancy. It is on the observable unless it is a port or internal
+discrepancy.
+
+### Shared latent
+
+A function of frequency with a Gaussian-process prior, common to several event blocks
+or several datasets: for example a VNA's residual directivity, which is the same for
+every device measured with one calibration. It has one or more rows (two for a
+complex function: Re and Im), each an independent draw from its kernel.
+
+*Avoid:* "task", "output" (those are event blocks); "error term" (one application's name
+for it); "coregionalisation" in user-facing text.
+
+### Mixing
+
+The linear map, at each frequency, from a shared latent's rows to one dataset's event
+blocks. It may depend on that dataset's prediction: multiplying a complex latent by the
+predicted reflection coefficient is a mixing. A mixing may carry parameters.
+
+### Shared discrepancy
+
+The discrepancy formed by mixing shared latents:
+$\delta_l(f) = \sum_j M_{lj}(f)\, g_j(f)$ for dataset $l$, with per-dataset noise on
+top. Because the latents are common, it couples the datasets and the event blocks it
+mixes into. `pmrf.objectives.SharedMarginalLogLikelihood` scores it.
+
+### Latent prediction
+
+The joint distribution of the shared latents at new frequencies, conditioned on the
+residuals of every dataset, excluding noise. It is what transfers to a new dataset that
+shares the latents, through that dataset's mixing.
+
+*Avoid:* "discrepancy prediction" for this (that is per dataset, in event space).
 
 ### Residual
 
@@ -309,4 +342,5 @@ method, a public function or a value space. Read
 `docs/adr/0005-priors-by-name.md` before changing how priors are attached or
 scored, and `docs/adr/0007-edge-values.md` before changing how a
 circuit solver produces S, how bounds are validated, or which space a solver
-moves through.
+moves through. Read `docs/adr/0008-shared-discrepancy.md` before coupling event
+blocks or datasets in a discrepancy.
