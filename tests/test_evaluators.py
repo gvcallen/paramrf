@@ -13,7 +13,7 @@ from pmrf.stats.covariance_kernels import (
     AutoCrossKernel, Matern52Kernel, PeriodicKernel, RBFKernel, SharedIndependentKernel,
     cross_gram, gram,
 )
-from pmrf.stats.distributions import RelativeTruncatedNormal
+from pmrf.stats.distributions import RelativeTruncatedNormal, Uniform
 from pmrf.stats.discrepancy_models import GaussianProcess
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.objectives.evaluators import (
@@ -629,6 +629,91 @@ def test_gibbs_orthogonal_gp_discrepancy_uses_functional_derivative(
     value = gibbs(scaled_model, basic_freq)
     assert value.shape == ()
     assert jnp.isfinite(value)
+
+
+@pytest.mark.parametrize('free_noise,free_lengthscale', [
+    (False, False), (True, False), (False, True), (True, True),
+])
+def test_orthogonal_reference_with_free_evaluator_parameters(
+    scaled_model, basic_freq, free_noise, free_lengthscale
+):
+    observed = Feature('s11_mag')(scaled_model, basic_freq)
+    noise = prf.Random(Uniform(0.01, 0.2), value=0.1) if free_noise else 0.1
+    lengthscale = (
+        prf.Random(Uniform(0.1, 2.0), value=0.7)
+        if free_lengthscale else 0.7
+    )
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s11_mag'), observed=observed,
+        likelihood=GaussianLikelihood(noise),
+        discrepancy=GaussianProcess(RBFKernel(lengthscale), jitter=1e-10),
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
+    )
+    fixed = mll.with_orthogonal_reference(scaled_model, basic_freq)
+    basis = _orthogonal_projection(
+        lambda model: mll._event(model, basic_freq)[0], scaled_model,
+        rcond=mll.orthogonal_rcond,
+    )
+    direct = eqx.tree_at(
+        lambda evaluator: evaluator.orthogonal_basis, mll, basis,
+        is_leaf=lambda x: x is None,
+    )
+    assert fixed.orthogonal_basis is not None
+    assert bool(eqx.tree_equal(fixed, direct))
+    assert np.isclose(fixed(scaled_model, basic_freq), direct(scaled_model, basic_freq), rtol=1e-12)
+
+    via_update = prf.update(mll, lambda evaluator: evaluator.orthogonal_basis, basis)
+    assert bool(eqx.tree_equal(via_update, direct))
+
+    other_freq = Frequency(start=1.0, stop=8.0, npoints=5, unit='GHz')
+    again = fixed.with_orthogonal_reference(scaled_model, other_freq)
+    assert again.orthogonal_basis is not None
+    assert not bool(eqx.tree_equal(again.orthogonal_basis, fixed.orthogonal_basis))
+
+
+def test_orthogonal_reference_recompute_and_serialization(scaled_model, basic_freq, tmp_path):
+    observed = Feature('s11_mag')(scaled_model, basic_freq)
+    mll = MarginalLogLikelihood(
+        predictor=_serializable_s11_mag, observed=observed,
+        likelihood=GaussianLikelihood(prf.Random(Uniform(0.01, 0.2), value=0.1)),
+        discrepancy=GaussianProcess(RBFKernel(0.7), jitter=1e-10),
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
+    )
+    fixed = mll.with_orthogonal_reference(scaled_model, basic_freq)
+    recomputed = MarginalLogLikelihood(
+        predictor=mll.predictor, observed=observed, likelihood=mll.likelihood,
+        discrepancy=mll.discrepancy, use_orthogonal_discrepancy=True,
+        orthogonal_rcond=1e-8, orthogonal_recompute=True,
+    )
+    np.testing.assert_allclose(
+        recomputed(scaled_model, basic_freq), fixed(scaled_model, basic_freq), rtol=1e-12,
+    )
+    path = tmp_path / 'orthogonal_mll.pmrf'
+    prf.save(path, fixed)
+    loaded = prf.load(path)
+    assert loaded.orthogonal_basis is not None
+    np.testing.assert_allclose(
+        loaded(scaled_model, basic_freq), fixed(scaled_model, basic_freq), rtol=1e-12,
+    )
+
+
+def _serializable_s11_mag(model, frequency):
+    return Feature('s11_mag')(model, frequency)
+
+
+def test_gibbs_orthogonal_reference_with_free_kernel(scaled_model, basic_freq):
+    observed = Feature('s11_mag')(scaled_model, basic_freq)
+    gibbs = GibbsMarginalLogLikelihood(
+        predictor=Feature('s11_mag'), observed=observed,
+        loss=lambda target, prediction: jnp.mean((target - prediction) ** 2),
+        discrepancy=GaussianProcess(
+            RBFKernel(prf.Random(Uniform(0.1, 2.0), value=0.7)), jitter=1e-10,
+        ),
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
+    )
+    fixed = gibbs.with_orthogonal_reference(scaled_model, basic_freq)
+    assert fixed.orthogonal_basis is not None
+    assert jnp.isfinite(fixed(scaled_model, basic_freq))
 
 
 # ---------------------------------------------------------

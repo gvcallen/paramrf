@@ -1,5 +1,6 @@
 # tests/test_optimize/test_fit.py
 import pytest
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -12,10 +13,14 @@ from pmrf.parameters import Fixed, Bounded, Param, Random, update, values
 from pmrf.objectives.losses import MSELoss, RMSELoss
 from pmrf.optimize import ScipyMinimize
 from pmrf.optimize.solvers import scipy as scipy_solver
-from pmrf.stats.distributions import LogNormal, Normal
+from pmrf.stats.distributions import LogNormal, Normal, Uniform
 from pmrf.stats.covariance_kernels import Matern52Kernel
 from pmrf.stats.discrepancy_models import GaussianProcess
 from pmrf.stats.likelihoods import GaussianLikelihood
+from pmrf.objectives.evaluators import MarginalLogLikelihood, Negated
+from pmrf.objectives.problems import PriorPenalized, SummedTerms
+from pmrf.objectives.terms import as_terms
+from pmrf.optimize import minimize
 
 @pytest.fixture
 def fit_freq():
@@ -111,6 +116,52 @@ def _constant_outputs(model, freq, n_outputs):
 
 def _alternating(npoints, spread):
     return spread * (-1.0) ** np.arange(npoints)
+
+
+def test_orthogonal_gp_map_fit_with_free_noise_and_lengthscale():
+    frequency = Frequency(1.0, 5.0, 7, 'GHz')
+    model = ConstantModel(val=Random(Normal(1.0, 0.5), value=1.1))
+    observed = np.asarray(1.0 + 0.01 * jnp.sin(frequency.f_scaled))
+    predictor = lambda candidate, freq: jnp.full((freq.npoints,), candidate.val)
+    discrepancy = GaussianProcess(
+        Matern52Kernel(Random(Uniform(0.1, 10.0), value=2.0)) * 1e-4,
+        jitter=1e-10,
+    )
+
+    mll = MarginalLogLikelihood(
+        predictor=predictor, observed=observed,
+        likelihood=GaussianLikelihood(Random(Uniform(1e-6, 0.1), value=0.05)),
+        discrepancy=discrepancy,
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
+    ).with_orthogonal_reference(model, frequency)
+    problem = PriorPenalized(SummedTerms(
+        model=model, terms=as_terms([(Negated(mll), frequency)]),
+    ))
+    direct = minimize(problem, max_iter=5)
+    assert np.isfinite(np.asarray(direct.problem()))
+    assert direct.problem() <= problem() + 1e-10
+
+    result = fit_minimize(
+        model, observed, frequency=frequency, features=predictor,
+        inference='bayesian', discrepancy=discrepancy,
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
+        max_iter=5,
+    )
+    fitted = result.solution.problem
+    initial_model = eqx.tree_at(lambda p: p.problem.model, fitted, model)
+    assert np.isfinite(np.asarray(fitted()))
+    assert fitted() <= initial_model() + 1e-10
+    assert result.solution.objective[0].evaluator.evaluator.orthogonal_basis is not None
+
+
+def test_orthogonal_discrepancy_requires_discrepancy(fit_freq):
+    model = ConstantModel(val=Bounded(0.0, 2.0, value=1.0))
+    with pytest.raises(ValueError, match='requires a discrepancy model'):
+        fit_minimize(
+            model, np.ones(fit_freq.npoints), frequency=fit_freq,
+            inference='bayesian', use_orthogonal_discrepancy=True,
+            orthogonal_rcond=1e-8,
+        )
 
 
 def test_mse_and_rmse_reach_the_same_single_output_optimum(fit_freq):

@@ -481,7 +481,10 @@ class MarginalLogLikelihood(AbstractEvaluator):
             model,
             rcond=self.orthogonal_rcond,
         )
-        return eqx.tree_at(lambda evaluator: evaluator.orthogonal_basis, self, basis)
+        return eqx.tree_at(
+            lambda evaluator: evaluator.orthogonal_basis,
+            self, basis, is_leaf=lambda x: x is None,
+        )
 
     def _event(
         self, model: PyTree, frequency: Frequency, **kwargs
@@ -1016,7 +1019,10 @@ class GibbsMarginalLogLikelihood(AbstractEvaluator):
         basis = _orthogonal_projection(
             event_fn, model, rcond=self.orthogonal_rcond
         )
-        return eqx.tree_at(lambda evaluator: evaluator.orthogonal_basis, self, basis)
+        return eqx.tree_at(
+            lambda evaluator: evaluator.orthogonal_basis,
+            self, basis, is_leaf=lambda x: x is None,
+        )
         
 class Negated(AbstractEvaluator):
     """
