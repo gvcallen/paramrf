@@ -12,7 +12,7 @@ import parax as prx
 from jaxtyping import PyTree
 
 from pmrf.frequency import Frequency
-from pmrf.objectives.evaluators import AbstractEvaluator, least_squares_unsupported, whitened_residual
+from pmrf.objectives.evaluators import AbstractEvaluator, _least_squares_unsupported, whitened_residual
 from pmrf.modules.base import Module
 from pmrf.utils import freeze, field, unwrap
 
@@ -97,7 +97,7 @@ class BoundEvaluator(AbstractTerm):
             If the weight is negative, or the evaluator has no whitened residual.
         """
         if self.weight < 0:
-            raise least_squares_unsupported(f"A term with negative weight {self.weight}")
+            raise _least_squares_unsupported(f"A term with negative weight {self.weight}")
         residual = whitened_residual(unwrap(self.evaluator), model, unwrap(self.frequency), **kwargs)
         return jnp.sqrt(self.weight) * residual
 

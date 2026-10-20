@@ -152,9 +152,6 @@ class ScipyMinimize(AbstractBoundedMinimizer):
 
         labels = _coordinate_labels(y0)
 
-        def label_list(indices):
-            return _label_list(labels, indices)
-
         def original_coordinates(z):
             return box_origin + box_scale * z if use_affine else z
 
@@ -166,7 +163,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 raise FloatingPointError(
                     f"SciPy {method or 'default'} objective evaluation {eval_count[0]} "
                     "received a nonfinite attempted optimizer vector for "
-                    f"{label_list(nonfinite)}."
+                    f"{_label_list(labels, nonfinite)}."
                 )
             return original_coordinates(x_np)
 
@@ -176,7 +173,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 raise FloatingPointError(
                     f"SciPy {method or 'default'} objective evaluation {eval_count[0]} "
                     "produced a nonfinite loss; free parameters in context: "
-                    f"{label_list(range(len(labels)))}."
+                    f"{_label_list(labels, range(len(labels)))}."
                 )
             return loss_float
 
@@ -191,7 +188,7 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             if len(bad_grad):
                 raise FloatingPointError(
                     f"SciPy {method or 'default'} objective evaluation {eval_count[0]} "
-                    f"produced a nonfinite gradient for {label_list(bad_grad)}."
+                    f"produced a nonfinite gradient for {_label_list(labels, bad_grad)}."
                 )
             current_loss[0] = loss_float
             return loss_float, grad_np
@@ -301,9 +298,12 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
             flat_upper, _ = ravel_pytree(bounds[1])
             lower = np.asarray(flat_lower, dtype=np.float64)
             upper = np.asarray(flat_upper, dtype=np.float64)
-            middle = lower + (upper - lower) / 2
-            start = np.where(start <= lower, np.minimum(lower + _EDGE_NUDGE, middle), start)
-            start = np.where(start >= upper, np.maximum(upper - _EDGE_NUDGE, middle), start)
+            # A box narrower than two nudges starts at its middle.
+            both = np.isfinite(lower) & np.isfinite(upper)
+            with np.errstate(invalid='ignore'):
+                middle = np.where(both, lower + (upper - lower) / 2, np.nan)
+            start = np.where(start <= lower, np.fmin(lower + _EDGE_NUDGE, middle), start)
+            start = np.where(start >= upper, np.fmax(upper - _EDGE_NUDGE, middle), start)
             scipy_bounds = (lower, upper)
 
         def flat_residual(_flat_y):

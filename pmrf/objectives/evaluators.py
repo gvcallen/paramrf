@@ -97,11 +97,11 @@ def whitened_residual(obj: Any, *args, **kwargs) -> jnp.ndarray:
     """
     method = getattr(obj, 'whitened_residual', None)
     if method is None:
-        raise least_squares_unsupported(f"A {type(obj).__name__} term")
+        raise _least_squares_unsupported(f"A {type(obj).__name__}")
     return method(*args, **kwargs)
 
 
-def least_squares_unsupported(what: str) -> NotImplementedError:
+def _least_squares_unsupported(what: str) -> NotImplementedError:
     """Returns the error for something with no whitened residual."""
     return NotImplementedError(
         f"{what} has no whitened residual, so it is not yet supported with a "
@@ -278,7 +278,7 @@ class TargetLoss(AbstractEvaluator):
         """
         loss = self.loss
         if not (isinstance(loss, MSELoss) and isinstance(loss.multioutput, str) and loss.multioutput == 'uniform_average'):
-            raise least_squares_unsupported(
+            raise _least_squares_unsupported(
                 f"A TargetLoss with {type(loss).__name__} (only MSELoss with "
                 "multioutput='uniform_average' has one)"
             )

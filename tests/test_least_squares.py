@@ -135,6 +135,17 @@ def test_run_minimizer_hands_a_least_squares_minimiser_the_box():
         optimize_base.run_minimizer(lambda m, _: m.u, model, Recording())
 
 
+def test_a_start_on_a_one_sided_closed_bound_moves():
+    result = _quiet().run(
+        lambda values, _: jnp.stack([values["a"] - 1.0, values["b"] - 7.0]),
+        {"a": jnp.array(5.0), "b": jnp.array(0.0)},
+        bounds=({"a": jnp.array(-jnp.inf), "b": jnp.array(0.0)}, {"a": jnp.array(5.0), "b": jnp.array(jnp.inf)}),
+    )
+
+    assert result.success
+    assert result.y["a"] == pytest.approx(1.0) and result.y["b"] == pytest.approx(7.0)
+
+
 # ---- Nonfinite diagnostics ------------------------------------------------------------
 
 
