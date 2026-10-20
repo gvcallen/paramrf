@@ -26,6 +26,7 @@ class Pair(prf.Model):
     u: prf.Param = prf.param()
     v: prf.Param = prf.param()
 
+    # `z0` is passed on by the `Wrapped` model a joint prior puts around this one.
     def s(self, freq, z0=50.0):
         f = freq.f_scaled[:, None, None]
         return (self.u + 1j * self.v * f) * jnp.ones((freq.npoints, 1, 1))
