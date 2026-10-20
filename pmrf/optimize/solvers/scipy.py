@@ -259,8 +259,9 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
     model parameters held. It stops when a round decreases the full objective by no more
     than :attr:`ftol` relative to it, or after :attr:`max_rounds`; a round that
     increases it is discarded. Without hyperparameters it is a single solve.
-    ``metrics.rounds`` is the number of rounds run, ``metrics.objective`` the final full
-    objective, and ``metrics.history`` the full objective after each round kept.
+    ``metrics.rounds`` is the number of rounds kept, ``metrics.objective`` the final full
+    objective, ``metrics.history`` the full objective after each round kept, and
+    ``metrics.hyperparameters`` the final hyperparameters.
 
     Every iterate stays strictly inside the box. A start on a closed edge is moved 1e-6
     inward in box space first, as for a raw-space minimiser (ADR-0007): SciPy's own move
@@ -419,15 +420,19 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
                 return 0.5 * float(r @ r)
             return float(hyper_fn(hyper, unravel_fn(jnp.asarray(x)), args))
 
-        stepper = self.hyper_minimizer or ScipyMinimize(show_progress=self.show_progress)
-        x, hyper, history, rounds = start, hyper0, [], 0
+        hyper_minimizer = self.hyper_minimizer or ScipyMinimize(show_progress=self.show_progress)
+
+        def step_objective(hyper, held):
+            y, user_args = held
+            return hyper_fn(hyper, y, user_args)
+
+        x, hyper, history = start, hyper0, []
         while True:
             candidate = solve(x, hyper)
-            rounds += 1
             candidate_hyper, step_success = hyper, True
             if hyper0 is not None:
-                step = stepper.run(
-                    fn=lambda h, a: hyper_fn(h, a[0], a[1]), y0=hyper,
+                step = hyper_minimizer.run(
+                    fn=step_objective, y0=hyper,
                     args=(unravel_fn(jnp.asarray(candidate.x)), args),
                     bounds=hyper_bounds, max_iter=max_iter,
                 )
@@ -439,17 +444,17 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
             res, x, hyper = candidate, candidate.x, candidate_hyper
             success = bool(candidate.success) and step_success
             history.append(value)
-            if hyper0 is None or rounds >= self.max_rounds:
+            if hyper0 is None or len(history) >= self.max_rounds:
                 break
             if previous is not None and previous - value <= (self.ftol or 0.0) * abs(previous):
                 break
 
-        res.rounds = rounds
+        res.rounds = len(history)
+        res.hyperparameters = hyper
         res.objective = history[-1]
         res.history = history
         return MinimizeResult(
             y=unravel_fn(jnp.asarray(res.x)),
             success=success,
             metrics=res,
-            hyper=hyper,
         )

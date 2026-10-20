@@ -24,9 +24,6 @@ class MinimizeResult(eqx.Module):
     #: Any solver metrics.
     metrics: Any = None
 
-    #: The optimal hyperparameters, for a least-squares minimiser given any, else None.
-    hyper: PyTree = None
-
 
 class AbstractUnconstrainedMinimizer(eqx.Module):
     """
@@ -194,8 +191,8 @@ class AbstractLeastSquaresMinimizer(eqx.Module):
         Returns
         -------
         results
-            An instance of :class:`pmrf.optimize.MinimizeResult`, with the
-            hyperparameters in `hyper`.
+            An instance of :class:`pmrf.optimize.MinimizeResult`, with the final
+            hyperparameters in ``metrics.hyperparameters`` when any were given.
         """
         raise NotImplementedError
 
@@ -307,7 +304,7 @@ def run_minimizer(
         space, y0 = 'raw', view.y0
     if isinstance(solver, AbstractLeastSquaresMinimizer):
         result = _run_least_squares(fn, residual_fn, model, view, solver, y0, args, max_iter, **kwargs)
-        values = {**result.y, **(result.hyper or {})}
+        values = _merged(result.y, getattr(result.metrics, 'hyperparameters', None))
     else:
         result = solver.run(fn=view.objective(fn, space), y0=y0, args=args, max_iter=max_iter, **kwargs)
         values = result.y
@@ -317,6 +314,11 @@ def run_minimizer(
         warnings.warn("Optimization failed to converge. Try increasing the maximum number of iterations or loosening the solver tolerances.")
 
     return opt_model, result
+
+
+def _merged(model_values: dict, hyperparameters: dict | None) -> dict:
+    """Returns the box values of the model parameters and hyperparameters, by name."""
+    return {**model_values, **(hyperparameters or {})}
 
 
 def _model_parameter_names(tree: PyTree) -> set[str]:
@@ -364,10 +366,10 @@ def _run_least_squares(
     box_fn = view.objective(fn, 'box')
 
     def model_residual_fn(y, hyper, a):
-        return box_residual_fn({**y, **(hyper or {})}, a)
+        return box_residual_fn(_merged(y, hyper), a)
 
     def hyper_fn(hyper, y, a):
-        return box_fn({**y, **(hyper or {})}, a)
+        return box_fn(_merged(y, hyper), a)
 
     hyper0 = y_hyper or None
     # Tracing raises for a term without a whitened residual, before the solver runs.

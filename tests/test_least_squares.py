@@ -302,6 +302,25 @@ def test_half_squared_norm_is_the_negative_log_posterior_up_to_a_constant():
     assert gaps[1] == pytest.approx(gaps[0], rel=1e-10) and gaps[2] == pytest.approx(gaps[0], rel=1e-10)
 
 
+def test_orthogonal_discrepancy_at_a_fixed_reference_has_a_whitened_residual():
+    freq = Frequency(1.0, 3.0, 21, "GHz")
+    data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.1, smooth=0.1)
+    model = Pair(u=prf.Random(Normal(1.0, 0.5), value=0.4), v=prf.Random(Normal(2.0, 1.0), value=1.5))
+    mll = MarginalLogLikelihood(
+        predictor=Feature("s"), observed=data, likelihood=GaussianLikelihood(1e-2), discrepancy=_gp(),
+        use_orthogonal_discrepancy=True, orthogonal_rcond=1e-10,
+    ).with_orthogonal_reference(model, freq)
+    problem = PriorPenalized(SummedTerms(model=model, terms=as_terms(Negated(mll), freq)))
+
+    def gap(u, v):
+        moved = prf.unwrap(prf.update(problem, {"problem.model.u": u, "problem.model.v": v}, space="declared"))
+        r = whitened_residual(moved)
+        return float(moved()) - 0.5 * float(jnp.sum(r**2))
+
+    gaps = [gap(0.4, 1.5), gap(1.7, 2.6), gap(2.9, -0.5)]
+    assert gaps[1] == pytest.approx(gaps[0], rel=1e-10) and gaps[2] == pytest.approx(gaps[0], rel=1e-10)
+
+
 def test_stacked_jacobian_gives_the_linearised_posterior_covariance():
     freq = Frequency(1.0, 3.0, 21, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.05, smooth=0.1)
