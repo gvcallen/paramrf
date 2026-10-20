@@ -269,6 +269,34 @@ together, from a linearisation: unlike a discrepancy prediction, it carries the
 parameters' uncertainty into $\delta$ and the cross-covariance between them. It is
 the form in which one fit's posterior becomes the next fit's joint prior.
 
+### Hyperparameter
+
+A free parameter owned by a term rather than by the model, such as white noise or a
+kernel's length scale. The model parameters are the free parameters of
+`problem.model`; the hyperparameters are the rest (ADR-0009).
+
+### Whitened residual
+
+A term's residual scaled so that half its squared norm is the term's negative log
+likelihood, up to terms constant in the model parameters, with the hyperparameters
+held: $L^{-1} r$ per event block for a `MarginalLogLikelihood`, with
+$\Sigma_D = K + \Sigma_n = L L^\top$. Its Jacobian is the whitened Jacobian of a
+linearisation (ADR-0009).
+
+### Prior residual
+
+A free parameter's contribution to a least-squares fit from its prior: half its
+squared norm is the negative log prior, up to a constant. $(\theta - \mu)/\sigma$ for a
+normal or truncated normal prior, the Cholesky-whitened $\theta - \mu$ for a joint
+normal prior, and nothing for a uniform prior, whose bounds are the box edges instead.
+It is computed from the distribution, not read from raw space (ADR-0009).
+
+### Hyperparameter step
+
+In an alternating MAP fit, the scalar minimisation of the full negative log posterior
+over the hyperparameters with the model parameters held. It takes the
+$\tfrac{1}{2}\ln|\Sigma_D|$ term, which a least-squares solve cannot (ADR-0009).
+
 ### Port discrepancy
 
 A discrepancy embedded at a component's ports, on its S-parameters rather than on
@@ -343,4 +371,6 @@ method, a public function or a value space. Read
 scored, and `docs/adr/0007-edge-values.md` before changing how a
 circuit solver produces S, how bounds are validated, or which space a solver
 moves through. Read `docs/adr/0008-shared-discrepancy.md` before coupling event
-blocks or datasets in a discrepancy.
+blocks or datasets in a discrepancy, and `docs/adr/0009-least-squares-map-fits.md`
+before changing how a least-squares minimiser builds its residual or treats
+hyperparameters.
