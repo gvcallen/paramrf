@@ -1,0 +1,12 @@
+
+
+
+TargetLoss
+==========
+
+.. currentmodule:: pmrf.objectives.evaluators
+
+.. autoclass:: TargetLoss
+   :members:
+   :show-inheritance:
+   :inherited-members:

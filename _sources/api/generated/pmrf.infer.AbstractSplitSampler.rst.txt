@@ -1,0 +1,12 @@
+
+
+
+AbstractSplitSampler
+====================
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: AbstractSplitSampler
+   :members:
+   :show-inheritance:
+   :inherited-members:

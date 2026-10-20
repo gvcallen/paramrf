@@ -1,0 +1,12 @@
+
+
+
+FloatingLine
+============
+
+.. currentmodule:: pmrf.models.components.lines.nodal
+
+.. autoclass:: FloatingLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,163 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shared discrepancy is a joint evaluator over per-dataset likelihoods &mdash; paramrf 0.37.6 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=4640b86d"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Shared discrepancy is a joint evaluator over per-dataset likelihoods</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0008-shared-discrepancy.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="shared-discrepancy-is-a-joint-evaluator-over-per-dataset-likelihoods">
+<h1>Shared discrepancy is a joint evaluator over per-dataset likelihoods<a class="headerlink" href="#shared-discrepancy-is-a-joint-evaluator-over-per-dataset-likelihoods" title="Link to this heading"></a></h1>
+<p>A discrepancy whose latent functions are shared across datasets (or across event blocks
+of one dataset) makes those datasets statistically dependent, so their joint likelihood
+is not a sum of per-dataset terms. We add a new evaluator,
+<code class="docutils literal notranslate"><span class="pre">SharedMarginalLogLikelihood</span></code>, that takes several ordinary <code class="docutils literal notranslate"><span class="pre">MarginalLogLikelihood</span></code>s
+(each with no discrepancy of its own) plus a tuple of <code class="docutils literal notranslate"><span class="pre">SharedLatent</span></code>s, and returns one
+joint log-likelihood. It goes into <code class="docutils literal notranslate"><span class="pre">SummedTerms</span></code> as a single term. Each <code class="docutils literal notranslate"><span class="pre">SharedLatent</span></code>
+is a covariance kernel paired with a <strong>mixing</strong>: a function of the dataset’s
+event-space prediction and frequency that returns, per frequency, a real matrix from
+the latent’s rows to the dataset’s event blocks. The joint covariance is low rank plus
+diagonal and is solved by Woodbury in the latent dimension, never densely.</p>
+<section id="considered-options">
+<h2>Considered options<a class="headerlink" href="#considered-options" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>A shared object inside several <code class="docutils literal notranslate"><span class="pre">MarginalLogLikelihood</span></code> terms, marginalised jointly by
+<code class="docutils literal notranslate"><span class="pre">SummedTerms</span></code>.</strong> Rejected: <code class="docutils literal notranslate"><span class="pre">SummedTerms</span></code> would have to detect sharing and stop being a
+sum, and the joint maths would be spread across classes that should not know about
+each other.</p></li>
+<li><p><strong>Extend <code class="docutils literal notranslate"><span class="pre">GaussianProcess</span></code> and its kernels to couple event blocks</strong> (as in the
+correlated-GP note and the routing idea in #250). Rejected: a <code class="docutils literal notranslate"><span class="pre">GaussianProcess</span></code> is a
+discrepancy for one dataset, and its kernels cannot see the prediction, which
+multiplicative error (for example a VNA’s tracking error, <span class="math notranslate nohighlight">\(e_t \Gamma\)</span>) needs.</p></li>
+<li><p><strong>An error-box model component with GP-distributed error terms.</strong> This is the exact
+bilinear form, but its marginal is not Gaussian. It is a separate, later feature.</p></li>
+</ul>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">MarginalLogLikelihood</span></code> exposes its event-space residual, noise variance and
+conditional-transform log-determinant, so the joint evaluator reuses all per-dataset
+plumbing (predictor, observation, likelihood, event transform) without copying it.</p></li>
+<li><p>A latent holds a kernel, not a <code class="docutils literal notranslate"><span class="pre">GaussianProcess</span></code>. Every existing kernel is reusable.</p></li>
+<li><p>Mixings act in event space. Helpers that multiply by the prediction assume the
+default Re/Im event layout and say so.</p></li>
+<li><p>With a prediction-dependent mixing, the covariance depends on the model parameters;
+gradients flow through it.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">MarginalLogLikelihood</span></code> with a <code class="docutils literal notranslate"><span class="pre">GaussianProcess</span></code> is mathematically the one-dataset,
+identity-mixing case. Both stay: the existing class is the fast independent-block
+path. If the two ever duplicate maths rather than share plumbing, merge them into one
+evaluator with the independent path as an internal optimisation.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

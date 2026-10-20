@@ -1,0 +1,12 @@
+
+
+
+TescheTubeSurfaceImpedance
+==========================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: TescheTubeSurfaceImpedance
+   :members:
+   :show-inheritance:
+   :inherited-members:

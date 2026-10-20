@@ -1,0 +1,12 @@
+
+
+
+ScalarAffine
+============
+
+.. currentmodule:: pmrf.stats.bijectors
+
+.. autoclass:: ScalarAffine
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+derived
+=======
+
+.. currentmodule:: pmrf.models.adapters.derived
+
+.. autofunction:: derived

@@ -1,0 +1,12 @@
+
+
+
+ConstantKernel
+==============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: ConstantKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

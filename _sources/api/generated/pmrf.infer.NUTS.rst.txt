@@ -1,0 +1,12 @@
+
+
+
+NUTS
+====
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: NUTS
+   :members:
+   :show-inheritance:
+   :inherited-members:

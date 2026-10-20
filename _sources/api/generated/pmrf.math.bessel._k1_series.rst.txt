@@ -1,0 +1,9 @@
+
+
+
+_k1_series
+==========
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: _k1_series

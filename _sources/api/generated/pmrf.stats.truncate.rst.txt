@@ -1,0 +1,9 @@
+
+
+
+truncate
+========
+
+.. currentmodule:: pmrf.stats
+
+.. autofunction:: truncate

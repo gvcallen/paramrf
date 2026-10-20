@@ -1,0 +1,12 @@
+
+
+
+PowerEnvelopeKernel
+===================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: PowerEnvelopeKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

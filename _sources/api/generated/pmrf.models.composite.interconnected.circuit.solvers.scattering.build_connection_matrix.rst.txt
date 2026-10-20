@@ -1,0 +1,9 @@
+
+
+
+build_connection_matrix
+=======================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.solvers.scattering
+
+.. autofunction:: build_connection_matrix

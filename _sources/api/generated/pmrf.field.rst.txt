@@ -1,0 +1,9 @@
+﻿
+
+
+**field** (pmrf.field)
+======================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: field

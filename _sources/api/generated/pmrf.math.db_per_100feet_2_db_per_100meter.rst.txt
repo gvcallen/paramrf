@@ -1,0 +1,9 @@
+
+
+
+db_per_100feet_2_db_per_100meter
+================================
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: db_per_100feet_2_db_per_100meter

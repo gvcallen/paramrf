@@ -1,0 +1,9 @@
+﻿
+
+
+**Random** (pmrf.Random)
+========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: Random

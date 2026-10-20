@@ -1,0 +1,12 @@
+﻿
+
+
+**Pathgetter** (pmrf.Pathgetter)
+================================
+
+.. currentmodule:: pmrf
+
+.. autoclass:: Pathgetter
+   :members:
+   :show-inheritance:
+   :inherited-members:
