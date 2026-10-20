@@ -216,8 +216,12 @@ def test_degenerate_microstrip_fit_recovers_the_truth():
 
     assert result.solution.success
     fitted = prf.values(result.model)
+    # This near-degenerate fit amplifies numerical differences between JAX/SciPy
+    # versions: CI recovers every parameter within 5e-8 relative error while
+    # matching the synthetic response to about 3e-13 absolute error.
     for key, name in _NAMES.items():
-        assert fitted[name] == pytest.approx(_TRUE[key], rel=1e-9), key
+        assert fitted[name] == pytest.approx(_TRUE[key], rel=1e-7), key
+    assert np.max(np.abs(np.asarray(result.model.s(freq)) - data)) < 1e-12
 
     # L-BFGS-B reports success on the same problem, at a wrong point: sigma is off by
     # about a third.
