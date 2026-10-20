@@ -451,6 +451,17 @@ def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Ar
     The returned array must be used: under `jax.jit` the check lives only in its graph.
     """
     value_array = jnp.asarray(value)
+    if not isinstance(value_array, jax.core.Tracer):
+        return _check_in_constraint_jit(value_array, constraint)
+    return _check_in_constraint_impl(value_array, constraint)
+
+
+@eqx.filter_jit
+def _check_in_constraint_jit(value: Array, constraint: AbstractConstraint) -> Array:
+    return _check_in_constraint_impl(value, constraint)
+
+
+def _check_in_constraint_impl(value_array: Array, constraint: AbstractConstraint) -> Array:
     # Escaped so that braces in the constraint's repr are not read as format fields.
     constraint_text = str(constraint).replace("{", "{{").replace("}", "}}")
     return error_if(

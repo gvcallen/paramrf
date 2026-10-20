@@ -1,7 +1,46 @@
+import functools
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.custom_batching import custom_vmap
+
+
+@functools.lru_cache(maxsize=None)
+def _checked_predicate(msg, kw_names, npos, arg_tree, nbatch):
+    """Print only failing values, retaining batch axes outside the decision."""
+
+    @custom_vmap
+    def checked(pred, args):
+        def fail(_):
+            def host_print(host_pred, *host_args):
+                for index in np.ndindex(host_pred.shape[:nbatch]):
+                    if np.any(host_pred[index]):
+                        values = jax.tree_util.tree_unflatten(
+                            arg_tree, [arg[index] for arg in host_args]
+                        )
+                        print(msg.format(*values[:npos], **dict(zip(kw_names, values[npos:]))))
+                return host_pred
+
+            return jax.pure_callback(
+                host_print, jax.ShapeDtypeStruct(pred.shape, pred.dtype), pred, *args
+            )
+
+        return jax.lax.cond(jnp.any(pred), fail, lambda _: pred, None)
+
+    @checked.def_vmap
+    def rule(axis_size, in_batched, pred, args):
+        pred_batched, args_batched = in_batched
+
+        def broadcast(value, batched):
+            return value if batched else jnp.broadcast_to(value, (axis_size, *value.shape))
+
+        pred = broadcast(pred, pred_batched)
+        args = tuple(broadcast(arg, batched) for arg, batched in zip(args, args_batched))
+        return _checked_predicate(msg, kw_names, npos, arg_tree, nbatch + 1)(pred, args), True
+
+    return checked
 
 
 def error_if(x, pred, msg, *print_args, on_error="default", **print_kwargs):
@@ -59,25 +98,11 @@ def error_if(x, pred, msg, *print_args, on_error="default", **print_kwargs):
     """
     error_msg = msg
     if print_args or print_kwargs:
-        # Decided on the host: a `lax.cond` on a batched predicate lowers to `select`
-        # under `vmap`, which runs the print whether or not the check fails. A
-        # `pure_callback` rather than `jax.debug.callback`, so that `eqx.error_if` can
-        # consume its output: that data dependency makes the print precede the raise.
-        def print_if(host_pred, args, kwargs):
-            if np.any(host_pred):
-                print(msg.format(*args, **kwargs))
-            return host_pred
-
         pred = jnp.asarray(pred)
-        args, kwargs = jax.lax.stop_gradient((print_args, print_kwargs))
-        pred = jax.pure_callback(
-            print_if,
-            jax.ShapeDtypeStruct(pred.shape, pred.dtype),
-            pred,
-            args,
-            kwargs,
-            vmap_method="sequential",
-        )
+        kw_names = tuple(print_kwargs)
+        args, arg_tree = jax.tree_util.tree_flatten((*print_args, *print_kwargs.values()))
+        args = tuple(jnp.asarray(arg) for arg in jax.lax.stop_gradient(args))
+        pred = _checked_predicate(msg, kw_names, len(print_args), arg_tree, 0)(pred, args)
         error_msg = f"{msg} (Check standard output for runtime values)"
 
     return eqx.error_if(x, pred, error_msg, on_error=on_error)
