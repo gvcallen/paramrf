@@ -216,7 +216,9 @@ def test_hypercube_sampler_on_a_prior_over_physical_space_of_a_scaled_parameter(
 
 
 def test_hypercube_sampler_names_a_mapped_prior_whose_base_has_no_inverse_cdf():
-    m = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
+    # The Gamma prior lives in raw space, so start above the raw-space zero
+    # corresponding to the midpoint of this bounded parameter.
+    m = {"R": prf.Bounded(0.0, 100.0, value=60.0), "C": prf.Unconstrained(2.0)}
     m = prf.prior(prf.prior(m, "R", dist.Gamma(2.0, 1.0), space="raw"), "C", Normal(2.0, 1.0))
     with pytest.raises(ValueError, match=r"'R'.*space='raw' or space='physical'.*Gamma"):
         infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))
