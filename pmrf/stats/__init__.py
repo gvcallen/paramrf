@@ -73,6 +73,11 @@ if TYPE_CHECKING:
         AbstractNoiseModel as AbstractNoiseModel,
         AutoCrossNoise as AutoCrossNoise,
     )
+    from .shared_discrepancy import (
+        SharedLatent as SharedLatent,
+        IdentityMixing as IdentityMixing,
+        ComplexPowerMixing as ComplexPowerMixing,
+    )
 
 _EXPORTS = {
     'AbstractBijector': 'bijectors',
@@ -92,6 +97,9 @@ _EXPORTS = {
     'Gamma': 'distributions',
     'GaussianLikelihood': 'likelihoods',
     'GaussianProcess': 'discrepancy_models',
+    'SharedLatent': 'shared_discrepancy',
+    'IdentityMixing': 'shared_discrepancy',
+    'ComplexPowerMixing': 'shared_discrepancy',
     'Identity': 'bijectors',
     'Inverse': 'bijectors',
     'Joint': 'distributions',
@@ -130,7 +138,7 @@ _EXPORTS = {
     'posterior_covariance_factor': 'linearization',
     'truncate': 'distributions',
 }
-_MODULES = {'bijectors', 'discrepancy_models', 'linearization', 'likelihoods', 'noise_models', 'distributions', 'covariance_kernels'}
+_MODULES = {'bijectors', 'discrepancy_models', 'linearization', 'likelihoods', 'noise_models', 'distributions', 'covariance_kernels', 'shared_discrepancy'}
 
 def __getattr__(name):
     if name in _MODULES:

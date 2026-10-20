@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         SummedTerms as SummedTerms,
         problem_terms as problem_terms,
     )
+    from .shared import SharedMarginalLogLikelihood as SharedMarginalLogLikelihood
     from .terms import (
         AbstractTerm as AbstractTerm,
         BoundEvaluator as BoundEvaluator,
@@ -59,6 +60,7 @@ _EXPORTS = {
     'Negated': 'evaluators',
     'PriorPenalized': 'problems',
     'RMSELoss': 'losses',
+    'SharedMarginalLogLikelihood': 'shared',
     'SummedTerms': 'problems',
     'TargetLoss': 'evaluators',
     'TermFn': 'terms',
@@ -66,7 +68,7 @@ _EXPORTS = {
     'as_terms': 'terms',
     'problem_terms': 'problems',
 }
-_MODULES = {'evaluators', 'losses', 'problems', 'terms'}
+_MODULES = {'evaluators', 'losses', 'problems', 'shared', 'terms'}
 
 def __getattr__(name):
     if name in _MODULES:
