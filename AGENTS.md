@@ -27,7 +27,6 @@ there are none.
 
 ```bash
 .venv/bin/python -m pytest tests/test_x.py  # the tests covering a change, while working
-.venv/bin/python -m pytest -n 4            # local test command: full suite, once before committing
 .venv/bin/python -c "import pmrf"          # import smoke check
 ```
 
