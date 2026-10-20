@@ -63,6 +63,14 @@ def fit_minimize(
     solver : AbstractMinimizer, optional
         The optimizer to use.
         See :mod:`pmrf.optimize` for available solvers.
+        :class:`pmrf.optimize.ScipyLeastSquares` suits fits whose parameters are
+        jointly near-degenerate. It supports a frequentist fit with
+        :class:`pmrf.objectives.losses.MSELoss`, and a bayesian fit with a
+        :class:`pmrf.stats.likelihoods.GaussianLikelihood`, fitting a free noise and a
+        Gaussian-process discrepancy's hyperparameters by alternating with a
+        hyperparameter step. Noise given as a callable of the prediction, orthogonal
+        discrepancy without a fixed reference basis, and priors on the model other than
+        normal, truncated normal and uniform are not yet supported.
     features : str | list[str] | Callable[[PyTree, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,

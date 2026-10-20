@@ -5,6 +5,7 @@ from jaxtyping import PyTree
 
 from pmrf.modules.base import validate
 from pmrf.frequency import Frequency
+from pmrf.objectives.evaluators import whitened_residual
 from pmrf.objectives.problems import AbstractProblem, SummedTerms
 from pmrf.objectives.terms import TermLike, as_terms
 from pmrf.optimize.base import AbstractMinimizer, run_minimizer
@@ -49,7 +50,9 @@ def minimize(
         omitted only if every objective already carries its own frequency.
     solver : pmrf.optimize.AbstractMinimizer, default=ScipyMinimize()
         The optimizer to use.
-        See :mod:`pmrf.optimize` for available solvers.
+        See :mod:`pmrf.optimize` for available solvers. A least-squares minimiser,
+        such as :class:`pmrf.optimize.ScipyLeastSquares`, minimises the problem's
+        whitened residual instead of its value.
     max_iter : int
         The maximum number of iterations to take.
     **kwargs
@@ -62,6 +65,9 @@ def minimize(
 
     Raises
     ------
+    NotImplementedError
+        If a least-squares minimiser is used with a term that has no whitened
+        residual. It is raised before the solver runs.
     FloatingPointError
         If SciPy evaluates a nonfinite objective, requested gradient or attempted
         optimizer vector. The diagnostic identifies the method and evaluation number.
@@ -83,6 +89,7 @@ def minimize(
     opt_problem, result = run_minimizer(
         lambda p, _args: p(),
         model=problem,
+        residual_fn=lambda p, _args: whitened_residual(p),
         solver=solver,
         max_iter=max_iter,
         **kwargs,
