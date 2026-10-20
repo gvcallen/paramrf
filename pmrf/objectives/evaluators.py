@@ -405,6 +405,41 @@ class MarginalLogLikelihood(AbstractEvaluator):
             )
         return resolved
 
+    def event_data(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Return prediction, residual, noise variance and transform log-Jacobian.
+
+        All arrays are in event space, with frequency last. The variance is
+        broadcastable to the prediction. Only a conditional transform contributes
+        a log-Jacobian, matching :meth:`__call__`.
+
+        Parameters
+        ----------
+        model : PyTree
+            Model evaluated by this likelihood's predictor.
+        frequency : Frequency
+            Grid corresponding to the observation.
+        **kwargs : dict
+            Additional predictor arguments.
+
+        Returns
+        -------
+        tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]
+            Event-space prediction, observed-minus-predicted residual, noise
+            variance, and scalar conditional-transform log-Jacobian.
+        """
+        if not isinstance(self.likelihood, GaussianLikelihood):
+            raise TypeError("Event data requires a `GaussianLikelihood`.")
+        prediction, transform = self._event(model, frequency, **kwargs)
+        residual = transform.forward(self.observed) - prediction
+        variance = (self.likelihood.variance(prediction)[..., None]
+                    if self.use_orthogonal_discrepancy
+                    else self.likelihood._event_variance(prediction))
+        logdet = (jnp.sum(transform.forward_log_det_jacobian(self.observed))
+                  if self.has_conditional_event_transform else jnp.asarray(0.0))
+        return prediction, residual, variance, logdet
+
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         observed = self.observed
         if self.use_orthogonal_discrepancy:
@@ -624,11 +659,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 "Discrepancy prediction requires a `GaussianLikelihood`. "
                 f"Got {type(self.likelihood).__name__}."
             )
-        pred_event, event_transform = self._event(model, frequency, **kwargs)
-        variance = (self.likelihood.variance(pred_event)[..., None]
-                    if self.use_orthogonal_discrepancy
-                    else self.likelihood._event_variance(pred_event))
-        residual = event_transform.forward(self.observed) - pred_event
+        _, residual, variance, _ = self.event_data(model, frequency, **kwargs)
         if self.use_orthogonal_discrepancy:
             indices = self._fit_frequency_indices(frequency, new_frequency)
             K = self._projected_kernel(model, frequency, **kwargs)
@@ -864,10 +895,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 f"Got {type(self.likelihood).__name__}."
             )
         def residual_fn(candidate):
-            pred_event, event_transform = self._event(candidate, frequency, **kwargs)
-            return event_transform.forward(self.observed) - pred_event
+            return self.event_data(candidate, frequency, **kwargs)[1]
 
-        pred_event, _ = self._event(model, frequency, **kwargs)
+        pred_event, _, variance, _ = self.event_data(model, frequency, **kwargs)
         n = pred_event.shape[-1]
         if self.use_orthogonal_discrepancy:
             K = self._projected_kernel(model, frequency, **kwargs)
@@ -875,9 +905,6 @@ class MarginalLogLikelihood(AbstractEvaluator):
             K = jnp.zeros((n, n), dtype=pred_event.dtype)
         else:
             K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
-        variance = (self.likelihood.variance(pred_event)[..., None]
-                    if self.use_orthogonal_discrepancy
-                    else self.likelihood._event_variance(pred_event))
         chol = jnp.linalg.cholesky(_add_noise(K, variance, pred_event.shape[:-1]))
         return _linearize(residual_fn, model, chol, space)
 
