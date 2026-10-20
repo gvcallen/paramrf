@@ -11,6 +11,7 @@ import equinox as eqx
 from jaxtyping import PyTree
 
 from pmrf.parameters import _log_scale, tree_param_distributions, tree_param_log_prob
+from pmrf.objectives.evaluators import whitened_residual
 from pmrf.objectives.terms import TermFn
 from pmrf.utils import field, freeze, unwrap
 
@@ -75,6 +76,22 @@ class SummedTerms(AbstractProblem):
         model = unwrap(self.model)
         results = [unwrap(term)(model, *args, **kwargs) for term in self.terms]
         return sum(results[1:], start=results[0])
+
+    def whitened_residual(self, *args, **kwargs) -> jnp.ndarray:
+        """
+        Returns the whitened residuals of the terms, stacked into one vector.
+
+        Half its squared norm is the problem's value, up to terms constant in the model
+        parameters (ADR-0009).
+
+        Raises
+        ------
+        NotImplementedError
+            If a term has no whitened residual.
+        """
+        model = unwrap(self.model)
+        residuals = [jnp.ravel(whitened_residual(unwrap(term), model, *args, **kwargs)) for term in self.terms]
+        return jnp.concatenate(residuals)
 
 
 # `distributions` is derived from the problem and must never take gradients, so it is

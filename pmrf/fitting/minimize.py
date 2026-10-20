@@ -63,6 +63,9 @@ def fit_minimize(
     solver : AbstractMinimizer, optional
         The optimizer to use.
         See :mod:`pmrf.optimize` for available solvers.
+        :class:`pmrf.optimize.ScipyLeastSquares` suits fits whose parameters are
+        jointly near-degenerate; it supports a frequentist fit with
+        :class:`pmrf.objectives.losses.MSELoss`.
     features : str | list[str] | Callable[[PyTree, Frequency], jnp.ndarray], default='s'
         The RF features to fit.
         Can either be function, a callable PyTree with optional parameters, or a string,

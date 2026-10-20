@@ -9,6 +9,7 @@ that minimize a given objective/cost function.
 from pmrf.optimize.base import (
     AbstractBoundedMinimizer,
     AbstractUnconstrainedMinimizer,
+    AbstractLeastSquaresMinimizer,
     AbstractMinimizer,
     is_optimizer,
     is_minimizer,
@@ -18,7 +19,7 @@ from pmrf.optimize.minimize import minimize
 
 # Backends
 from pmrf.optimize.solvers import optimistix, jaxopt, scipy
-from pmrf.optimize.solvers.scipy import ScipyMinimize
+from pmrf.optimize.solvers.scipy import ScipyMinimize, ScipyLeastSquares
 from pmrf.optimize.solvers.optimistix import OptimistixMinimise
 from pmrf.optimize.solvers.jaxopt import LBFGSB
 from pmrf.optimize.solvers.optimistix import (
@@ -31,6 +32,7 @@ from pmrf.optimize.solvers.optimistix import (
 __all__ = [
     "AbstractBoundedMinimizer",
     "AbstractUnconstrainedMinimizer",
+    "AbstractLeastSquaresMinimizer",
     "AbstractMinimizer",
     "is_optimizer",
     "is_minimizer",
@@ -40,6 +42,7 @@ __all__ = [
     "optimistix",
     "jaxopt",
     "ScipyMinimize",
+    "ScipyLeastSquares",
     "OptimistixMinimise",
     "LBFGSB",
     "NelderMead",

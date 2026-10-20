@@ -11,12 +11,43 @@ from jaxtyping import PyTree
 import equinox as eqx
 from tqdm.auto import tqdm
 import numpy as np
-from scipy.optimize import Bounds, minimize as scipy_minimize
+from scipy.optimize import Bounds, least_squares as scipy_least_squares, minimize as scipy_minimize
 
-from pmrf.optimize.base import AbstractBoundedMinimizer, MinimizeResult
+from pmrf.optimize.base import AbstractBoundedMinimizer, AbstractLeastSquaresMinimizer, MinimizeResult
 
 # The methods of :func:`scipy.optimize.minimize` that keep their iterates inside bounds.
 _BOUNDED_METHODS = {'l-bfgs-b', 'tnc', 'slsqp', 'trust-constr', 'powell', 'nelder-mead', 'cobyla', 'cobyqa'}
+
+# How far `ScipyLeastSquares` moves a start on a box edge inward, in box space.
+_EDGE_NUDGE = 1e-6
+
+
+def _coordinate_labels(tree: PyTree) -> list[str | None]:
+    """Returns the name of the free parameter behind each flattened coordinate of `tree`."""
+    labels = []
+    path_leaves, _ = jax.tree_util.tree_flatten_with_path(tree)
+    for path, leaf in path_leaves:
+        parts = []
+        for key in path:
+            if hasattr(key, 'key'):
+                parts.append(str(key.key))
+            elif hasattr(key, 'name'):
+                parts.append(str(key.name))
+            elif hasattr(key, 'idx'):
+                parts.append(str(key.idx))
+        label = '.'.join(parts) if parts else None
+        size = int(np.size(leaf))
+        labels.extend([label] * size)
+    return labels
+
+
+def _label_list(labels: list[str | None], indices) -> str:
+    """Names the free parameters behind `indices`, or the indices if they have no names."""
+    named = sorted({labels[i] for i in indices if i < len(labels) and labels[i]})
+    if named:
+        return ', '.join(repr(name) for name in named)
+    coordinates = ', '.join(str(int(i)) for i in indices)
+    return f'coordinate indices {coordinates}'
 
 
 class ScipyMinimize(AbstractBoundedMinimizer):
@@ -40,7 +71,6 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True)
     use_grad: bool | None = eqx.field(static=True, default=None)
-    # use_hess: bool | None = eqx.field(static=True, default=None)
 
     @property
     def honours_bounds(self) -> bool:
@@ -120,31 +150,10 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         current_loss = [np.inf]
         eval_count = [0]
 
-        def coordinate_labels(tree):
-            labels = []
-            path_leaves, _ = jax.tree_util.tree_flatten_with_path(tree)
-            for path, leaf in path_leaves:
-                parts = []
-                for key in path:
-                    if hasattr(key, 'key'):
-                        parts.append(str(key.key))
-                    elif hasattr(key, 'name'):
-                        parts.append(str(key.name))
-                    elif hasattr(key, 'idx'):
-                        parts.append(str(key.idx))
-                label = '.'.join(parts) if parts else None
-                size = int(np.size(leaf))
-                labels.extend([label] * size)
-            return labels
-
-        labels = coordinate_labels(y0)
+        labels = _coordinate_labels(y0)
 
         def label_list(indices):
-            named = sorted({labels[i] for i in indices if i < len(labels) and labels[i]})
-            if named:
-                return ', '.join(repr(name) for name in named)
-            coordinates = ', '.join(str(int(i)) for i in indices)
-            return f'coordinate indices {coordinates}'
+            return _label_list(labels, indices)
 
         def original_coordinates(z):
             return box_origin + box_scale * z if use_affine else z
@@ -212,7 +221,6 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 obj_func, 
                 scipy_start,
                 jac=use_grad, 
-                # hess=hess_arg,
                 method=method,
                 tol=tol,
                 bounds=scipy_bounds,  
@@ -233,4 +241,147 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 y=unravel_fn(jnp.asarray(box_x)),
             success=bool(res.success), 
             metrics=res
+        )
+
+
+
+class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
+    """
+    A bounded least-squares minimiser wrapping SciPy's :func:`scipy.optimize.least_squares`.
+
+    It uses the Trust Region Reflective method (``'trf'``) and searches box space, given
+    the box's edges as bounds. It minimises half the squared norm of the whitened
+    residual (ADR-0009), with its Jacobian taken by forward-mode JAX autodiff. On a long,
+    narrow valley, such as a line model whose physical parameters are jointly
+    near-degenerate, it converges where :class:`ScipyMinimize` with L-BFGS-B can stop at
+    a wrong point.
+
+    Every iterate stays strictly inside the box. A start on a closed edge is moved 1e-6
+    inward in box space first, as for a raw-space minimiser (ADR-0007): SciPy's own move
+    is so small that a fit starting with every parameter on a bound cannot leave it.
+
+    Nonfinite residuals, Jacobians or attempted coordinates raise
+    :class:`FloatingPointError` with the evaluation number before SciPy can return a
+    failed start point. Finite nonconvergence keeps SciPy's usual result.
+    """
+    #: Tolerance for termination by the change of the cost function.
+    ftol: float | None = eqx.field(static=True, default=1e-8)
+
+    #: Tolerance for termination by the change of the independent variables.
+    xtol: float | None = eqx.field(static=True, default=1e-8)
+
+    #: Tolerance for termination by the norm of the gradient.
+    gtol: float | None = eqx.field(static=True, default=1e-8)
+
+    #: Further keyword arguments to :func:`scipy.optimize.least_squares`, such as `x_scale`.
+    options: dict = eqx.field(static=True, default_factory=dict)
+
+    #: Whether to show a progress bar.
+    show_progress: bool = eqx.field(static=True, default=True)
+
+    def run(
+        self,
+        residual_fn: Callable[[PyTree, Any], Any],
+        y0: PyTree,
+        args: Any = None,
+        bounds: tuple[PyTree, PyTree] | None = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> MinimizeResult:
+        for key in ('method', 'max_nfev', 'jac', 'bounds'):
+            if key in self.options or key in kwargs:
+                raise ValueError(f"Cannot pass `{key}` to ScipyLeastSquares; it is set by the minimiser.")
+
+        flat_y, unravel_fn = ravel_pytree(y0)
+        start = np.asarray(flat_y, dtype=np.float64)
+        if bounds is None:
+            scipy_bounds = (-np.inf, np.inf)
+        else:
+            flat_lower, _ = ravel_pytree(bounds[0])
+            flat_upper, _ = ravel_pytree(bounds[1])
+            lower = np.asarray(flat_lower, dtype=np.float64)
+            upper = np.asarray(flat_upper, dtype=np.float64)
+            middle = lower + (upper - lower) / 2
+            start = np.where(start <= lower, np.minimum(lower + _EDGE_NUDGE, middle), start)
+            start = np.where(start >= upper, np.maximum(upper - _EDGE_NUDGE, middle), start)
+            scipy_bounds = (lower, upper)
+
+        def flat_residual(_flat_y):
+            return jnp.ravel(residual_fn(unravel_fn(_flat_y), args))
+
+        residual_only = jax.jit(flat_residual)
+        jacobian = jax.jit(jax.jacfwd(flat_residual))
+
+        labels = _coordinate_labels(y0)
+        eval_count = [0]
+        jac_count = [0]
+        current_cost = [np.inf]
+
+        def checked_input(x_np, what, count):
+            x_np = np.asarray(x_np, dtype=np.float64)
+            nonfinite = np.flatnonzero(~np.isfinite(x_np))
+            if len(nonfinite):
+                raise FloatingPointError(
+                    f"SciPy least-squares trf {what} evaluation {count} received a "
+                    f"nonfinite attempted optimizer vector for {_label_list(labels, nonfinite)}."
+                )
+            return x_np
+
+        def fun(x_np):
+            eval_count[0] += 1
+            x_np = checked_input(x_np, 'residual', eval_count[0])
+            r = np.asarray(residual_only(jnp.asarray(x_np)), dtype=np.float64)
+            if not np.all(np.isfinite(r)):
+                raise FloatingPointError(
+                    f"SciPy least-squares trf residual evaluation {eval_count[0]} produced a "
+                    "nonfinite residual; free parameters in context: "
+                    f"{_label_list(labels, range(len(labels)))}."
+                )
+            current_cost[0] = 0.5 * float(r @ r)
+            return r
+
+        def jac(x_np):
+            jac_count[0] += 1
+            x_np = checked_input(x_np, 'Jacobian', jac_count[0])
+            J = np.asarray(jacobian(jnp.asarray(x_np)), dtype=np.float64).reshape(-1, x_np.size)
+            bad = np.flatnonzero(~np.all(np.isfinite(J), axis=0))
+            if len(bad):
+                raise FloatingPointError(
+                    f"SciPy least-squares trf Jacobian evaluation {jac_count[0]} produced a "
+                    f"nonfinite Jacobian for {_label_list(labels, bad)}."
+                )
+            return J
+
+        pbar = None
+        if self.show_progress:
+            pbar = tqdm(total=max_iter, desc="SciPy least-squares trf")
+
+        def callback(*cb_args, **cb_kwargs):
+            if pbar is not None:
+                pbar.update(1)
+                pbar.set_postfix(loss=f"{current_cost[0]:.3g}")
+
+        try:
+            res = scipy_least_squares(
+                fun,
+                start,
+                jac=jac,
+                bounds=scipy_bounds,
+                method='trf',
+                ftol=self.ftol,
+                xtol=self.xtol,
+                gtol=self.gtol,
+                max_nfev=max_iter,
+                callback=callback,
+                **self.options,
+                **kwargs,
+            )
+        finally:
+            if pbar is not None:
+                pbar.close()
+
+        return MinimizeResult(
+            y=unravel_fn(jnp.asarray(res.x)),
+            success=bool(res.success),
+            metrics=res,
         )

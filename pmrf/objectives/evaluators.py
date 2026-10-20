@@ -18,7 +18,7 @@ import parax.bijectors as bij
 from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Index
 
 from pmrf.frequency import Frequency
-from pmrf.objectives.losses import HingeLoss, RMSELoss
+from pmrf.objectives.losses import HingeLoss, MSELoss, RMSELoss
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.stats.covariance_kernels import cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise
@@ -80,6 +80,34 @@ def _orthogonal_projection(
     cutoff = rcond * jnp.max(singular_values, axis=-1, keepdims=True)
     mask = singular_values > cutoff
     return OrthogonalBasis(U * mask[..., None, :], mask)
+
+def whitened_residual(obj: Any, *args, **kwargs) -> jnp.ndarray:
+    """
+    Returns the whitened residual of an evaluator, term or problem.
+
+    The whitened residual is a real vector, half of whose squared norm is `obj`'s value
+    up to terms constant in the model parameters (ADR-0009). It is what a least-squares
+    minimiser minimises. `args` and `kwargs` are those `obj` is called with.
+
+    Raises
+    ------
+    NotImplementedError
+        If `obj` has no whitened residual, so is not yet supported with a least-squares
+        minimiser.
+    """
+    method = getattr(obj, 'whitened_residual', None)
+    if method is None:
+        raise least_squares_unsupported(f"A {type(obj).__name__} term")
+    return method(*args, **kwargs)
+
+
+def least_squares_unsupported(what: str) -> NotImplementedError:
+    """Returns the error for something with no whitened residual."""
+    return NotImplementedError(
+        f"{what} has no whitened residual, so it is not yet supported with a "
+        "least-squares minimiser."
+    )
+
 
 class AbstractEvaluator(Module):
     """
@@ -228,6 +256,38 @@ class TargetLoss(AbstractEvaluator):
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         y_pred = self.predictor(model, frequency, **kwargs)
         return self.loss(self.target, y_pred)
+
+    def whitened_residual(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        r"""
+        Returns the prediction error scaled so that half its squared norm is the loss.
+
+        **Mathematical Formulation**
+
+        For an :class:`pmrf.objectives.losses.MSELoss` averaging uniformly over the $N$
+        elements of the error $e = y - \hat{y}$,
+
+        $$r = \sqrt{2/N}\,\big[\mathrm{Re}(e),\ \mathrm{Im}(e)\big], \qquad
+        \tfrac{1}{2}\lVert r \rVert^2 = \frac{1}{N}\sum |e|^2,$$
+
+        with the imaginary part dropped for a real error.
+
+        Raises
+        ------
+        NotImplementedError
+            For any other loss, which is not yet supported with a least-squares minimiser.
+        """
+        loss = self.loss
+        if not (isinstance(loss, MSELoss) and isinstance(loss.multioutput, str) and loss.multioutput == 'uniform_average'):
+            raise least_squares_unsupported(
+                f"A TargetLoss with {type(loss).__name__} (only MSELoss with "
+                "multioutput='uniform_average' has one)"
+            )
+        y_pred = self.predictor(model, frequency, **kwargs)
+        error = jnp.ravel(jnp.asarray(self.target) - y_pred)
+        scale = jnp.sqrt(2.0 / error.size)
+        if jnp.iscomplexobj(error):
+            error = jnp.concatenate([jnp.real(error), jnp.imag(error)])
+        return scale * error
     
     
 class MarginalLogLikelihood(AbstractEvaluator):
@@ -1225,6 +1285,7 @@ __all__ = [
     'GibbsMarginalLogLikelihood',
     'Negated',
     'Goal',
+    'whitened_residual',
     'EvaluatorFn',
     'EvaluatorLike',
 ]

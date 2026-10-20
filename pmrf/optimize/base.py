@@ -5,8 +5,9 @@ import warnings
 from typing import Any, Callable, TypeAlias
 import abc
 
-from jaxtyping import PyTree, Scalar
+from jaxtyping import Array, PyTree, Scalar
 import equinox as eqx
+import jax
 from pmrf._solver_view import SolverView
 
 
@@ -123,14 +124,69 @@ class AbstractBoundedMinimizer(eqx.Module):
         raise NotImplementedError
     
 
-#: A type-hint for a minimizer in :mod:`pmrf.optimize`. Either :class:`pmrf.optimize.AbstractUnconstrainedMinimizer` or :class:`pmrf.optimize.AbstractBoundedMinimizer`.
-AbstractMinimizer: TypeAlias = AbstractUnconstrainedMinimizer | AbstractBoundedMinimizer
+class AbstractLeastSquaresMinimizer(eqx.Module):
+    """
+    Abstract interface for bounded least-squares minimisation algorithms.
+
+    A least-squares minimiser minimises half the squared norm of a residual vector
+    rather than a scalar objective (ADR-0009). It honours bounds, so it searches box
+    space and is given the box's edges as `bounds`.
+    """
+
+    @property
+    def honours_bounds(self) -> bool:
+        """Whether the minimiser keeps its values inside the bounds it is given: always."""
+        return True
+
+    @abc.abstractmethod
+    def run(
+        self,
+        residual_fn: Callable[[PyTree, Any], Array],
+        y0: PyTree,
+        args: Any,
+        bounds: tuple[PyTree, PyTree] | None = None,
+        max_iter: int = 1024,
+        **kwargs
+    ) -> MinimizeResult:
+        """
+        Execute the minimization algorithm.
+
+        Parameters
+        ----------
+        residual_fn : callable
+            The residual function, returning a real 1-D vector. Half its squared norm
+            is minimised.
+        y0 : PyTree
+            The initial parameter guess.
+        args : Any
+            Args to pass to `residual_fn`.
+        bounds : tuple[PyTree, PyTree], optional
+            The lower and upper edges of the box to search, shaped like `y0`. Edges may
+            be infinite.
+        max_iter: int = 1024
+            The maximum number of iterations to take.
+        **kwargs
+            Runtime arguments forward to the solver backend.
+
+        Returns
+        -------
+        results
+            An instance of :class:`pmrf.optimize.MinimizeResult`.
+        """
+        raise NotImplementedError
+
+
+#: A type-hint for a minimizer in :mod:`pmrf.optimize`. One of
+#: :class:`pmrf.optimize.AbstractUnconstrainedMinimizer`,
+#: :class:`pmrf.optimize.AbstractBoundedMinimizer` or
+#: :class:`pmrf.optimize.AbstractLeastSquaresMinimizer`.
+AbstractMinimizer: TypeAlias = AbstractUnconstrainedMinimizer | AbstractBoundedMinimizer | AbstractLeastSquaresMinimizer
     
 
 def is_minimizer(x):
     """
-    Returns True if x is an instance of `pmrf.optimize.AbstractUnconstrainedMinimizer`
-    or `pmrf.optimize.AbstractBoundedMinimizer`.
+    Returns True if x is an instance of `pmrf.optimize.AbstractUnconstrainedMinimizer`,
+    `pmrf.optimize.AbstractBoundedMinimizer` or `pmrf.optimize.AbstractLeastSquaresMinimizer`.
     """
     return isinstance(x, AbstractMinimizer)
 
@@ -146,6 +202,7 @@ def run_minimizer(
     solver: AbstractMinimizer,
     args: Any = None,
     max_iter: int = 1024,
+    residual_fn: Callable[[PyTree, Any], Array] | None = None,
     **kwargs
 ) -> tuple[PyTree, MinimizeResult]:
     """
@@ -167,6 +224,10 @@ def run_minimizer(
       value, so the solver starts it just inside: by 1e-6 of the width between two
       finite bounds, or 1e-6 in declared units otherwise.
 
+    A least-squares minimiser (:class:`AbstractLeastSquaresMinimizer`) searches box space
+    too, but is handed `residual_fn` instead of `fn`. The residual is traced once at the
+    start, so a term without a whitened residual raises before the solver runs.
+
     The result is written back with :func:`pmrf.update`, so fixed parameters, names,
     scales and priors are unchanged.
 
@@ -182,6 +243,9 @@ def run_minimizer(
         Args to pass to `fn`. Defaults to None.
     max_iter : int, optional
         Maximum number of iterations. Defaults to 1024.
+    residual_fn : callable, optional
+        The residual function taking `(unwrapped_model, args)`, half of whose squared
+        norm is `fn`. Required by a least-squares minimiser, ignored by any other.
     **kwargs
         Runtime arguments forwarded to the solver backend.
 
@@ -193,7 +257,10 @@ def run_minimizer(
     Raises
     ------
     ValueError
-        If `model` has no free parameters, or one starts at NaN.
+        If `model` has no free parameters, or one starts at NaN, or a least-squares
+        minimiser is given no `residual_fn`.
+    NotImplementedError
+        If a least-squares minimiser is used with a term that has no whitened residual.
     FloatingPointError
         If a SciPy minimizer evaluates a nonfinite objective, requested gradient or
         attempted optimizer vector.
@@ -207,7 +274,18 @@ def run_minimizer(
         y0, kwargs['bounds'] = view.box()
     else:
         space, y0 = 'raw', view.y0
-    result = solver.run(fn=view.objective(fn, space), y0=y0, args=args, max_iter=max_iter, **kwargs)
+    if isinstance(solver, AbstractLeastSquaresMinimizer):
+        if residual_fn is None:
+            raise ValueError(
+                f"{type(solver).__name__} is a least-squares minimiser and needs a residual "
+                "function, but none was given."
+            )
+        box_residual_fn = view.objective(residual_fn, space)
+        # Tracing raises for a term without a whitened residual, before the solver runs.
+        jax.eval_shape(box_residual_fn, y0, args)
+        result = solver.run(residual_fn=box_residual_fn, y0=y0, args=args, max_iter=max_iter, **kwargs)
+    else:
+        result = solver.run(fn=view.objective(fn, space), y0=y0, args=args, max_iter=max_iter, **kwargs)
     opt_model = view.updated(result.y, space)
 
     if not result.success:
