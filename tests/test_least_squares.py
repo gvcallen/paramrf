@@ -26,7 +26,7 @@ class Pair(prf.Model):
     u: prf.Param = prf.param()
     v: prf.Param = prf.param()
 
-    def s(self, freq):
+    def s(self, freq, z0=50.0):
         f = freq.f_scaled[:, None, None]
         return (self.u + 1j * self.v * f) * jnp.ones((freq.npoints, 1, 1))
 
@@ -416,13 +416,8 @@ def test_unsupported_map_fits_raise_before_scipy_is_called(monkeypatch, freq):
             minimize(problem, solver=_quiet_map())
 
     lognormal = Pair(u=prf.Random(LogNormal(0.0, 1.0), value=1.0), v=prf.Random(Normal(2.0, 1.0), value=1.5))
-    joint = prf.prior(
-        Pair(u=prf.Unconstrained(0.5), v=prf.Unconstrained(1.5)), ["u", "v"],
-        dd.MultivariateNormalFullCovariance(jnp.array([1.0, 2.0]), jnp.eye(2)),
-    )
-    for match, prior_model in (("LogNormal prior", lognormal), ("joint prior", joint)):
-        with pytest.raises(NotImplementedError, match=match):
-            minimize(_map_problem(prior_model, data, freq), solver=_quiet_map())
+    with pytest.raises(NotImplementedError, match="LogNormal prior"):
+        minimize(_map_problem(lognormal, data, freq), solver=_quiet_map())
 
 
 def test_degenerate_microstrip_map_fit_with_free_noise_recovers_the_truth():
@@ -454,3 +449,112 @@ def test_degenerate_microstrip_map_fit_with_free_noise_recovers_the_truth():
         assert fitted[name] == pytest.approx(_TRUE[key], rel=1e-5), key
     noise = prf.values(result.solution.problem)["problem.terms[0].evaluator.evaluator.likelihood.noise"]
     assert noise == pytest.approx(sd**2, rel=0.15)
+
+
+# ---- Joint normal priors (#315) -------------------------------------------------------
+
+
+class PositivePair(prf.Model):
+    """`Pair` with a validity on `u`: it is positive."""
+    u: prf.Param = prf.param(constraint=prf.parameters.constraints.Positive())
+    v: prf.Param = prf.param()
+
+    def s(self, freq, z0=50.0):
+        f = freq.f_scaled[:, None, None]
+        return (self.u + 1j * self.v * f) * jnp.ones((freq.npoints, 1, 1))
+
+
+_JOINT_MEAN = jnp.array([1.0, 2.0])
+_JOINT_COVARIANCE = jnp.array([[0.25, 0.1], [0.1, 0.5]])
+
+
+@pytest.mark.parametrize("space, truncate, scale", [
+    ("declared", "normalised", 1.0),
+    ("declared", "normalised", 1e-3),
+    ("physical", "normalised", 1e-3),
+    ("declared", "unnormalised", 1e-3),
+])
+def test_half_squared_norm_of_joint_prior_residual_is_the_negative_joint_log_prior(space, truncate, scale):
+    freq = Frequency(1.0, 3.0, 21, "GHz")
+    data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.1, smooth=0.1)
+    cls = PositivePair if truncate == "unnormalised" else Pair
+    start = cls(u=prf.Unconstrained(0.4, scale=scale), v=prf.Unconstrained(1.5))
+    model = prf.prior(
+        start, ["v", "u"], dd.MultivariateNormalFullCovariance(_JOINT_MEAN, _JOINT_COVARIANCE),
+        space=space, truncate=truncate,
+    )
+    problem = _map_problem(model, data, freq, discrepancy=_gp())
+
+    def gap(u, v):
+        moved = prf.unwrap(prf.update(problem, {"problem.model.u": u, "problem.model.v": v}, space="declared"))
+        r = whitened_residual(moved)
+        return float(moved()) - 0.5 * float(jnp.sum(r**2))
+
+    gaps = [gap(0.4, 1.5), gap(1.7, 2.6), gap(2.9, -0.5)]
+    assert gaps[1] == pytest.approx(gaps[0], rel=1e-10) and gaps[2] == pytest.approx(gaps[0], rel=1e-10)
+
+
+def test_sequential_fit_with_a_linearised_posterior_prior_matches_scipy_minimize():
+    freq = Frequency(1.0, 3.0, 41, "GHz")
+    first_data = _noisy(PositivePair(u=1.0, v=2.0), freq, sd=0.1, seed=0)
+    second_data = _noisy(PositivePair(u=1.0, v=2.0), freq, sd=0.1, seed=1, smooth=0.05)
+    start = PositivePair(u=prf.Random(Normal(0.5, 1.0), value=0.5), v=prf.Random(Normal(2.5, 1.0), value=1.0))
+    solver = _quiet_map(ftol=1e-12, xtol=1e-12, gtol=1e-12)
+
+    first = minimize(_map_problem(start, first_data, freq), solver=solver).problem
+    lin = first.problem.terms[0].evaluator.evaluator.linearize(first.model, freq)
+    mean = jnp.asarray([prf.values(first.model)[name] for name in lin.names])
+    posterior = dd.MultivariateNormalFullCovariance(mean, posterior_covariance([lin], first.model))
+    # The Gaussian leaves u's validity, so it is attached unnormalised.
+    second = _map_problem(
+        prf.prior(first.model, list(lin.names), posterior, truncate="unnormalised"),
+        second_data, freq, discrepancy=_gp(),
+    )
+
+    least_squares = minimize(second, solver=solver)
+    scalar = minimize(second, solver=ScipyMinimize(show_progress=False, options={"ftol": 1e-15, "gtol": 1e-12}))
+
+    assert least_squares.success and least_squares.metrics.rounds == 1
+    fitted, expected = prf.values(least_squares.model), prf.values(scalar.model)
+    for name in ("u", "v"):
+        assert fitted[name] == pytest.approx(expected[name], rel=1e-6), name
+
+
+def test_unnormalised_joint_prior_keeps_iterates_inside_the_validity():
+    freq = Frequency(1.0, 3.0, 21, "GHz")
+    seen = []
+    record = lambda u: seen.append(float(u))
+
+    def predictor(m, f):
+        # The joint prior wraps the model; unwrapped, it is a `Wrapped` model.
+        jax.debug.callback(record, m.wrapped.u)
+        return m.s(f)
+
+    # The data pull u to -1, past its validity at 0, and the prior's support crosses it.
+    data = np.asarray(Pair(u=-1.0, v=2.0).s(freq))
+    model = prf.prior(
+        PositivePair(u=prf.Unconstrained(0.5), v=prf.Unconstrained(1.5)), ["u", "v"],
+        dd.MultivariateNormalFullCovariance(jnp.array([0.2, 2.0]), _JOINT_COVARIANCE), truncate="unnormalised",
+    )
+    mll = MarginalLogLikelihood(predictor=predictor, observed=data, likelihood=GaussianLikelihood(1e-2))
+    problem = PriorPenalized(SummedTerms(model=model, terms=as_terms(Negated(mll), freq)))
+
+    result = minimize(problem, solver=_quiet_map())
+
+    assert result.success
+    assert seen and all(u >= 0.0 for u in seen)
+    assert prf.values(result.model)["u"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_joint_prior_over_raw_space_raises_before_scipy_is_called(monkeypatch, freq):
+    def never(*args, **kwargs):
+        raise AssertionError("SciPy was called")
+
+    monkeypatch.setattr(scipy_solver, "scipy_least_squares", never)
+    data = np.asarray(Pair(u=1.0, v=2.0).s(freq))
+    model = prf.prior(
+        Pair(u=prf.Unconstrained(0.5), v=prf.Unconstrained(1.5)), ["u", "v"],
+        dd.MultivariateNormalFullCovariance(_JOINT_MEAN, jnp.eye(2)), space="raw",
+    )
+    with pytest.raises(NotImplementedError, match="joint prior over raw space.*not yet supported"):
+        minimize(_map_problem(model, data, freq), solver=_quiet_map())

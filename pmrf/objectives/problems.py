@@ -10,9 +10,12 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import parax as prx
+import parax.distributions as dist
 from jaxtyping import PyTree
 
-from pmrf.parameters import _JointSlot, _log_scale, tree_param_distributions, tree_param_log_prob
+from pmrf.parameters import (
+    _JointSlot, _flat_vector, _log_scale, _per_vector, tree_param_distributions, tree_param_log_prob,
+)
 from pmrf.objectives.evaluators import _least_squares_unsupported, whitened_residual
 from pmrf.stats.bijectors import ScalarAffine
 from pmrf.stats.distributions import Normal, Transformed, TruncatedNormal, Uniform
@@ -169,6 +172,10 @@ class PriorPenalized(AbstractProblem):
           :class:`~pmrf.stats.distributions.TruncatedNormal`, including a normal
           truncated to a validity, gives $(\theta - \mu)/\sigma$; its truncation is
           the box edges instead, and its normaliser is constant;
+        - a joint multivariate normal over declared or physical space, including one
+          attached with ``truncate='unnormalised'``, gives $L_0^{-1}(\theta - \mu)$
+          over its vector, with $\Sigma_0 = L_0 L_0^\top$; its truncation is each
+          parameter's validity, already the box edges;
         - a :class:`~pmrf.stats.distributions.Uniform`, or no prior, gives none.
 
         Only the parameters of :attr:`model` contribute. The priors of the terms'
@@ -177,14 +184,24 @@ class PriorPenalized(AbstractProblem):
         Raises
         ------
         NotImplementedError
-            If a parameter of the model has any other prior, including a joint prior,
-            or a term has no whitened residual.
+            If a parameter of the model has any other prior, including a joint prior
+            over raw space, or a term has no whitened residual.
         """
         distributions = unwrap(self.distributions).model
         values = unwrap(self.problem).model
         is_scored = lambda x: x is None or prx.is_distribution(x) or isinstance(x, _JointSlot)
-        priors = jax.tree.map(_prior_residual, distributions, values, is_leaf=is_scored)
+        joints: dict[int, dict[int, tuple[_JointSlot, jnp.ndarray]]] = {}
+
+        def residual(distribution, value):
+            if isinstance(distribution, _JointSlot):
+                # Computed once all the slots of its joint prior are gathered.
+                joints.setdefault(distribution.key, {})[distribution.index] = (distribution, value)
+                return None
+            return _prior_residual(distribution, value)
+
+        priors = jax.tree.map(residual, distributions, values, is_leaf=is_scored)
         residuals = [jnp.ravel(r) for r in jax.tree.leaves(priors)]
+        residuals += [jnp.ravel(_joint_prior_residual(slots)) for slots in joints.values()]
         return jnp.concatenate([jnp.ravel(whitened_residual(self.problem, *args, **kwargs)), *residuals])
 
 
@@ -196,8 +213,6 @@ def _prior_residual(distribution: Any, value: jnp.ndarray) -> jnp.ndarray | None
     """
     if distribution is None:
         return None
-    if isinstance(distribution, _JointSlot):
-        raise _least_squares_unsupported("A joint prior")
     while isinstance(distribution, Transformed) and isinstance(distribution.bijector, ScalarAffine):
         value = distribution.bijector.inverse(value)
         distribution = distribution.distribution
@@ -206,6 +221,32 @@ def _prior_residual(distribution: Any, value: jnp.ndarray) -> jnp.ndarray | None
     if isinstance(distribution, (Normal, TruncatedNormal)):
         return (value - distribution.loc) / distribution.scale
     raise _least_squares_unsupported(f"A {type(distribution).__name__} prior")
+
+
+def _joint_prior_residual(slots: dict[int, tuple[_JointSlot, jnp.ndarray]]) -> jnp.ndarray:
+    r"""Returns the prior residual $L_0^{-1}(\theta - \mu)$ of one joint multivariate
+    normal prior at the physical values its slots were matched with, one vector per
+    batch element.
+
+    Its vector is taken to the prior's space as :func:`pmrf.parameters.log_prior` takes
+    it, without the change-of-variables term, which is constant over declared or
+    physical space. A value outside a parameter's validity is left to the box edges.
+    """
+    ordered = [slots[i] for i in sorted(slots)]
+    first = ordered[0][0]
+    if len(ordered) != first.size:
+        raise ValueError("A joint prior's parameters are missing from the tree it is scored against.")
+    if first.space == 'raw':
+        raise _least_squares_unsupported("A joint prior over raw space")
+    distribution = first.distribution
+    normals = (dist.MultivariateNormalDiag, dist.MultivariateNormalFullCovariance, dist.MultivariateNormalTri)
+    if not isinstance(distribution, normals):
+        raise _least_squares_unsupported(f"A {type(distribution).__name__} joint prior")
+    values = [jnp.asarray(value) for _, value in ordered]
+    if first.space == 'declared':
+        values = [y / slot.scale for (slot, _), y in zip(ordered, values)]
+    vector = _flat_vector(values, [slot.shape for slot, _ in ordered])
+    return _per_vector(lambda v: distribution.scale.inverse(v - distribution.loc), vector)
 
 
 def problem_terms(problem: AbstractProblem, name: str) -> tuple[TermFn, ...]:
