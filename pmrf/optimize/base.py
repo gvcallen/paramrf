@@ -9,6 +9,8 @@ from jaxtyping import Array, PyTree, Scalar
 import equinox as eqx
 import jax
 from pmrf._solver_view import SolverView
+from pmrf.objectives.problems import AbstractProblem
+from pmrf.parameters import tree_param_paths
 
 
 class MinimizeResult(eqx.Module):
@@ -21,6 +23,9 @@ class MinimizeResult(eqx.Module):
     
     #: Any solver metrics.
     metrics: Any = None
+
+    #: The optimal hyperparameters, for a least-squares minimiser given any, else None.
+    hyper: PyTree = None
 
 
 class AbstractUnconstrainedMinimizer(eqx.Module):
@@ -131,6 +136,11 @@ class AbstractLeastSquaresMinimizer(eqx.Module):
     A least-squares minimiser minimises half the squared norm of a residual vector
     rather than a scalar objective (ADR-0009). It honours bounds, so it searches box
     space and is given the box's edges as `bounds`.
+
+    It may also be given hyperparameters: values the residual depends on but that are
+    not least-squares variables, with a scalar objective of them. It then alternates a
+    least-squares solve over `y` with the hyperparameters held and a step over the
+    hyperparameters with `y` held. It knows nothing of what the hyperparameters are.
     """
 
     @property
@@ -141,11 +151,15 @@ class AbstractLeastSquaresMinimizer(eqx.Module):
     @abc.abstractmethod
     def run(
         self,
-        residual_fn: Callable[[PyTree, Any], Array],
+        residual_fn: Callable[[PyTree, PyTree, Any], Array],
         y0: PyTree,
         args: Any,
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
+        *,
+        hyper_fn: Callable[[PyTree, PyTree, Any], Scalar] | None = None,
+        hyper0: PyTree = None,
+        hyper_bounds: tuple[PyTree, PyTree] | None = None,
         **kwargs
     ) -> MinimizeResult:
         """
@@ -154,24 +168,34 @@ class AbstractLeastSquaresMinimizer(eqx.Module):
         Parameters
         ----------
         residual_fn : callable
-            The residual function, returning a real 1-D vector. Half its squared norm
-            is minimised.
+            The residual function `residual_fn(y, hyper, args)`, returning a real 1-D
+            vector. Half its squared norm is minimised over `y`. `hyper` is None when
+            there are no hyperparameters.
         y0 : PyTree
             The initial parameter guess.
         args : Any
-            Args to pass to `residual_fn`.
+            Args to pass to `residual_fn` and `hyper_fn`.
         bounds : tuple[PyTree, PyTree], optional
             The lower and upper edges of the box to search, shaped like `y0`. Edges may
             be infinite.
         max_iter: int = 1024
-            The maximum number of iterations to take.
+            The maximum number of iterations of each solve.
+        hyper_fn : callable, optional
+            The full scalar objective `hyper_fn(hyper, y, args)`, minimised over the
+            hyperparameters, or None. Required with `hyper0`; without it, only the
+            objective reported is affected.
+        hyper0 : PyTree, optional
+            The initial hyperparameters, or None if there are none.
+        hyper_bounds : tuple[PyTree, PyTree], optional
+            The lower and upper edges of the hyperparameters' box, shaped like `hyper0`.
         **kwargs
             Runtime arguments forward to the solver backend.
 
         Returns
         -------
         results
-            An instance of :class:`pmrf.optimize.MinimizeResult`.
+            An instance of :class:`pmrf.optimize.MinimizeResult`, with the
+            hyperparameters in `hyper`.
         """
         raise NotImplementedError
 
@@ -225,8 +249,14 @@ def run_minimizer(
       finite bounds, or 1e-6 in declared units otherwise.
 
     A least-squares minimiser (:class:`AbstractLeastSquaresMinimizer`) searches box space
-    too, but is handed `residual_fn` instead of `fn`. The residual is traced once at the
-    start, so a term without a whitened residual raises before the solver runs.
+    too, but is handed `residual_fn` instead of `fn`. When `model` is a problem
+    (:class:`pmrf.objectives.problems.AbstractProblem`), its free parameters are split
+    (ADR-0009): the **model parameters** are those of ``model.model``, and the
+    **hyperparameters** are the rest, those the terms own. The minimiser is handed the
+    residual as a function of the model parameters given the hyperparameters, and `fn`
+    as the full objective of the hyperparameters given the model parameters. For any
+    other tree every free parameter is a model parameter. The residual is traced once at
+    the start, so a term without a whitened residual raises before the solver runs.
 
     The result is written back with :func:`pmrf.update`, so fixed parameters, names,
     scales and priors are unchanged.
@@ -245,7 +275,8 @@ def run_minimizer(
         Maximum number of iterations. Defaults to 1024.
     residual_fn : callable, optional
         The residual function taking `(unwrapped_model, args)`, half of whose squared
-        norm is `fn`. Required by a least-squares minimiser, ignored by any other.
+        norm is `fn` up to terms constant in the model parameters. Required by a
+        least-squares minimiser, ignored by any other.
     **kwargs
         Runtime arguments forwarded to the solver backend.
 
@@ -275,20 +306,76 @@ def run_minimizer(
     else:
         space, y0 = 'raw', view.y0
     if isinstance(solver, AbstractLeastSquaresMinimizer):
-        if residual_fn is None:
-            raise ValueError(
-                f"{type(solver).__name__} is a least-squares minimiser and needs a residual "
-                "function, but none was given."
-            )
-        box_residual_fn = view.objective(residual_fn, space)
-        # Tracing raises for a term without a whitened residual, before the solver runs.
-        jax.eval_shape(box_residual_fn, y0, args)
-        result = solver.run(residual_fn=box_residual_fn, y0=y0, args=args, max_iter=max_iter, **kwargs)
+        result = _run_least_squares(fn, residual_fn, model, view, solver, y0, args, max_iter, **kwargs)
+        values = {**result.y, **(result.hyper or {})}
     else:
         result = solver.run(fn=view.objective(fn, space), y0=y0, args=args, max_iter=max_iter, **kwargs)
-    opt_model = view.updated(result.y, space)
+        values = result.y
+    opt_model = view.updated(values, space)
 
     if not result.success:
         warnings.warn("Optimization failed to converge. Try increasing the maximum number of iterations or loosening the solver tolerances.")
 
     return opt_model, result
+
+
+def _model_parameter_names(tree: PyTree) -> set[str]:
+    """Returns the names of the free parameters of a problem's model, or of every free
+    parameter if `tree` is not a problem."""
+    paths = tree_param_paths(tree, free_only=True)
+    if not isinstance(tree, AbstractProblem):
+        return set(paths)
+    model = tree.model
+    path_leaves, _ = jax.tree_util.tree_flatten_with_path(tree, is_leaf=lambda x: x is model)
+    prefixes = [path for path, leaf in path_leaves if leaf is model]
+    if not prefixes:
+        raise ValueError("The problem's model could not be located in the problem.")
+    prefix = prefixes[0]
+    return {name for name, (path, _) in paths.items() if tuple(path[:len(prefix)]) == tuple(prefix)}
+
+
+def _run_least_squares(
+    fn, residual_fn, model, view, solver, y0, args, max_iter, *, bounds, **kwargs
+) -> MinimizeResult:
+    """Splits the free parameters of `model` and runs a least-squares minimiser on them,
+    in box space."""
+    if residual_fn is None:
+        raise ValueError(
+            f"{type(solver).__name__} is a least-squares minimiser and needs a residual "
+            "function, but none was given."
+        )
+    model_names = _model_parameter_names(model)
+    lower, upper = bounds
+
+    def split(values):
+        return (
+            {name: v for name, v in values.items() if name in model_names},
+            {name: v for name, v in values.items() if name not in model_names},
+        )
+
+    y_model, y_hyper = split(y0)
+    if not y_model:
+        raise ValueError(
+            "Nothing to optimize by least squares: the problem's model has no free "
+            "parameters, only hyperparameters."
+        )
+    (lower_model, lower_hyper), (upper_model, upper_hyper) = split(lower), split(upper)
+    box_residual_fn = view.objective(residual_fn, 'box')
+    box_fn = view.objective(fn, 'box')
+
+    def model_residual_fn(y, hyper, a):
+        return box_residual_fn({**y, **(hyper or {})}, a)
+
+    def hyper_fn(hyper, y, a):
+        return box_fn({**y, **(hyper or {})}, a)
+
+    hyper0 = y_hyper or None
+    # Tracing raises for a term without a whitened residual, before the solver runs.
+    jax.eval_shape(model_residual_fn, y_model, hyper0, args)
+    return solver.run(
+        residual_fn=model_residual_fn, y0=y_model, args=args,
+        bounds=(lower_model, upper_model), max_iter=max_iter,
+        hyper_fn=hyper_fn, hyper0=hyper0,
+        hyper_bounds=(lower_hyper, upper_hyper) if hyper0 is not None else None,
+        **kwargs,
+    )

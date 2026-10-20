@@ -253,6 +253,15 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
     near-degenerate, it converges where :class:`ScipyMinimize` with L-BFGS-B can stop at
     a wrong point.
 
+    Given hyperparameters, such as a free noise or kernel hyperparameters of a MAP fit,
+    it alternates. Each round is a least-squares solve with the hyperparameters held,
+    then a hyperparameter step by :attr:`hyper_minimizer` on the full objective with the
+    model parameters held. It stops when a round decreases the full objective by no more
+    than :attr:`ftol` relative to it, or after :attr:`max_rounds`; a round that
+    increases it is discarded. Without hyperparameters it is a single solve.
+    ``metrics.rounds`` is the number of rounds run, ``metrics.objective`` the final full
+    objective, and ``metrics.history`` the full objective after each round kept.
+
     Every iterate stays strictly inside the box. A start on a closed edge is moved 1e-6
     inward in box space first, as for a raw-space minimiser (ADR-0007): SciPy's own move
     is so small that a fit starting with every parameter on a bound cannot leave it.
@@ -261,7 +270,8 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
     :class:`FloatingPointError` with the evaluation number before SciPy can return a
     failed start point. Finite nonconvergence keeps SciPy's usual result.
     """
-    #: Tolerance for termination by the change of the cost function.
+    #: Tolerance for termination by the change of the cost function, and of the full
+    #: objective between rounds.
     ftol: float | None = eqx.field(static=True, default=1e-8)
 
     #: Tolerance for termination by the change of the independent variables.
@@ -276,18 +286,39 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
     #: Whether to show a progress bar.
     show_progress: bool = eqx.field(static=True, default=True)
 
+    #: The minimiser of the hyperparameter step. It must honour bounds. None is
+    #: :class:`ScipyMinimize`, showing progress as this minimiser does.
+    hyper_minimizer: AbstractBoundedMinimizer | None = None
+
+    #: The most rounds of an alternating fit.
+    max_rounds: int = eqx.field(static=True, default=100)
+
+    def __check_init__(self):
+        hyper = self.hyper_minimizer
+        if hyper is not None and not (isinstance(hyper, AbstractBoundedMinimizer) and hyper.honours_bounds):
+            raise ValueError(
+                "`hyper_minimizer` must be a minimiser that honours bounds, since the "
+                f"hyperparameter step searches box space. Got {type(hyper).__name__}."
+            )
+
     def run(
         self,
-        residual_fn: Callable[[PyTree, Any], Any],
+        residual_fn: Callable[[PyTree, PyTree, Any], Any],
         y0: PyTree,
         args: Any = None,
         bounds: tuple[PyTree, PyTree] | None = None,
         max_iter: int = 1024,
+        *,
+        hyper_fn: Callable[[PyTree, PyTree, Any], Any] | None = None,
+        hyper0: PyTree = None,
+        hyper_bounds: tuple[PyTree, PyTree] | None = None,
         **kwargs
     ) -> MinimizeResult:
         for key in ('method', 'max_nfev', 'jac', 'bounds'):
             if key in self.options or key in kwargs:
                 raise ValueError(f"Cannot pass `{key}` to ScipyLeastSquares; it is set by the minimiser.")
+        if hyper0 is not None and hyper_fn is None:
+            raise ValueError("Hyperparameters were given without `hyper_fn` to minimise them over.")
 
         flat_y, unravel_fn = ravel_pytree(y0)
         start = np.asarray(flat_y, dtype=np.float64)
@@ -306,8 +337,9 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
             start = np.where(start >= upper, np.fmax(upper - _EDGE_NUDGE, middle), start)
             scipy_bounds = (lower, upper)
 
-        def flat_residual(_flat_y):
-            return jnp.ravel(residual_fn(unravel_fn(_flat_y), args))
+        # The hyperparameters are an argument, so each round reuses one compilation.
+        def flat_residual(_flat_y, hyper):
+            return jnp.ravel(residual_fn(unravel_fn(_flat_y), hyper, args))
 
         residual_only = jax.jit(flat_residual)
         jacobian = jax.jit(jax.jacfwd(flat_residual))
@@ -327,61 +359,97 @@ class ScipyLeastSquares(AbstractLeastSquaresMinimizer):
                 )
             return x_np
 
-        def fun(x_np):
-            eval_count[0] += 1
-            x_np = checked_input(x_np, 'residual', eval_count[0])
-            r = np.asarray(residual_only(jnp.asarray(x_np)), dtype=np.float64)
-            if not np.all(np.isfinite(r)):
-                raise FloatingPointError(
-                    f"SciPy least-squares trf residual evaluation {eval_count[0]} produced a "
-                    "nonfinite residual; free parameters in context: "
-                    f"{_label_list(labels, range(len(labels)))}."
+        def solve(x0, hyper):
+            def fun(x_np):
+                eval_count[0] += 1
+                x_np = checked_input(x_np, 'residual', eval_count[0])
+                r = np.asarray(residual_only(jnp.asarray(x_np), hyper), dtype=np.float64)
+                if not np.all(np.isfinite(r)):
+                    raise FloatingPointError(
+                        f"SciPy least-squares trf residual evaluation {eval_count[0]} produced a "
+                        "nonfinite residual; free parameters in context: "
+                        f"{_label_list(labels, range(len(labels)))}."
+                    )
+                current_cost[0] = 0.5 * float(r @ r)
+                return r
+
+            def jac(x_np):
+                jac_count[0] += 1
+                x_np = checked_input(x_np, 'Jacobian', jac_count[0])
+                J = np.asarray(jacobian(jnp.asarray(x_np), hyper), dtype=np.float64).reshape(-1, x_np.size)
+                bad = np.flatnonzero(~np.all(np.isfinite(J), axis=0))
+                if len(bad):
+                    raise FloatingPointError(
+                        f"SciPy least-squares trf Jacobian evaluation {jac_count[0]} produced a "
+                        f"nonfinite Jacobian for {_label_list(labels, bad)}."
+                    )
+                return J
+
+            pbar = None
+            if self.show_progress:
+                pbar = tqdm(total=max_iter, desc="SciPy least-squares trf")
+
+            def callback(*cb_args, **cb_kwargs):
+                if pbar is not None:
+                    pbar.update(1)
+                    pbar.set_postfix(loss=f"{current_cost[0]:.3g}")
+
+            try:
+                return scipy_least_squares(
+                    fun,
+                    x0,
+                    jac=jac,
+                    bounds=scipy_bounds,
+                    method='trf',
+                    ftol=self.ftol,
+                    xtol=self.xtol,
+                    gtol=self.gtol,
+                    max_nfev=max_iter,
+                    callback=callback,
+                    **self.options,
+                    **kwargs,
                 )
-            current_cost[0] = 0.5 * float(r @ r)
-            return r
+            finally:
+                if pbar is not None:
+                    pbar.close()
 
-        def jac(x_np):
-            jac_count[0] += 1
-            x_np = checked_input(x_np, 'Jacobian', jac_count[0])
-            J = np.asarray(jacobian(jnp.asarray(x_np)), dtype=np.float64).reshape(-1, x_np.size)
-            bad = np.flatnonzero(~np.all(np.isfinite(J), axis=0))
-            if len(bad):
-                raise FloatingPointError(
-                    f"SciPy least-squares trf Jacobian evaluation {jac_count[0]} produced a "
-                    f"nonfinite Jacobian for {_label_list(labels, bad)}."
+        def full_objective(hyper, x):
+            if hyper_fn is None:
+                r = np.asarray(residual_only(jnp.asarray(x), hyper), dtype=np.float64)
+                return 0.5 * float(r @ r)
+            return float(hyper_fn(hyper, unravel_fn(jnp.asarray(x)), args))
+
+        stepper = self.hyper_minimizer or ScipyMinimize(show_progress=self.show_progress)
+        x, hyper, history, rounds = start, hyper0, [], 0
+        while True:
+            candidate = solve(x, hyper)
+            rounds += 1
+            candidate_hyper, step_success = hyper, True
+            if hyper0 is not None:
+                step = stepper.run(
+                    fn=lambda h, a: hyper_fn(h, a[0], a[1]), y0=hyper,
+                    args=(unravel_fn(jnp.asarray(candidate.x)), args),
+                    bounds=hyper_bounds, max_iter=max_iter,
                 )
-            return J
+                candidate_hyper, step_success = step.y, step.success
+            value = full_objective(candidate_hyper, candidate.x)
+            previous = history[-1] if history else None
+            if previous is not None and not value <= previous:
+                break
+            res, x, hyper = candidate, candidate.x, candidate_hyper
+            success = bool(candidate.success) and step_success
+            history.append(value)
+            if hyper0 is None or rounds >= self.max_rounds:
+                break
+            if previous is not None and previous - value <= (self.ftol or 0.0) * abs(previous):
+                break
 
-        pbar = None
-        if self.show_progress:
-            pbar = tqdm(total=max_iter, desc="SciPy least-squares trf")
-
-        def callback(*cb_args, **cb_kwargs):
-            if pbar is not None:
-                pbar.update(1)
-                pbar.set_postfix(loss=f"{current_cost[0]:.3g}")
-
-        try:
-            res = scipy_least_squares(
-                fun,
-                start,
-                jac=jac,
-                bounds=scipy_bounds,
-                method='trf',
-                ftol=self.ftol,
-                xtol=self.xtol,
-                gtol=self.gtol,
-                max_nfev=max_iter,
-                callback=callback,
-                **self.options,
-                **kwargs,
-            )
-        finally:
-            if pbar is not None:
-                pbar.close()
-
+        res.rounds = rounds
+        res.objective = history[-1]
+        res.history = history
         return MinimizeResult(
             y=unravel_fn(jnp.asarray(res.x)),
-            success=bool(res.success),
+            success=success,
             metrics=res,
+            hyper=hyper,
         )

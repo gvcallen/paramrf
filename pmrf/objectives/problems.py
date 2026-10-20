@@ -6,12 +6,16 @@ import warnings
 from abc import abstractmethod
 from typing import Any
 
+import jax
 import jax.numpy as jnp
 import equinox as eqx
+import parax as prx
 from jaxtyping import PyTree
 
-from pmrf.parameters import _log_scale, tree_param_distributions, tree_param_log_prob
-from pmrf.objectives.evaluators import whitened_residual
+from pmrf.parameters import _JointSlot, _log_scale, tree_param_distributions, tree_param_log_prob
+from pmrf.objectives.evaluators import _least_squares_unsupported, whitened_residual
+from pmrf.stats.bijectors import ScalarAffine
+from pmrf.stats.distributions import Normal, Transformed, TruncatedNormal, Uniform
 from pmrf.objectives.terms import TermFn
 from pmrf.utils import field, freeze, unwrap
 
@@ -151,6 +155,57 @@ class PriorPenalized(AbstractProblem):
         # values must be too. A solver will already have done this, but not a direct call.
         physical = tree_param_log_prob(unwrap(self.distributions), unwrap(self.problem))
         return self.problem(*args, **kwargs) - (physical + unwrap(self.log_scale))
+
+    def whitened_residual(self, *args, **kwargs) -> jnp.ndarray:
+        r"""
+        Returns the problem's whitened residual with the prior residuals of the model's
+        parameters appended.
+
+        Half its squared norm is the negative log posterior, up to terms constant in
+        the model parameters (ADR-0009). The prior residual is computed from each
+        distribution, in the space it is over, rather than read from raw space:
+
+        - a :class:`~pmrf.stats.distributions.Normal` or
+          :class:`~pmrf.stats.distributions.TruncatedNormal`, including a normal
+          truncated to a validity, gives $(\theta - \mu)/\sigma$; its truncation is
+          the box edges instead, and its normaliser is constant;
+        - a :class:`~pmrf.stats.distributions.Uniform`, or no prior, gives none.
+
+        Only the parameters of :attr:`model` contribute. The priors of the terms'
+        hyperparameters are constant here; a hyperparameter step takes them.
+
+        Raises
+        ------
+        NotImplementedError
+            If a parameter of the model has any other prior, including a joint prior,
+            or a term has no whitened residual.
+        """
+        distributions = unwrap(self.distributions).model
+        values = unwrap(self.problem).model
+        is_scored = lambda x: x is None or prx.is_distribution(x) or isinstance(x, _JointSlot)
+        priors = jax.tree.map(_prior_residual, distributions, values, is_leaf=is_scored)
+        residuals = [jnp.ravel(r) for r in jax.tree.leaves(priors)]
+        return jnp.concatenate([jnp.ravel(whitened_residual(self.problem, *args, **kwargs)), *residuals])
+
+
+def _prior_residual(distribution: Any, value: jnp.ndarray) -> jnp.ndarray | None:
+    r"""Returns the prior residual of a value under its physical-space prior, or None.
+
+    A scale or a prior authored over physical space reaches the distribution as an
+    affine map, which leaves $(\theta - \mu)/\sigma$ unchanged, so it is undone first.
+    """
+    if distribution is None:
+        return None
+    if isinstance(distribution, _JointSlot):
+        raise _least_squares_unsupported("A joint prior")
+    while isinstance(distribution, Transformed) and isinstance(distribution.bijector, ScalarAffine):
+        value = distribution.bijector.inverse(value)
+        distribution = distribution.distribution
+    if isinstance(distribution, Uniform):
+        return None
+    if isinstance(distribution, (Normal, TruncatedNormal)):
+        return (value - distribution.loc) / distribution.scale
+    raise _least_squares_unsupported(f"A {type(distribution).__name__} prior")
 
 
 def problem_terms(problem: AbstractProblem, name: str) -> tuple[TermFn, ...]:

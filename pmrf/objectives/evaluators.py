@@ -21,7 +21,7 @@ from pmrf.frequency import Frequency
 from pmrf.objectives.losses import HingeLoss, MSELoss, RMSELoss
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.stats.covariance_kernels import cross_gram, gram
-from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise
+from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise, _group_by_matrix
 from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance_factor
 from pmrf.modules.base import Module
 from pmrf.parameters import Space, values as _values, update
@@ -957,7 +957,15 @@ class MarginalLogLikelihood(AbstractEvaluator):
         def residual_fn(candidate):
             return self.event_data(candidate, frequency, **kwargs)[1]
 
-        pred_event, _, variance, _ = self.event_data(model, frequency, **kwargs)
+        _, chol = self._residual_and_factor(model, frequency, **kwargs)
+        return _linearize(residual_fn, model, chol, space)
+
+    def _residual_and_factor(
+        self, model: PyTree, frequency: Frequency, **kwargs
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        r"""Return the event-space residual and the lower Cholesky factor of
+        $\Sigma_D = K + \Sigma_n$ per event block, as :meth:`linearize` uses them."""
+        pred_event, residual, variance, _ = self.event_data(model, frequency, **kwargs)
         n = pred_event.shape[-1]
         if self.use_orthogonal_discrepancy:
             K = self._projected_kernel(model, frequency, **kwargs)
@@ -966,7 +974,61 @@ class MarginalLogLikelihood(AbstractEvaluator):
         else:
             K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
         chol = jnp.linalg.cholesky(_add_noise(K, variance, pred_event.shape[:-1]))
-        return _linearize(residual_fn, model, chol, space)
+        return residual, chol
+
+    @unwrap_self
+    def whitened_residual(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        r"""Return the whitened residual, half of whose squared norm is the negative
+        log-likelihood up to terms constant in the model parameters (ADR-0009).
+
+        **Mathematical Formulation**
+
+        With the residual $r = \tilde h - h(\theta)$ in event space and
+        $\Sigma_D = K + \Sigma_n = L L^\top$ per event block, factorised as in
+        :meth:`linearize`,
+
+        $$w = L^{-1} r, \qquad
+        \tfrac{1}{2}\lVert w \rVert^2 = -\log p(\tilde h \mid \theta)
+        - \tfrac{1}{2}\ln|2\pi\Sigma_D|,$$
+
+        stacked over event blocks. Its Jacobian is the whitened Jacobian
+        $L^{-1} J$ of the linearisation, up to sign. The hyperparameters, held here,
+        enter only through $\Sigma_D$.
+
+        Raises
+        ------
+        NotImplementedError
+            If it is not yet supported: the likelihood is not a
+            :class:`~pmrf.stats.likelihoods.GaussianLikelihood`, its noise is a callable
+            of the prediction, the discrepancy is neither ``None`` nor a
+            :class:`~pmrf.stats.discrepancy_models.GaussianProcess`, the event transform
+            is conditional, or orthogonal discrepancy has no fixed reference basis.
+        """
+        if not isinstance(self.likelihood, GaussianLikelihood):
+            raise _least_squares_unsupported(
+                f"A MarginalLogLikelihood with a {type(self.likelihood).__name__} likelihood"
+            )
+        if callable(self.likelihood.noise):
+            raise _least_squares_unsupported(
+                "A MarginalLogLikelihood whose noise is a callable of the prediction"
+            )
+        if self.discrepancy is not None and not isinstance(self.discrepancy, GaussianProcess):
+            raise _least_squares_unsupported(
+                f"A MarginalLogLikelihood with a {type(self.discrepancy).__name__} discrepancy"
+            )
+        if self.has_conditional_event_transform:
+            raise _least_squares_unsupported(
+                "A MarginalLogLikelihood with a conditional event transform"
+            )
+        if self.use_orthogonal_discrepancy and (self.orthogonal_recompute or self.orthogonal_basis is None):
+            raise _least_squares_unsupported(
+                "A MarginalLogLikelihood with orthogonal discrepancy but no fixed reference basis"
+            )
+        residual, chol = self._residual_and_factor(model, frequency, **kwargs)
+        n = residual.shape[-1]
+        matrix_shape, R, _ = _group_by_matrix(chol.shape[:-2], residual)
+        L = jnp.broadcast_to(chol, chol.shape[:-2] + (n, n)).reshape(matrix_shape + (n, n))
+        return jnp.ravel(jsp.linalg.solve_triangular(L, R, lower=True))
 
     def predictive_distribution(self, model: PyTree, frequency: Frequency, **kwargs) -> dist.AbstractDistribution:
         """
@@ -1219,6 +1281,22 @@ class Negated(AbstractEvaluator):
 
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         return -self.evaluator(model, frequency, **kwargs)
+
+    def whitened_residual(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
+        """
+        Returns the whitened residual of a negated log-likelihood: that of the
+        :class:`MarginalLogLikelihood` it wraps.
+
+        Raises
+        ------
+        NotImplementedError
+            If the wrapped evaluator is not a :class:`MarginalLogLikelihood`, or its
+            whitened residual is not yet supported.
+        """
+        evaluator = unwrap(self.evaluator)
+        if not isinstance(evaluator, MarginalLogLikelihood):
+            raise _least_squares_unsupported(f"A negated {type(evaluator).__name__}")
+        return evaluator.whitened_residual(model, frequency, **kwargs)
 
 
 class Goal(TargetLoss):
