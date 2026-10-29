@@ -1,6 +1,8 @@
 """Suite-wide pytest configuration."""
 
+import json
 import os
+from collections import defaultdict
 from pathlib import Path
 
 import jax
@@ -20,6 +22,86 @@ CACHE_MAX_BYTES = 1 << 30
 #: When set (as CI does), a skipped test fails the run. Optional-dependency skips exist
 #: for users without the full backend set; the full test environment must run everything.
 REQUIRE_NO_SKIPS = os.environ.get("PMRF_TESTS_NO_SKIPS") == "1"
+
+TESTS = Path(__file__).parent
+
+#: Seconds per test file from a cold-cache run; only their proportions matter. `--shard`
+#: balances files by these, and `--store-durations` refreshes them.
+DURATIONS = TESTS / "durations.json"
+
+
+def pytest_addoption(parser):
+    group = parser.getgroup("pmrf")
+    group.addoption(
+        "--shard", metavar="K/N",
+        help="Run the K-th of N shards (1-based). Whole files are balanced by durations.json, "
+             "so a file's compiled programs are reused within one process.",
+    )
+    group.addoption(
+        "--store-durations", action="store_true",
+        help="Write the duration of each file run into durations.json.",
+    )
+
+
+def _test_file(config, nodeid):
+    """The path of a test's file relative to `tests/`, as durations.json keys it."""
+    path = config.rootpath / nodeid.split("::")[0]
+    return path.relative_to(TESTS).as_posix() if path.is_relative_to(TESTS) else path.as_posix()
+
+
+def _shards(files, durations, count):
+    """Assigns each file to one of `count` shards, longest first to the least loaded.
+    A file not in `durations` counts as the mean file."""
+    default = sum(durations.values()) / len(durations) if durations else 1.0
+    loads = [0.0] * count
+    shard_of = {}
+    for file in sorted(files, key=lambda f: (-durations.get(f, default), f)):
+        shard = loads.index(min(loads))
+        shard_of[file] = shard
+        loads[shard] += durations.get(file, default)
+    return shard_of
+
+
+def pytest_collection_modifyitems(config, items):
+    option = config.getoption("--shard")
+    if option is None:
+        return
+    index, count = (int(part) for part in option.split("/"))
+    if not 1 <= index <= count:
+        raise pytest.UsageError(f"--shard={option}: K must be between 1 and N")
+    durations = json.loads(DURATIONS.read_text()) if DURATIONS.exists() else {}
+    files = {_test_file(config, item.nodeid) for item in items}
+    shard_of = _shards(files, durations, count)
+    selected, deselected = [], []
+    for item in items:
+        in_shard = shard_of[_test_file(config, item.nodeid)] == index - 1
+        (selected if in_shard else deselected).append(item)
+    config.hook.pytest_deselected(items=deselected)
+    items[:] = selected
+
+
+class _DurationRecorder:
+    """Sums setup, call and teardown time per file. Under xdist the main process receives
+    every worker's reports, and writes the file."""
+
+    def __init__(self, config):
+        self.config = config
+        self.seconds = defaultdict(float)
+
+    def pytest_runtest_logreport(self, report):
+        self.seconds[_test_file(self.config, report.nodeid)] += report.duration
+
+    def pytest_sessionfinish(self, session):
+        if hasattr(self.config, "workerinput"):
+            return
+        durations = json.loads(DURATIONS.read_text()) if DURATIONS.exists() else {}
+        durations.update({file: round(seconds, 1) for file, seconds in self.seconds.items()})
+        DURATIONS.write_text(json.dumps(dict(sorted(durations.items())), indent=1) + "\n")
+
+
+def pytest_configure(config):
+    if config.getoption("--store-durations"):
+        config.pluginmanager.register(_DurationRecorder(config), "pmrf-durations")
 
 
 @pytest.hookimpl(hookwrapper=True)

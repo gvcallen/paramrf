@@ -23,7 +23,15 @@ concurrency:
 
 jobs:
   test:
+    name: test (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
+    # A shard should take 10–20 min; a hung sampler must not hold the runner for hours.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # tests/conftest.py balances whole files across shards by tests/durations.json.
+        shard: [1, 2, 3, 4]
 
     steps:
     - name: Checkout repo
@@ -44,19 +52,20 @@ jobs:
     - name: Install dependencies and smoke test package import
       run: scripts/install-test-deps.sh
 
-    # Each run saves under its own key and restores the newest earlier one, so the cache
-    # follows the code. conftest.py caps its size.
+    # Each shard saves under its own key and restores its newest earlier one, so the cache
+    # follows the code and the shard's files. conftest.py caps its size.
     - name: Restore JAX compilation cache
       uses: actions/cache@v4
       with:
         path: .jax_cache
-        key: jax-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-${{ github.sha }}
+        key: jax-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-shard${{ matrix.shard }}of${{ strategy.job-total }}-${{ github.sha }}
         restore-keys: |
+          jax-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-shard${{ matrix.shard }}of${{ strategy.job-total }}-
           jax-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-
           jax-${{ runner.os }}-
 
     - name: Run Pytest
       run: |
-        python -m pytest -rs -n auto
+        python -m pytest -rs -n auto --durations=25 --shard ${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         PMRF_TESTS_NO_SKIPS: "1"
