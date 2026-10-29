@@ -214,7 +214,7 @@ class DebyePole(AbstractPole):
 
     **Mathematical Formulation**
 
-    $$\Delta(f) = \frac{\Delta\varepsilon_r}{1 + jf/f_{r}}$$
+    $$\Delta(f) = \frac{\Delta\varepsilon_r}{1 + jf/f_{relax}}$$
 
     In :attr:`PoleDielectric.mu_poles`, `dep_r` is a permeability increment.
 
