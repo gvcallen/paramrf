@@ -110,6 +110,10 @@ from pmrf.models.components.lines.empirical import (
     AbstractEffectiveLineFormulation as AbstractEffectiveLineFormulation,
     NominalEffectiveLineFormulation as NominalEffectiveLineFormulation,
     FirstOrderEffectiveLineFormulation as FirstOrderEffectiveLineFormulation,
+    GeneralizedLine as GeneralizedLine,
+    RLTerm as RLTerm,
+    RCTerm as RCTerm,
+    LCTerm as LCTerm,
 )
 
 from pmrf.models.components.lines.coaxial import (
