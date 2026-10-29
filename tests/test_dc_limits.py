@@ -37,6 +37,7 @@ from pmrf.models import (
     DelayLine,
     FirstOrderEffectiveLineFormulation,
     FloatingLine,
+    GeneralizedLine,
     LowLossLine,
     MicrostripLine,
     PhaseLine,
@@ -73,6 +74,16 @@ LINES = {
         zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0,
         formulation=FirstOrderEffectiveLineFormulation(),
     ),
+    # Every term family and the skin-effect onset. The undamped LC terms resonate above
+    # the 0-10 GHz sweep; the damped ones may sit inside it.
+    "GeneralizedLine": GeneralizedLine(
+        zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, length=1.0, R_dc=0.01, f_s=1e6,
+        conductor_terms=[(0.02, 1e6)],
+        dielectric_terms=[(1e-3, 1e8)],
+        inductive_dispersion=[(1e-2, 50e9), (5e-3, 2e9, 0.2)],
+        capacitive_dispersion=[(1e-2, 60e9), (5e-3, 5e9, 0.1)],
+    ),
+    "GeneralizedLine (no onset)": GeneralizedLine(zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, length=1.0),
     "CoaxialLine": CoaxialLine(
         d_in=0.9e-3,
         d_out=2.95e-3,

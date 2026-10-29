@@ -16,6 +16,10 @@ from pmrf.models import (
     DatasheetLine, 
     NominalEffectiveLineFormulation,
     FirstOrderEffectiveLineFormulation,
+    GeneralizedLine,
+    RLTerm,
+    RCTerm,
+    LCTerm,
     CoaxialLine, 
     MicrostripLine, 
     StriplineLine,
@@ -78,6 +82,7 @@ def test_constant_rlgc_line(basic_freq):
     PhysicalLine(length=0.1, formulation=FirstOrderEffectiveLineFormulation()),
     DatasheetLine(length=0.1),
     DatasheetLine(length=0.1, formulation=FirstOrderEffectiveLineFormulation()),
+    GeneralizedLine(length=0.1),
     CoaxialLine(length=0.1),
     MicrostripLine(length=0.1)
 ])
@@ -306,6 +311,203 @@ def test_effective_lines_default_to_nominal_at_1_ghz(line_type):
     line = line_type(length=1.0)
     assert type(line.formulation) is NominalEffectiveLineFormulation
     assert line.f_ref.value == 1e9
+
+
+# -----------------------------------------------------------------------------
+# GeneralizedLine (#324): the first-order line plus RL, RC and LC terms. The same
+# effective values on the same 1 MHz-1 GHz axis.
+# -----------------------------------------------------------------------------
+
+def _first_order(**kwargs):
+    return PhysicalLine(
+        length=1.0, formulation=FirstOrderEffectiveLineFormulation(**_DS_BOUNDS), **kwargs,
+    )
+
+
+def _generalized(**kwargs):
+    return GeneralizedLine(length=1.0, **_DS_BOUNDS, **{**_EFFECTIVE, **kwargs})
+
+
+def _nominal_rlc(freq, zn=_EFFECTIVE["zn"], ep_eff=_EFFECTIVE["ep_eff"], A=_EFFECTIVE["A"],
+                 f_ref=_EFFECTIVE["f_ref"]):
+    """The nominal R'_n(w), L'_n and C'_n of EffectiveValues, in closed form."""
+    w = np.asarray(freq.w)
+    R = 2 * zn * np.log(10) / 20 * A * np.sqrt(w / (2 * np.pi * f_ref))
+    return w, R, zn * np.sqrt(ep_eff) / c, np.sqrt(ep_eff) / (zn * c)
+
+
+def test_generalized_line_reduces_to_first_order():
+    with jax.enable_x64():
+        freq = _effective_freq()
+        expected = _first_order(**_EFFECTIVE).immittance(freq)
+        actual = _generalized().immittance(freq)
+
+    # Built from the same operations: equal to the last ulp.
+    np.testing.assert_allclose(np.asarray(actual.Z), np.asarray(expected.Z), rtol=1e-15, atol=0)
+    np.testing.assert_allclose(np.asarray(actual.Y), np.asarray(expected.Y), rtol=1e-15, atol=0)
+
+
+def test_generalized_line_onset_error_falls_as_root_f_s():
+    """With a tiny f_s the onset is (1 + j) R'_n up to (2/pi) sqrt(f_s / f).
+
+    arctan(z) = pi/2 - 1/z + O(z^-3), and (1 + j) / sqrt(j) = sqrt(2), so the leading
+    error is real: Re Z' carries all of it, with no j w L'_n to cancel against.
+    """
+    f_s = 1e-6
+    with jax.enable_x64():
+        freq = _effective_freq()
+        reference = np.real(np.asarray(_first_order(**_EFFECTIVE).immittance(freq).Z))
+        onset = np.real(np.asarray(_generalized(f_s=f_s).immittance(freq).Z))
+    _, R, _, _ = _nominal_rlc(freq)
+
+    relative_error = (reference - onset) / np.abs((1 + 1j) * R)
+    # The next term is relative O(f_s / f) <= 1e-12; the difference loses ~1e-10.
+    np.testing.assert_allclose(relative_error, 2 / np.pi * np.sqrt(f_s / np.asarray(freq.f)), rtol=1e-8)
+
+
+def test_generalized_line_onset_matches_quadrature():
+    """The arctan term is the closed form of the truncated RL distribution."""
+    from scipy.integrate import quad
+
+    f_s = 1e6
+    zn, A, f_ref = _EFFECTIVE["zn"], _EFFECTIVE["A"], _EFFECTIVE["f_ref"]
+    freq = Frequency.from_f([1e5, 1e6, 3e6, 1e8, 1e9], unit='Hz')
+    with jax.enable_x64():
+        Z = np.asarray(_generalized(f_s=f_s).immittance(freq).Z)
+    w, _, L, _ = _nominal_rlc(freq)
+    w_s, w_ref = 2 * np.pi * f_s, 2 * np.pi * f_ref
+    R_ref = 2 * zn * np.log(10) / 20 * A
+
+    for wk, Zk in zip(w, Z):
+        # x = u^2 turns the integrand into 2 j w / (u^2 + j w) over [sqrt(w_s), inf).
+        u0 = np.sqrt(w_s)
+        re = quad(lambda u: 2 * wk**2 / (u**4 + wk**2), u0, np.inf, epsabs=0, epsrel=1e-13)[0]
+        im = quad(lambda u: 2 * wk * u**2 / (u**4 + wk**2), u0, np.inf, epsabs=0, epsrel=1e-13)[0]
+        expected = np.sqrt(2) * R_ref / (np.pi * np.sqrt(w_ref)) * (re + 1j * im)
+        # Subtracting j w L'_n (up to 1500 ohm/m) from Z' leaves ~1e-13 ohm/m of rounding.
+        np.testing.assert_allclose(Zk - 1j * wk * L, expected, rtol=1e-10)
+
+
+def test_generalized_line_rc_term():
+    tand_i, f_i = 1e-3, 10e6
+    with jax.enable_x64():
+        freq = _effective_freq()
+        base = _generalized().immittance(freq)
+        line = _generalized(dielectric_terms=[(tand_i, f_i)]).immittance(freq)
+    w, _, _, C = _nominal_rlc(freq)
+
+    expected = 1j * w * C * 2 * tand_i / (1 + 1j * w / (2 * np.pi * f_i))
+    np.testing.assert_allclose(np.asarray(line.Y - base.Y), expected, rtol=1e-10)
+
+
+def test_generalized_line_rc_term_peak_and_static_capacitance():
+    """On a lossless base the Debye pole is the whole loss: a peak tand_i at f_i.
+
+    With strength 2 ep_eff tand_i, eps'' peaks at ep_eff tand_i and eps' there is
+    ep_eff (1 + tand_i), so tan(delta) = tand_i / (1 + tand_i): about tand_i.
+    """
+    tand_i, f_i = 1e-3, 10e6
+    with jax.enable_x64():
+        freq = Frequency.from_f(np.logspace(0, 9, 1001), unit='Hz')
+        freq_peak = Frequency.from_f([1.0, f_i], unit='Hz')
+        line = _generalized(tand=0.0, dielectric_terms=[(tand_i, f_i)])
+        Y = np.asarray(line.immittance(freq).Y)
+        Y_peak = np.asarray(line.immittance(freq_peak).Y)
+    _, _, _, C = _nominal_rlc(freq)
+
+    def tand(Y):
+        return np.real(Y) / np.imag(Y)
+
+    np.testing.assert_allclose(tand(Y_peak[1]), tand_i / (1 + tand_i), rtol=1e-12)
+    assert np.max(tand(Y)) <= tand(Y_peak[1])
+    # At 1 Hz the pole is static to 1e-14: C' is 2 tand_i C'_n above C'_n.
+    C_static = np.imag(Y_peak[0]) / (2 * np.pi)
+    np.testing.assert_allclose(C_static, C * (1 + 2 * tand_i), rtol=1e-12)
+
+
+@pytest.mark.parametrize("family", ["inductive_dispersion", "capacitive_dispersion"])
+def test_generalized_line_lc_term(family):
+    a, f_i = 1e-2, 5e9
+    with jax.enable_x64():
+        freq = _effective_freq()
+        base = _generalized().immittance(freq)
+        line = _generalized(**{family: [(a, f_i)]}).immittance(freq)
+    w, _, L, C = _nominal_rlc(freq)
+    w_i = 2 * np.pi * f_i
+
+    resonance = a * w_i**2 / (w_i**2 - w**2)
+    if family == "inductive_dispersion":
+        np.testing.assert_allclose(np.asarray(line.Z - base.Z), 1j * w * L * resonance, rtol=1e-10)
+        np.testing.assert_array_equal(np.asarray(line.Y), np.asarray(base.Y))
+    else:
+        np.testing.assert_allclose(np.asarray(line.Y - base.Y), 1j * w * C * resonance, rtol=1e-10)
+        np.testing.assert_array_equal(np.asarray(line.Z), np.asarray(base.Z))
+
+
+@pytest.mark.parametrize("family", ["inductive_dispersion", "capacitive_dispersion"])
+def test_generalized_line_undamped_lc_term_in_band_raises(family):
+    line = _generalized(**{family: [(1e-2, 500e6)]})
+    with pytest.raises(Exception, match="must resonate outside the evaluated band"):
+        line.s(_effective_freq())
+
+
+def test_generalized_line_rl_term_is_parallel_rl():
+    A_i, f_i = 0.02, 1e6
+    with jax.enable_x64():
+        freq = _effective_freq()
+        base = _generalized().immittance(freq)
+        line = _generalized(conductor_terms=[(A_i, f_i)]).immittance(freq)
+    w = np.asarray(freq.w)
+    R_i = 2 * _EFFECTIVE["zn"] * np.log(10) / 20 * A_i
+    L_i = R_i / (2 * np.pi * f_i)
+
+    dZ = np.asarray(line.Z - base.Z)
+    np.testing.assert_allclose(dZ, 1 / (1 / R_i + 1 / (1j * w * L_i)), rtol=1e-10)
+    # Re dZ = R_i / (1 + (f_i / f)^2): 1e-6 below R_i at 1 GHz.
+    np.testing.assert_allclose(np.real(dZ[-1]), R_i, rtol=2e-6)
+
+
+def test_generalized_line_terms_coerce_from_tuples():
+    line = GeneralizedLine(
+        length=1.0,
+        conductor_terms=[(0.01, 1e6)],
+        dielectric_terms=[(1e-4, 1e7)],
+        inductive_dispersion=[(1e-3, 5e9)],
+        capacitive_dispersion=[(1e-3, 5e9, 0.1), LCTerm(a=1e-3, f=6e9)],
+    )
+    assert line.conductor_terms == (RLTerm(A=0.01, f=1e6),)
+    assert line.dielectric_terms == (RCTerm(tand=1e-4, f=1e7),)
+    assert line.inductive_dispersion == (LCTerm(a=1e-3, f=5e9),)
+    assert line.capacitive_dispersion == (LCTerm(a=1e-3, f=5e9, zeta=0.1), LCTerm(a=1e-3, f=6e9))
+
+
+def test_generalized_line_default_is_first_order_physical_line():
+    with jax.enable_x64():
+        freq = _effective_freq()
+        line = GeneralizedLine(length=1.0)
+        expected = PhysicalLine(length=1.0, formulation=FirstOrderEffectiveLineFormulation())
+        np.testing.assert_array_equal(np.asarray(line.s(freq)), np.asarray(expected.s(freq)))
+    # Always causal: there is no formulation to choose.
+    assert not hasattr(line, "formulation")
+    assert line.f_s is None
+
+
+def test_generalized_line_is_passive():
+    """Every term family populated, the undamped poles above the axis."""
+    with jax.enable_x64():
+        freq = Frequency.from_f(np.logspace(0, 11, 2001), unit='Hz')
+        line = _generalized(
+            R_dc=0.01,
+            f_s=1e5,
+            conductor_terms=[(0.02, 1e6), (0.01, 1e9)],
+            dielectric_terms=[(1e-3, 1e7), (5e-4, 3e9)],
+            inductive_dispersion=[(1e-2, 300e9), (5e-3, 2e9, 0.2)],
+            capacitive_dispersion=[(1e-2, 400e9), (5e-3, 5e9, 0.1)],
+        )
+        immittance = line.immittance(freq)
+
+    assert np.all(np.real(np.asarray(immittance.Z)) >= 0)
+    assert np.all(np.real(np.asarray(immittance.Y)) >= 0)
 
 
 def test_coaxial_line_impedance(basic_freq):
@@ -1183,6 +1385,7 @@ _ZERO_VALID_LINE = {
     "PhysicalLine.tand": (lambda x: PhysicalLine(tand=x, length=0.1), lambda line: line.tand),
     "DatasheetLine.k1": (lambda x: DatasheetLine(k1=x, length=0.1), lambda line: line.k1),
     "DatasheetLine.k2": (lambda x: DatasheetLine(k2=x, length=0.1), lambda line: line.k2),
+    "GeneralizedLine.R_dc": (lambda x: GeneralizedLine(R_dc=x, length=0.1), lambda line: line.R_dc),
 }
 
 
@@ -1222,12 +1425,14 @@ def test_negative_line_loss_is_rejected(make, where):
     lambda: DatasheetLine(f_ref=0.0, length=0.1),
     lambda: FirstOrderEffectiveLineFormulation(f_low=0.0),
     lambda: FirstOrderEffectiveLineFormulation(f_high=0.0),
+    lambda: GeneralizedLine(f_s=0.0, length=0.1),
 ], ids=[
     "RLGCLine.L", "RLGCLine.C", "RLGCLine.length",
     "LowLossLine.zn", "LowLossLine.f_ref",
     "PhysicalLine.zn", "PhysicalLine.f_ref",
     "DatasheetLine.zn", "DatasheetLine.vf", "DatasheetLine.f_ref",
     "FirstOrderEffectiveLineFormulation.f_low", "FirstOrderEffectiveLineFormulation.f_high",
+    "GeneralizedLine.f_s",
 ])
 def test_line_parameters_that_cannot_be_zero_reject_it(make):
     with pytest.raises(Exception, match="is not in Positive"):
