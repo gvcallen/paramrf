@@ -100,7 +100,7 @@ def test_evaluate_is_elementwise(cls):
     assert batched.shape == ts.shape
 
     one_by_one = jnp.stack([prof.evaluate(t) for t in ts])
-    assert batched == pytest.approx(one_by_one, rel=1e-12)
+    assert batched == pytest.approx(np.asarray(one_by_one), rel=1e-12)
 
 
 @pytest.mark.parametrize('cls', [LinearProfile, ExponentialProfile, KlopfensteinProfile])
@@ -120,8 +120,8 @@ def test_evaluate_is_jittable_and_vmappable(cls):
 
     jitted = jax.jit(lambda p, t: p.evaluate(t))(prof, ts)
     mapped = jax.vmap(prof.evaluate)(ts)
-    assert jitted == pytest.approx(prof.evaluate(ts), rel=1e-12)
-    assert mapped == pytest.approx(prof.evaluate(ts), rel=1e-12)
+    assert jitted == pytest.approx(np.asarray(prof.evaluate(ts)), rel=1e-12)
+    assert mapped == pytest.approx(np.asarray(prof.evaluate(ts)), rel=1e-12)
 
 
 @pytest.mark.parametrize('cls', [LinearProfile, ExponentialProfile, KlopfensteinProfile])

@@ -286,7 +286,7 @@ def test_map_with_fixed_hyperparameters_matches_scipy_minimize():
     assert least_squares.success and least_squares.metrics.rounds == 1
     fitted, expected = prf.values(least_squares.model), prf.values(scalar.model)
     for name in ("u", "v"):
-        assert fitted[name] == pytest.approx(expected[name], rel=1e-6), name
+        assert fitted[name] == pytest.approx(float(expected[name]), rel=1e-6), name
 
 
 def test_half_squared_norm_is_the_negative_log_posterior_up_to_a_constant():
@@ -522,7 +522,7 @@ def test_sequential_fit_with_a_linearised_posterior_prior_matches_scipy_minimize
     assert least_squares.success and least_squares.metrics.rounds == 1
     fitted, expected = prf.values(least_squares.model), prf.values(scalar.model)
     for name in ("u", "v"):
-        assert fitted[name] == pytest.approx(expected[name], rel=1e-6), name
+        assert fitted[name] == pytest.approx(float(expected[name]), rel=1e-6), name
 
 
 def test_unnormalised_joint_prior_keeps_iterates_inside_the_validity():
