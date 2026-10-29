@@ -511,6 +511,11 @@ class RLTerm(Module):
     \qquad
     L_i = \frac{R_i}{\omega_i}$$
 
+    References
+    ----------
+    Allen, G. V. C. Precision Circuit Modelling for 21 cm Radiometer Calibration.
+    PhD thesis.
+
     Parameters
     ----------
     A : Param
@@ -534,6 +539,13 @@ class RCTerm(Module):
     **Mathematical Formulation**
 
     $$Y'_i(\omega) = j\omega C'_n \frac{2\tan\delta_i}{1 + j\omega/\omega_i}$$
+
+    References
+    ----------
+    Debye, P. (1929). Polar Molecules. Chemical Catalog Company.
+
+    Allen, G. V. C. Precision Circuit Modelling for 21 cm Radiometer Calibration.
+    PhD thesis.
 
     Parameters
     ----------
@@ -562,6 +574,13 @@ class LCTerm(Module):
 
     $$\Delta_i(\omega) = \frac{a_i}{1 - (\omega/\omega_i)^2 + 2j\zeta_i\omega/\omega_i}
     \overset{\zeta_i = 0}{=} \frac{a_i \omega_i^2}{\omega_i^2 - \omega^2}$$
+
+    References
+    ----------
+    Jackson, J. D. (1999). Classical Electrodynamics (3rd ed.), Section 7.5. Wiley.
+
+    Allen, G. V. C. Precision Circuit Modelling for 21 cm Radiometer Calibration.
+    PhD thesis.
 
     Parameters
     ----------
@@ -596,6 +615,8 @@ def _debye_pole(dep_r, f_relax) -> DebyePole:
 
 
 def _lorentz_pole(dep_r, f_res, zeta) -> LorentzPole:
+    # As `_debye_pole`, for a = 0 and zeta = 0. LorentzPole has no default strength or
+    # resonance, so the placeholder values are replaced before use.
     return eqx.tree_at(
         lambda p: (p.dep_r, p.f_res, p.zeta), LorentzPole(dep_r=0.0, f_res=1.0), (dep_r, f_res, zeta),
     )

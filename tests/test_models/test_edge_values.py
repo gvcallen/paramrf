@@ -117,6 +117,8 @@ EXAMPLES = {
     # The onset, an RC term and a damped capacitive LC term, so the pole strengths and
     # the damping are swept to zero; the LC term resonates above FREQ so that zeta = 0 is
     # valid. Each further term family would take it past FREQ's 16 S entries (15 here).
+    # The inductive LC terms build the same LorentzPole as the capacitive ones, and an RL
+    # term's A meets no constraint inside the line, so neither adds an edge to cover.
     # Short, as RLGCLine: at length=1.0 the LC term moves the line near a half wavelength
     # on FREQ, and MNA and scattering dS differ by 1e-10 at tand_i = 0.
     GeneralizedLine: lambda: GeneralizedLine(

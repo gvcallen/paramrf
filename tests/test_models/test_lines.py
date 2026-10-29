@@ -397,6 +397,7 @@ def test_generalized_line_rc_term():
     w, _, _, C = _nominal_rlc(freq)
 
     expected = 1j * w * C * 2 * tand_i / (1 + 1j * w / (2 * np.pi * f_i))
+    # The term is ~1e-3 of Y', so subtracting the base leaves ~1e-13 relative rounding.
     np.testing.assert_allclose(np.asarray(line.Y - base.Y), expected, rtol=1e-10)
 
 
@@ -436,6 +437,7 @@ def test_generalized_line_lc_term(family):
     w_i = 2 * np.pi * f_i
 
     resonance = a * w_i**2 / (w_i**2 - w**2)
+    # The term is ~1e-2 of Z' or Y', so subtracting the base leaves ~1e-14 relative rounding.
     if family == "inductive_dispersion":
         np.testing.assert_allclose(np.asarray(line.Z - base.Z), 1j * w * L * resonance, rtol=1e-10)
         np.testing.assert_array_equal(np.asarray(line.Y), np.asarray(base.Y))
@@ -461,6 +463,7 @@ def test_generalized_line_rl_term_is_parallel_rl():
     R_i = 2 * _EFFECTIVE["zn"] * np.log(10) / 20 * A_i
     L_i = R_i / (2 * np.pi * f_i)
 
+    # dZ is down to ~1e-4 ohm/m against j w L'_n up to 1500 ohm/m: ~1e-12 relative rounding.
     dZ = np.asarray(line.Z - base.Z)
     np.testing.assert_allclose(dZ, 1 / (1 / R_i + 1 / (1j * w * L_i)), rtol=1e-10)
     # Re dZ = R_i / (1 + (f_i / f)^2): 1e-6 below R_i at 1 GHz.
