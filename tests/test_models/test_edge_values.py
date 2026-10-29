@@ -59,7 +59,8 @@ from pmrf.models import (
     Load, Short, Open, Match, Ground, Transformer, CentreTappedTransformer,
     Autotransformer, Balun, SourceConverter, MixedModeConverter, Isolator, Splitter,
     Tee, Attenuator, Amplifier, DirectionalCoupler,
-    PhaseLine, DelayLine, RLGCLine, PhysicalLine, DatasheetLine, CoaxialLine, MicrostripLine,
+    PhaseLine, DelayLine, RLGCLine, LowLossLine, PhysicalLine, DatasheetLine, CoaxialLine, MicrostripLine,
+    FirstOrderEffectiveLineFormulation,
     StriplineLine, FloatingLine,
     Resistor, Capacitor, Inductor, CoupledInductors, SeriesRL, Impedance, Admittance,
     ShuntResistor, ShuntCapacitor, ShuntInductor, CapacitorQ, InductorQ,
@@ -102,8 +103,14 @@ EXAMPLES = {
     # pole, and the MNA solver, which stamps lines from `y()`, loses precision: at
     # length=0.1 (half a wavelength at 1 GHz) with R = 0, MNA and scattering differ by 7e-6.
     RLGCLine: lambda: RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.07),
-    PhysicalLine: lambda: PhysicalLine(zn=50.0, ep_r=2.2, A=0.01, f_A=1e9, tand=0.001, length=1.0),
-    DatasheetLine: lambda: DatasheetLine(zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0),
+    LowLossLine: lambda: LowLossLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
+    PhysicalLine: lambda: PhysicalLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
+    # The first-order formulation, so its f_low and f_high are swept too; PhysicalLine
+    # keeps the default nominal one.
+    DatasheetLine: lambda: DatasheetLine(
+        zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0,
+        formulation=FirstOrderEffectiveLineFormulation(),
+    ),
     # Dispersive and rough materials, so their loss parameters (dep_r, alpha, rms) are
     # swept too; MicrostripLine keeps the default ConstantDielectric and BulkConductor.
     CoaxialLine: lambda: CoaxialLine(

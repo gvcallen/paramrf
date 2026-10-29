@@ -1,128 +1,421 @@
-"""Coefficient-driven transmission-line models."""
+"""Effective-value transmission-line models and formulations."""
+from abc import abstractmethod
+
+import equinox as eqx
 import jax.numpy as jnp
 from scipy.constants import c
 
 from pmrf.parameters.constraints import GreaterThan, NonNegative, Positive
 from pmrf.frequency import Frequency
-from pmrf.models.components.lines.base import AbstractImmittanceLine, ImmittanceResult
+from pmrf.materials import DjordjevicSarkarDielectric
+from pmrf.models.components.lines.base import AbstractImmittanceLine, AbstractUniformLine, ImmittanceResult
+from pmrf.modules.base import Module
 from pmrf.parameters import Param, param
 from pmrf.utils import field
 
-class PhysicalLine(AbstractImmittanceLine):
+
+class EffectiveValues(eqx.Module):
     r"""
-    Line defined by nominal impedance, permittivity, and loss coefficients.
-    
+    The effective values that describe an effective-value line.
+
+    Every effective-value line reduces to these five numbers.
+
     **Mathematical Formulation**
 
-    The frequency-dependent attenuation components are computed as:
-    $$\alpha_c = A \cdot \sqrt{\frac{f}{f_A}} \cdot \frac{\ln(10)}{20}$$
-    $$\alpha_d = \frac{\pi f \sqrt{\varepsilon_r}}{c} \cdot \tan\delta$$
+    The attenuation constants are
+    $$\alpha_c(\omega) = \frac{\ln 10}{20} A \sqrt{\frac{\omega}{\omega_{ref}}}
+    \qquad
+    \alpha_d(\omega) = \frac{\omega \sqrt{\varepsilon_{eff}} \tan\delta}{2 c_0}$$
+    in Np/m, and the nominal per-unit-length quantities
+    $$R'_n = 2 z_n \alpha_c \qquad L'_n = \frac{z_n \sqrt{\varepsilon_{eff}}}{c_0}
+    \qquad G'_n = \frac{2 \alpha_d}{z_n} \qquad C'_n = \frac{\sqrt{\varepsilon_{eff}}}{z_n c_0}.$$
 
-    The per-unit-length parameters are
-    $$R = 2 z_n \alpha_c$$
-    $$L = \frac{z_n \sqrt{\varepsilon_r}}{c} + \frac{R}{\omega}$$
-    $$G = \frac{2 \alpha_d}{z_n}$$
-    $$C = \frac{\sqrt{\varepsilon_r}}{z_n c}$$
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 2.7. Wiley.
 
-    The skin-effect term adds conductor reactance to the series impedance:
-    $$Z = R + j\omega z_n\sqrt{\varepsilon_r}/c + jR.$$
-    This contribution vanishes at DC.
+    Parameters
+    ----------
+    zn : ArrayLike
+        Nominal characteristic impedance in ohm.
+    ep_eff : ArrayLike
+        Effective relative permittivity at `f_ref`.
+    A : ArrayLike
+        Conductor attenuation in dB/m at `f_ref`.
+    tand : ArrayLike
+        Effective loss tangent at `f_ref`.
+    f_ref : ArrayLike
+        Reference frequency in Hz.
+    """
+    #: Nominal characteristic impedance in ohm
+    zn: jnp.ndarray
+
+    #: Effective relative permittivity at `f_ref`
+    ep_eff: jnp.ndarray
+
+    #: Conductor attenuation in dB/m at `f_ref`
+    A: jnp.ndarray
+
+    #: Effective loss tangent at `f_ref`
+    tand: jnp.ndarray
+
+    #: Reference frequency in Hz
+    f_ref: jnp.ndarray
+
+    def attenuation(self, omega: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+        r"""The conductor and dielectric attenuation $(\alpha_c, \alpha_d)$ in Np/m."""
+        # sqrt is a branch point at omega = 0. The attenuation is zero there, but
+        # its raw gradient is not, so use the double-`where` pattern.
+        safe_omega = jnp.where(omega > 0, omega, 1.0)
+        w_ref = 2 * jnp.pi * self.f_ref
+        root = jnp.where(omega > 0, jnp.sqrt(safe_omega / w_ref), 0.0)
+        alpha_c = (jnp.log(10) / 20) * self.A * root
+        alpha_d = omega * jnp.sqrt(self.ep_eff) * self.tand / (2 * c)
+        return alpha_c, alpha_d
+
+    def rlgc(self, omega: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        r"""The nominal $(R'_n, L'_n, G'_n, C'_n)$, each broadcast over `omega`."""
+        alpha_c, alpha_d = self.attenuation(omega)
+        sqrt_ep = jnp.sqrt(self.ep_eff)
+        ones = jnp.ones(jnp.shape(omega))
+        R = 2 * self.zn * alpha_c
+        L = self.zn * sqrt_ep / c * ones
+        G = 2 * alpha_d / self.zn
+        C = sqrt_ep / (self.zn * c) * ones
+        return R, L, G, C
+
+
+class AbstractEffectiveLineFormulation(Module):
+    """Abstract base class for an effective-line formulation.
+
+    Turns the :class:`EffectiveValues` of an effective-value line into its
+    per-unit-length immittance.
+    """
+    @abstractmethod
+    def immittance(self, freq: Frequency, values: EffectiveValues) -> ImmittanceResult:
+        """
+        Calculate the per-unit-length immittance.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency axis.
+        values : EffectiveValues
+            The effective values of the line.
+
+        Returns
+        -------
+        ImmittanceResult
+            The series impedance and shunt admittance.
+        """
+        raise NotImplementedError
+
+
+class NominalEffectiveLineFormulation(AbstractEffectiveLineFormulation):
+    r"""
+    The RLGC line built directly from the nominal per-unit-length quantities.
+
+    This is the default formulation of :class:`PhysicalLine` and
+    :class:`DatasheetLine`, deliberately: CAD "physical" lines, such as ADS/AWR
+    ``TLINP`` and scikit-rf's ``DefinedAEpTandZ0`` by default, use a
+    frequency-flat permittivity in the same way. It is not causal. $G'$ is
+    exactly proportional to $\omega$ with no Kramers-Kronig partner in $C'$, and
+    the skin-effect $R'$ has no matching internal inductance. For a causal line,
+    use :class:`FirstOrderEffectiveLineFormulation`.
+
+    **Mathematical Formulation**
+
+    $$Z' = R'_n + j\omega L'_n \qquad Y' = G'_n + j\omega C'_n$$
+
+    with the nominal quantities of :class:`EffectiveValues`. To first order in
+    $R'/(\omega L')$ and $G'/(\omega C')$ this is :class:`LowLossLine`.
+
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Sections 2.1 and 2.7. Wiley.
+    """
+    def immittance(self, freq: Frequency, values: EffectiveValues) -> ImmittanceResult:
+        R, L, G, C = values.rlgc(freq.w)
+        return ImmittanceResult.from_rlgc(R, L, G, C, freq.w)
+
+
+class FirstOrderEffectiveLineFormulation(AbstractEffectiveLineFormulation):
+    r"""
+    The nominal RLGC line with a causal factor on each loss term.
+
+    The conductor loss gains the internal inductance of a half-space conductor,
+    and the dielectric becomes a Djordjevic-Sarkar dielectric whose permittivity
+    and loss tangent equal the effective values at $f_{ref}$. Both are causal,
+    so the line is too. This formulation is opt-in; the default is
+    :class:`NominalEffectiveLineFormulation`.
+
+    **Mathematical Formulation**
+
+    $$Z' = (1 + j) R'_n + j\omega L'_n
+    \qquad
+    Y' = j\omega C'_n \frac{\varepsilon_{DS}(\omega)}{\varepsilon_{eff}}$$
+
+    where $\varepsilon_{DS}$ is the complex permittivity of
+    :class:`~pmrf.materials.DjordjevicSarkarDielectric` with
+    $\varepsilon_r' = \varepsilon_{eff}$, the line's $\tan\delta$ and $f_{ref}$, and
+    this formulation's `f_low` and `f_high`. Equivalently,
+    $Y' = \chi_{DS}(\omega) G'_n + j\omega C'_n$ with
+    $$X(\omega) = \ln\frac{\omega_{high} + j\omega}{\omega_{low} + j\omega}
+    \qquad
+    \chi_{DS}(\omega) = \frac{X(\omega) - \Re X(\omega_{ref})}{j \Im X(\omega_{ref})},$$
+    so $\chi_{DS}(\omega_{ref}) = 1$ and $Y'$ equals the nominal one at $f_{ref}$.
+
+    References
+    ----------
+    Djordjevic, A. R., Biljic, R. M., Likar-Smiljanic, V. D., & Sarkar, T. K. (2001).
+    Wideband frequency-domain characterization of FR-4 and time-domain causality.
+    IEEE Transactions on Electromagnetic Compatibility, 43(4), 662-667.
+
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 1.7. Wiley.
+
+    Parameters
+    ----------
+    f_low : Param, default=1e3
+        Lower bound of the relaxation-time distribution in Hz.
+    f_high : Param, default=1e12
+        Upper bound of the relaxation-time distribution in Hz.
+    """
+    #: Lower bound of the relaxation-time distribution
+    f_low: Param = param(default=1e3, constraint=Positive())
+
+    #: Upper bound of the relaxation-time distribution
+    f_high: Param = param(default=1e12, constraint=Positive())
+
+    def immittance(self, freq: Frequency, values: EffectiveValues) -> ImmittanceResult:
+        R, L, _, C = values.rlgc(freq.w)
+        # Set the values on a default dielectric rather than passing them to its
+        # constructor, which would round-trip them through each field's constraint
+        # bijector and give a NaN gradient on a closed bound (ep_eff = 1, tand = 0).
+        dielectric = eqx.tree_at(
+            lambda d: (d.ep_r, d.tand, d.f_low, d.f_high, d.f_ref),
+            DjordjevicSarkarDielectric(),
+            (values.ep_eff, values.tand, self.f_low, self.f_high, values.f_ref),
+        )
+        ep = dielectric.properties(freq).ep_r
+        Z = (1 + 1j) * R + 1j * freq.w * L
+        Y = 1j * freq.w * C * ep / values.ep_eff
+        return ImmittanceResult(Z=Z, Y=Y, omega=freq.w)
+
+
+class LowLossLine(AbstractUniformLine):
+    r"""
+    Low-loss line defined by effective values.
+
+    The high-frequency, low-loss approximation of a lossy line. Its
+    characteristic impedance is exactly real and its attenuation separates into
+    conductor and dielectric parts. It has no per-unit-length immittance, because
+    $\sqrt{Z'/Y'}$ is never exactly real once there is loss.
+
+    **Mathematical Formulation**
+
+    $$Z_c(\omega) = z_n
+    \qquad
+    \gamma(\omega) = \alpha_c(\omega) + \alpha_d(\omega)
+    + j\omega\frac{\sqrt{\varepsilon_{eff}}}{c_0}$$
+
+    with
+    $$\alpha_c(\omega) = \frac{\ln 10}{20} A \sqrt{\frac{\omega}{\omega_{ref}}}
+    \qquad
+    \alpha_d(\omega) = \frac{\omega \sqrt{\varepsilon_{eff}} \tan\delta}{2 c_0}.$$
 
     Example
     --------
     .. code-block:: python
 
         import pmrf as prf
-        from pmrf.models import PhysicalLine
+        from pmrf.models import LowLossLine
+
+        line = LowLossLine(zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, length=1.0)
+
+        freq = prf.Frequency(start=1, stop=1000, npoints=101, unit='mhz')
+        s = line.s(freq)
+
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 2.7. Wiley.
+
+    Parameters
+    ----------
+    length : Param
+        Physical length of the line in meters.
+    zn : Param, default=50.0
+        Characteristic impedance in ohm.
+    ep_eff : Param, default=1.0
+        Effective relative permittivity.
+    A : Param, default=0.0
+        Conductor attenuation in dB/m at `f_ref`.
+    tand : Param, default=0.0
+        Effective loss tangent.
+    f_ref : Param, default=1e9
+        Reference frequency of `A` in Hz.
+    """
+    #: Physical length of the line
+    length: Param = param(constraint=Positive())
+
+    #: Characteristic impedance
+    zn: Param = param(default=50.0, constraint=Positive())
+
+    #: Effective relative permittivity
+    ep_eff: Param = param(default=1.0, constraint=GreaterThan(1.0))
+
+    #: Conductor attenuation in dB/m at `f_ref`
+    A: Param = param(default=0.0, constraint=NonNegative())
+
+    #: Effective loss tangent
+    tand: Param = param(default=0.0, constraint=NonNegative())
+
+    #: Reference frequency of `A`
+    f_ref: Param = param(default=1e9, constraint=Positive())
+
+    def zc_and_gammaL(self, frequency: Frequency) -> tuple[jnp.ndarray, jnp.ndarray]:
+        values = EffectiveValues(self.zn, self.ep_eff, self.A, self.tand, self.f_ref)
+        w = frequency.w
+        alpha_c, alpha_d = values.attenuation(w)
+        beta = w * jnp.sqrt(self.ep_eff) / c
+        gamma = alpha_c + alpha_d + 1j * beta
+        zc = self.zn * jnp.ones_like(gamma)
+        return zc, gamma * self.length
+
+
+class AbstractEffectiveLine(AbstractImmittanceLine):
+    r"""
+    Abstract base class for an effective-value line.
+
+    An effective-value line is parameterized by effective values instead of by
+    geometry and materials. Derived classes map their own parameters to
+    :class:`EffectiveValues` in :meth:`effective_values`, and :attr:`formulation`
+    turns those into the per-unit-length immittance.
+
+    Parameters
+    ----------
+    length : Param
+        Physical length of the line in meters.
+    formulation : AbstractEffectiveLineFormulation, default=NominalEffectiveLineFormulation()
+        Turns the effective values into the immittance. The default is not causal;
+        see :class:`NominalEffectiveLineFormulation`.
+    """
+    #: Turns the effective values into the immittance
+    formulation: AbstractEffectiveLineFormulation = field(
+        default_factory=NominalEffectiveLineFormulation, kw_only=True,
+    )
+
+    @abstractmethod
+    def effective_values(self) -> EffectiveValues:
+        """
+        The effective values of the line.
+
+        Returns
+        -------
+        EffectiveValues
+            The nominal impedance, effective permittivity, conductor attenuation,
+            loss tangent and their reference frequency.
+        """
+        raise NotImplementedError
+
+    def immittance(self, freq: Frequency) -> ImmittanceResult:
+        return self.formulation.immittance(freq, self.effective_values())
+
+
+class PhysicalLine(AbstractEffectiveLine):
+    r"""
+    Effective-value line defined by its effective values directly.
+
+    The default :class:`NominalEffectiveLineFormulation` uses a frequency-flat
+    permittivity, as CAD "physical" lines do, and is not causal. Pass
+    ``formulation=FirstOrderEffectiveLineFormulation()`` for a causal line.
+
+    **Mathematical Formulation**
+
+    The effective values are the parameters themselves, so
+    $$\alpha_c(\omega) = \frac{\ln 10}{20} A \sqrt{\frac{\omega}{\omega_{ref}}}
+    \qquad
+    \alpha_d(\omega) = \frac{\omega \sqrt{\varepsilon_{eff}} \tan\delta}{2 c_0}$$
+    $$R'_n = 2 z_n \alpha_c \qquad L'_n = \frac{z_n \sqrt{\varepsilon_{eff}}}{c_0}
+    \qquad G'_n = \frac{2 \alpha_d}{z_n} \qquad C'_n = \frac{\sqrt{\varepsilon_{eff}}}{z_n c_0},$$
+    which the formulation turns into $Z'$ and $Y'$.
+
+    Example
+    --------
+    .. code-block:: python
+
+        import pmrf as prf
+        from pmrf.models import PhysicalLine, FirstOrderEffectiveLineFormulation
 
         line = PhysicalLine(
             zn=50.0,
             length=1.0,
-            ep_r=2.2,
-            A=0.01,
-            f_A=1.0,
-            tand=0.001
+            ep_eff=2.2,
+            A=0.3,
+            tand=0.001,
+            formulation=FirstOrderEffectiveLineFormulation(),
         )
 
         freq = prf.Frequency(start=1, stop=10, npoints=101, unit='ghz')
         s = line.s(freq)
 
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Sections 2.1 and 2.7. Wiley.
+
     Parameters
     ----------
     zn : Param, default=50.0
-        Nominal characteristic impedance defining the L/C ratio.
-    ep_r : Param, default=1.0
-        Relative permittivity.
+        Nominal characteristic impedance in ohm, defining the L/C ratio.
+    ep_eff : Param, default=1.0
+        Effective relative permittivity at `f_ref`.
     A : Param, default=0.0
-        Conductor loss in dB/m/sqrt(Hz).
-    f_A : Param, default=1.0
-        Frequency scaling reference for attenuation in Hz.
+        Conductor attenuation in dB/m at `f_ref`.
     tand : Param, default=0.0
-        Dielectric loss tangent.
+        Effective loss tangent at `f_ref`.
+    f_ref : Param, default=1e9
+        Reference frequency in Hz of `ep_eff`, `A` and `tand`.
     """
     #: Nominal characteristic impedance
     zn: Param = param(default=50.0, constraint=Positive())
-    
-    #: Relative permittivity
-    ep_r: Param = param(default=1.0, constraint=GreaterThan(1.0))
-    
-    #: Conductor loss in dB/m/sqrt(Hz)
+
+    #: Effective relative permittivity at `f_ref`
+    ep_eff: Param = param(default=1.0, constraint=GreaterThan(1.0))
+
+    #: Conductor attenuation in dB/m at `f_ref`
     A: Param = param(default=0.0, constraint=NonNegative())
-    
-    #: Frequency scaling reference
-    f_A: Param = param(default=1.0, constraint=Positive())
-    
-    #: Dielectric loss tangent
+
+    #: Effective loss tangent at `f_ref`
     tand: Param = param(default=0.0, constraint=NonNegative())
 
-    def immittance(self, freq: Frequency) -> ImmittanceResult:
-        f = freq.f
-        sqrt_ep_r = jnp.sqrt(self.ep_r)
-        # sqrt is a branch point at f = 0. The attenuation is zero there, but
-        # its raw gradient is not, so use the double-`where` pattern.
-        safe_f = jnp.where(f > 0, f, 1.0)
-        A_dB = self.A * jnp.where(f > 0, jnp.sqrt(safe_f / self.f_A), 0.0)
+    #: Reference frequency of `ep_eff`, `A` and `tand`
+    f_ref: Param = param(default=1e9, constraint=Positive())
 
-        alpha_c = A_dB * (jnp.log(10) / 20.0)
-        alpha_d = jnp.pi * sqrt_ep_r * f / c * self.tand
+    def effective_values(self) -> EffectiveValues:
+        return EffectiveValues(self.zn, self.ep_eff, self.A, self.tand, self.f_ref)
 
-        R_val = 2 * self.zn * alpha_c
-        L_val = (self.zn * sqrt_ep_r) / c
-        G_val = 2 / self.zn * alpha_d
-        C_val = sqrt_ep_r / (self.zn * c)
-        
-        ones = jnp.ones(freq.npoints)
-        R = R_val * ones
-        L = L_val * ones
-        G = G_val * ones
-        C = C_val * ones
-        
-        return ImmittanceResult(
-            Z=R + 1j * (freq.w * L + R),
-            Y=G + 1j * freq.w * C,
-            omega=freq.w,
-        )
-    
 
-class DatasheetLine(AbstractImmittanceLine):
+class DatasheetLine(AbstractEffectiveLine):
     r"""
-    Line defined by nominal impedance, velocity factor, and loss coefficients.
+    Effective-value line defined by datasheet velocity factor and loss coefficients.
+
+    The default :class:`NominalEffectiveLineFormulation` uses a frequency-flat
+    permittivity, as CAD "physical" lines do, and is not causal. Pass
+    ``formulation=FirstOrderEffectiveLineFormulation()`` for a causal line.
 
     **Mathematical Formulation**
 
-    With normalized coefficients $k_{1,norm}$ and $k_{2,norm}$,
-    $$\alpha_c = k_{1,norm} \cdot \frac{\ln(10)}{20} \cdot \sqrt{\omega}$$
-    $$\alpha_d = k_{2,norm} \cdot \frac{\ln(10)}{20} \cdot \omega$$
-
-    and the per-unit-length parameters are
-    $$R = 2 z_n \alpha_c$$
-    $$L = \frac{z_n}{v_f c} + \frac{R}{\omega}$$
-    $$G = \frac{2 \alpha_d}{z_n}$$
-    $$C = \frac{1}{z_n v_f c}$$
-
-    The skin-effect term adds conductor reactance to the series impedance:
-    $$Z = R + j\omega z_n/(v_f c) + jR.$$
-    This contribution vanishes at DC.
+    With $k_1$ in dB/(100 m $\sqrt{\text{MHz}}$) and $k_2$ in dB/(100 m MHz), the
+    datasheet attenuation is
+    $$\alpha_{dB}(f) = k_1 \sqrt{\frac{f}{1\,\text{MHz}}} + k_2 \frac{f}{1\,\text{MHz}}$$
+    per 100 m. Both losses are exact power laws, so they map exactly onto the
+    effective values
+    $$\varepsilon_{eff} = \frac{1}{v_f^2}
+    \qquad
+    A = \frac{k_1}{100} \sqrt{\frac{f_{ref}}{1\,\text{MHz}}}
+    \qquad
+    \tan\delta = \frac{k_2 v_f c_0 \ln 10}{2\pi \cdot 10^9}$$
+    at every frequency, not only at $f_{ref}$. :class:`PhysicalLine` gives the
+    resulting per-unit-length quantities.
 
     Example
     --------
@@ -142,65 +435,46 @@ class DatasheetLine(AbstractImmittanceLine):
         freq = prf.Frequency(start=0.1, stop=10, npoints=201, unit='ghz')
         s = cable.s(freq)
 
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Sections 2.1 and 2.7. Wiley.
+
     Parameters
     ----------
     zn : Param, default=50.0
-        Nominal characteristic impedance.
+        Nominal characteristic impedance in ohm.
     vf : Param, default=1.0
         Velocity factor (ratio of propagation speed to the speed of light).
     k1 : Param, default=0.0
-        Skin effect loss factor.
+        Skin effect loss factor in dB/(100 m sqrt(MHz)).
     k2 : Param, default=0.0
-        Dielectric loss factor.
-    loss_coeffs_normalized : bool, default=False
-        If true, use ``k1`` and ``k2`` directly. Otherwise, normalize them to
-        the 100 MHz reference convention.
+        Dielectric loss factor in dB/(100 m MHz).
+    f_ref : Param, default=1e9
+        Reference frequency in Hz of the effective values.
     """
     #: Nominal characteristic impedance
     zn: Param = param(default=50.0, constraint=Positive())
-    
+
     #: Velocity factor
     vf: Param = param(default=1.0, constraint=Positive())
-    
-    #: Skin effect loss factor
+
+    #: Skin effect loss factor in dB/(100 m sqrt(MHz))
     k1: Param = param(default=0.0, constraint=NonNegative())
-    
-    #: Dielectric loss factor
+
+    #: Dielectric loss factor in dB/(100 m MHz)
     k2: Param = param(default=0.0, constraint=NonNegative())
-    
-    #: Loss coefficients normalization flag
-    loss_coeffs_normalized: bool = field(default=False, static=True)
 
-    def immittance(self, freq: Frequency) -> ImmittanceResult:
-        w = freq.w
-        zn, k1, k2, vf = self.zn, self.k1, self.k2, self.vf
+    #: Reference frequency of the effective values
+    f_ref: Param = param(default=1e9, constraint=Positive())
 
-        if not self.loss_coeffs_normalized:
-            k1_norm = k1 * (1.0 / (100 * jnp.sqrt(2 * jnp.pi * 10**6)))
-            k2_norm = k2 * (1.0 / (100 * 2 * jnp.pi * 10**6))
-        else:
-            k1_norm = k1
-            k2_norm = k2
-
-        # sqrt is a branch point at w = 0, so guard it with the double-`where`
-        # pattern: the conductor attenuation is zero at DC, its gradient is not.
-        safe_w = jnp.where(w > 0, w, 1.0)
-        sqrt_w = jnp.where(w > 0, jnp.sqrt(safe_w), 0.0)
-        dBtoNeper = jnp.log(10) / 20
-        alpha_c = k1_norm * dBtoNeper * sqrt_w
-        alpha_d = k2_norm * dBtoNeper * w
-        
-        R = 2 * zn * alpha_c
-        G = (2 / zn) * alpha_d
-        
-        # Broadcast L and C to the same shape as frequency arrays 
-        # (w) in case zn and vf are provided as scalars.
-        L = (zn / (vf * c)) * jnp.ones_like(w)
-        C = (1.0 / (zn * vf * c)) * jnp.ones_like(w)
-        
-        return ImmittanceResult(
-            Z=R + 1j * (w * L + R),
-            Y=G + 1j * w * C,
-            omega=w,
+    def effective_values(self) -> EffectiveValues:
+        # The datasheet units are per 100 m and per MHz: k1 is k1 / 100 dB/m at 1 MHz,
+        # and k2 is k2 / 1e8 dB/m per Hz. tand follows from alpha_d = w sqrt(ep_eff)
+        # tand / (2 c0) = (ln 10 / 20) k2 f / 1e8, so its 1e9 is 20 * 1e8 / 2, not f_ref.
+        return EffectiveValues(
+            zn=self.zn,
+            ep_eff=1 / self.vf**2,
+            A=self.k1 * jnp.sqrt(self.f_ref / 1e6) / 100,
+            tand=self.k2 * self.vf * c * jnp.log(10) / (2 * jnp.pi * 1e9),
+            f_ref=self.f_ref,
         )
-

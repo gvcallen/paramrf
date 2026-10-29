@@ -254,7 +254,7 @@ def test_dict_identifier_keys_are_dotted():
 
 def test_named_module_collapses_through_containers():
     line = _cable()
-    expected = {"cable.zn", "cable.vf", "cable.k1", "cable.k2", "cable.length"}
+    expected = {"cable.zn", "cable.vf", "cable.k1", "cable.k2", "cable.f_ref", "cable.length"}
     assert set(prf.params(_System(components={"cable": line}))) == expected
     assert set(prf.params(Cascade([line]))) == expected
     assert set(prf.params(FloatingLine(floating=line))) == expected
@@ -386,7 +386,7 @@ def test_update_fixed_does_not_unfreeze():
 def test_update_fixed_false_frees_fixed_by_construction():
     free = prf.update(_system(), "cable.*", fixed=False)
     assert set(prf.params(free, free_only=True)) == {
-        "cable.zn", "cable.vf", "cable.k1", "cable.k2", "cable.length", "load.R",
+        "cable.zn", "cable.vf", "cable.k1", "cable.k2", "cable.f_ref", "cable.length", "load.R",
     }
 
 
