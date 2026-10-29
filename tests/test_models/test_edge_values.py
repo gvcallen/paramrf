@@ -50,7 +50,7 @@ import pytest
 import pmrf as prf
 import pmrf.models
 from pmrf.frequency import Frequency
-from pmrf.materials import ColeColeDielectric, MultipoleDebyeDielectric, RoughConductor
+from pmrf.materials import ColeColeDielectric, ConstantDielectric, PoleDielectric, RoughConductor
 from pmrf.parameters import Param
 from pmrf.parameters.constraints import Interval
 from pmrf.models import (
@@ -69,7 +69,9 @@ from pmrf.models import (
 )
 from pmrf.models.components.lines.base import TransmissionLine
 
-FREQ = Frequency(start=0.1, stop=1.0, npoints=3, unit='GHz')
+# Enough points that S (4 per point for a two-port) has more entries than the component
+# with the most parameters (12, StriplineLine), so `_derivative`'s Jacobian is wide.
+FREQ = Frequency(start=0.1, stop=1.0, npoints=4, unit='GHz')
 
 #: One instance of each component, at ordinary values. Its parameters are what the sweep
 #: moves, one at a time.
@@ -120,7 +122,7 @@ EXAMPLES = {
     ),
     MicrostripLine: lambda: MicrostripLine(length=0.1),
     StriplineLine: lambda: StriplineLine(
-        length=0.1, dielectric=MultipoleDebyeDielectric(ep_inf=2.0, poles=[(0.3, 1e9)]),
+        length=0.1, dielectric=PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[(0.3, 1e9)]),
     ),
     FloatingLine: lambda: FloatingLine(floating=PhaseLine(z0=50.0, theta=90.0, f0=0.5e9)),
     Resistor: lambda: Resistor(R=10.0),

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 
+import equinox as eqx
 import jax.numpy as jnp
 from pmrf.parameters.constraints import Positive, NonNegative, GreaterThan, Interval
 from pmrf.frequency import Frequency
@@ -181,13 +182,41 @@ class DjordjevicSarkarDielectric(AbstractDielectric):
         return DielectricProperties(eps_inf + eps_d * fd, ones, self.sigma * ones)
 
 
-class DebyePole(Module):
+class AbstractPole(Module):
+    r"""Abstract base class for a single pole of a :class:`PoleDielectric`.
+
+    A pole returns a dimensionless *increment* to a relative material constant.
+    It adds to the relative permittivity when listed in
+    :attr:`PoleDielectric.poles`, and to the relative permeability when listed in
+    :attr:`PoleDielectric.mu_poles`. Increments use the same
+    $\varepsilon' - j\varepsilon''$ convention as :class:`AbstractDielectric`.
+    """
+
+    @abstractmethod
+    def contribution(self, freq: Frequency) -> jnp.ndarray:
+        """The pole's dimensionless complex increment over a frequency axis.
+
+        Parameters
+        ----------
+        freq : Frequency
+            The frequency axis to evaluate over.
+
+        Returns
+        -------
+        jnp.ndarray
+            Complex increment, one value per frequency point.
+        """
+
+
+class DebyePole(AbstractPole):
     r"""
     A single Debye relaxation pole.
 
     **Mathematical Formulation**
 
-    $$\Delta\varepsilon_r(f) = \frac{\Delta\varepsilon_r}{1 + jf/f_{r}}$$
+    $$\Delta(f) = \frac{\Delta\varepsilon_r}{1 + jf/f_{r}}$$
+
+    In :attr:`PoleDielectric.mu_poles`, `dep_r` is a permeability increment.
 
     References
     ----------
@@ -196,74 +225,145 @@ class DebyePole(Module):
     Parameters
     ----------
     dep_r : Param, default=0.0
-        Permittivity increment (relaxation strength) of the pole.
+        Increment (relaxation strength) of the pole.
     f_relax : Param, default=1e9
         Relaxation frequency of the pole in Hz.
     """
-    #: Permittivity increment of the pole
+    #: Increment (relaxation strength) of the pole
     dep_r: Param = param(default=0.0, constraint=NonNegative())
 
     #: Relaxation frequency of the pole
     f_relax: Param = param(default=1e9, constraint=Positive())
 
     def contribution(self, freq: Frequency) -> jnp.ndarray:
-        """The pole's complex permittivity contribution."""
         return self.dep_r / (1.0 + 1j * freq.f / self.f_relax)
 
 
-def _as_poles(poles) -> tuple[DebyePole, ...]:
-    """Coerce a sequence of poles or ``(dep_r, f_relax)`` pairs into modules."""
-    return tuple(
-        pole if isinstance(pole, DebyePole) else DebyePole(*pole) for pole in poles
-    )
-
-
-class MultipoleDebyeDielectric(AbstractDielectric):
+class LorentzPole(AbstractPole):
     r"""
-    N-pole Debye dielectric, with every coefficient fittable.
+    A single Lorentz (damped harmonic oscillator) resonance pole.
 
     **Mathematical Formulation**
 
-    $$\varepsilon_r(f) = \varepsilon_\infty
-    + \sum_{n} \frac{\Delta\varepsilon_{r,n}}{1 + jf/f_{r,n}}
-    - j\frac{\sigma}{\omega\varepsilon_0}$$
+    $$\Delta(f) = \frac{\Delta\varepsilon_r}
+    {1 - \left(f/f_{res}\right)^2 + 2j\zeta f/f_{res}}$$
+
+    The pole gives $\Delta(0) = \Delta\varepsilon_r$ at DC. With damping
+    $\zeta > 0$ it is passive: $\mathrm{Im}\,\Delta(f) \leq 0$ for $f \geq 0$.
+    With $\zeta = 0$ it is lossless,
+
+    $$\Delta(f) = \frac{\Delta\varepsilon_r f_{res}^2}{f_{res}^2 - f^2},$$
+
+    and singular at $f = f_{res}$, so an undamped pole must resonate outside the
+    evaluated band. :meth:`contribution` raises if it does not.
+
+    In :attr:`PoleDielectric.mu_poles`, `dep_r` is a permeability increment.
+
+    References
+    ----------
+    Jackson, J. D. (1999). Classical Electrodynamics (3rd ed.), Section 7.5. Wiley.
+
+    Parameters
+    ----------
+    dep_r : Param
+        Increment (oscillator strength) of the pole, its value at DC.
+    f_res : Param
+        Resonant frequency of the pole in Hz.
+    zeta : Param, default=0.0
+        Dimensionless damping ratio.
+    """
+    #: Increment (oscillator strength) of the pole
+    dep_r: Param = param(constraint=NonNegative())
+
+    #: Resonant frequency of the pole
+    f_res: Param = param(constraint=Positive())
+
+    #: Dimensionless damping ratio
+    zeta: Param = param(default=0.0, constraint=NonNegative())
+
+    def contribution(self, freq: Frequency) -> jnp.ndarray:
+        f = jnp.asarray(freq.f)
+        f_res, zeta = jnp.asarray(self.f_res), jnp.asarray(self.zeta)
+        # f_res is a Param, so the singularity can only be checked at run time.
+        in_band = (zeta == 0) & (f_res >= jnp.min(f)) & (f_res <= jnp.max(f))
+        f = eqx.error_if(
+            f, in_band,
+            "an undamped LorentzPole (zeta = 0) must resonate outside the evaluated band",
+        )
+        x = f / f_res
+        return self.dep_r / (1.0 - x**2 + 2j * zeta * x)
+
+
+def _as_poles(poles) -> tuple[AbstractPole, ...]:
+    """Coerce a sequence of poles or ``(dep_r, f_relax)`` Debye pairs into modules."""
+    return tuple(
+        pole if isinstance(pole, AbstractPole) else DebyePole(*pole) for pole in poles
+    )
+
+
+class PoleDielectric(AbstractDielectric):
+    r"""
+    A base dielectric plus pole increments on its permittivity and permeability.
+
+    The base supplies the high-frequency permittivity, permeability and static
+    conductivity. Each pole adds a dimensionless increment, so the base's own
+    constants are counted once. A Debye-pole base of
+    ``ConstantDielectric(ep_r=ep_inf, sigma=sigma)`` is the classic N-pole Debye
+    dielectric.
+
+    **Mathematical Formulation**
+
+    $$\varepsilon_r(f) = \varepsilon_{r,base}(f) + \sum_{n} \Delta_n(f)
+    - j\frac{\sigma_{base}}{\omega\varepsilon_0}
+    \qquad
+    \mu_r(f) = \mu_{r,base}(f) + \sum_{m} \Delta_m(f)$$
+
+    where $\Delta_n$ runs over `poles` and $\Delta_m$ over `mu_poles`.
 
     Example
     --------
     .. code-block:: python
 
-        from pmrf.materials import MultipoleDebyeDielectric
+        from pmrf.materials import ConstantDielectric, LorentzPole, PoleDielectric
 
-        material = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
+        material = PoleDielectric(
+            ConstantDielectric(ep_r=2.0),
+            poles=[(1.0, 1e9), LorentzPole(dep_r=0.2, f_res=50e9, zeta=0.1)],
+        )
 
     References
     ----------
     Debye, P. (1929). Polar Molecules. Chemical Catalog Company.
 
+    Jackson, J. D. (1999). Classical Electrodynamics (3rd ed.), Section 7.5. Wiley.
+
     Parameters
     ----------
-    ep_inf : Param, default=1.0
-        High-frequency limit of the relative permittivity.
-    poles : tuple of DebyePole, default=()
-        The Debye poles. ``(dep_r, f_relax)`` pairs are coerced automatically.
-    sigma : Param, default=0.0
-        Static bulk conductivity in S/m.
+    base : AbstractDielectric, default=ConstantDielectric()
+        The dielectric the poles add to. Scalars and tuples are coerced as by
+        :func:`as_dielectric`.
+    poles : tuple of AbstractPole, default=()
+        Permittivity poles. ``(dep_r, f_relax)`` pairs are coerced to
+        :class:`DebyePole`.
+    mu_poles : tuple of AbstractPole, default=()
+        Permeability poles, coerced as `poles`.
     """
-    #: High-frequency limit of the relative permittivity
-    ep_inf: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    #: The dielectric the poles add to
+    base: AbstractDielectric = field(
+        default_factory=ConstantDielectric, converter=lambda x: as_dielectric(x)
+    )
 
-    #: The Debye poles
-    poles: tuple[DebyePole, ...] = field(default=(), converter=_as_poles)
+    #: Permittivity poles
+    poles: tuple[AbstractPole, ...] = field(default=(), converter=_as_poles)
 
-    #: Static bulk conductivity in S/m
-    sigma: Param = param(default=0.0, constraint=NonNegative())
+    #: Permeability poles
+    mu_poles: tuple[AbstractPole, ...] = field(default=(), converter=_as_poles)
 
     def properties(self, freq: Frequency) -> DielectricProperties:
-        eps = self.ep_inf * jnp.ones(freq.npoints, dtype=complex)
-        for pole in self.poles:
-            eps = eps + pole.contribution(freq)
-        ones = jnp.ones(freq.npoints)
-        return DielectricProperties(eps, ones, self.sigma * ones)
+        base = self.base.properties(freq)
+        ep_r = base.ep_r + sum(pole.contribution(freq) for pole in self.poles)
+        mu_r = base.mu_r + sum(pole.contribution(freq) for pole in self.mu_poles)
+        return DielectricProperties(ep_r, mu_r, base.sigma)
 
 
 class ColeColeDielectric(AbstractDielectric):
