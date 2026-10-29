@@ -343,8 +343,8 @@ def test_circuit_covariance_matches_high_precision_reference(open_load):
             if open_load else prf.Random(prf.stats.Normal(1.0, 0.05), scale=50.0))
     model = (
         PhysicalLine(length=gaussian(10.0), zn=gaussian(50.0),
-                     ep_r=prf.Random(prf.stats.Normal(1.45, 0.07)),
-                     A=gaussian(0.1), f_A=prf.Fixed(1e8), tand=gaussian(1e-4))
+                     ep_eff=prf.Random(prf.stats.Normal(1.45, 0.07)),
+                     A=gaussian(0.1), f_ref=prf.Fixed(1e8), tand=gaussian(1e-4))
         ** PiSectionCLC(C1=uniform(1.0, 1e-12), L=uniform(1.0, 1e-9),
                         C2=uniform(1.0, 1e-12))
         ** Resistor(R=load).terminated()

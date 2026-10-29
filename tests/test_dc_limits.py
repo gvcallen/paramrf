@@ -34,7 +34,9 @@ from pmrf.models import (
     CoaxialLine,
     DatasheetLine,
     DelayLine,
+    FirstOrderEffectiveLineFormulation,
     FloatingLine,
+    LowLossLine,
     MicrostripLine,
     PhaseLine,
     PhysicalLine,
@@ -59,10 +61,17 @@ LINES = {
     "DelayLine": DelayLine(z0=50.0, td=1e-9),
     "RLGCLine": RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.1),
     "RLGCLine (lossless)": RLGCLine(R=0.0, L=250e-9, G=0.0, C=100e-12, length=0.1),
-    "PhysicalLine": PhysicalLine(
-        zn=50.0, ep_r=2.2, A=0.01, f_A=1e9, tand=0.001, length=1.0
+    "LowLossLine": LowLossLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
+    "PhysicalLine": PhysicalLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
+    "PhysicalLine (first-order)": PhysicalLine(
+        zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0,
+        formulation=FirstOrderEffectiveLineFormulation(),
     ),
     "DatasheetLine": DatasheetLine(zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0),
+    "DatasheetLine (first-order)": DatasheetLine(
+        zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0,
+        formulation=FirstOrderEffectiveLineFormulation(),
+    ),
     "CoaxialLine": CoaxialLine(
         d_in=0.9e-3,
         d_out=2.95e-3,

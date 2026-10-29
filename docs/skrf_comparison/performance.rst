@@ -37,7 +37,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
     # 200 ohm load. Each section contributes two free parameters: its
     # characteristic impedance and its physical length.
     N_SECTIONS = 25
-    EPR, ATTEN_A, ATTEN_FA, TAND = 4.4, 0.05, 1e9, 0.02   # substrate parameters
+    EP_EFF, ATTEN_A, F_REF, TAND = 4.4, 0.05, 1e9, 0.02   # substrate parameters
     Z0, ZL = 50.0, 200.0
     F_START, F_STOP, N_POINTS = 2.0, 4.0, 201             # GHz
     TARGET_DB = -18.0
@@ -45,17 +45,18 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
     freq_skrf = rf.Frequency(start=F_START, stop=F_STOP, npoints=N_POINTS, unit='ghz')
     freq_pmrf = prf.Frequency(start=F_START, stop=F_STOP, npoints=N_POINTS, unit='ghz')
 
-    def create_skrf_physical_line(freq, zn, length, ep_r, A, f_A, tand, name):
-        """Builds a scikit-rf line matching ParamRF's PhysicalLine physics exactly."""
+    def create_skrf_physical_line(freq, zn, length, ep_eff, A, f_ref, tand, name):
+        """Builds a scikit-rf line matching ParamRF's PhysicalLine exactly, in its
+        default nominal formulation."""
         f = freq.f
-        sqrt_ep_r = np.sqrt(ep_r)
-        A_dB = A * np.sqrt(f / f_A)
+        sqrt_ep_eff = np.sqrt(ep_eff)
+        A_dB = A * np.sqrt(f / f_ref)
         alpha_c = A_dB * (np.log(10) / 20.0)
-        alpha_d = np.pi * sqrt_ep_r * f / c * tand
+        alpha_d = np.pi * sqrt_ep_eff * f / c * tand
         R = 2 * zn * alpha_c
-        L = (zn * sqrt_ep_r) / c
+        L = (zn * sqrt_ep_eff) / c
         G = 2 / zn * alpha_d
-        C = sqrt_ep_r / (zn * c)
+        C = sqrt_ep_eff / (zn * c)
         omega = 2 * np.pi * f
         Z_series = R + 1j * omega * L
         Y_shunt = G + 1j * omega * C
@@ -68,7 +69,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         """
         Rebuilds the topology from scratch."""
         lines = [
-            create_skrf_physical_line(freq_skrf, zns[i], lens[i], EPR, ATTEN_A, ATTEN_FA, TAND, f'line{i}')
+            create_skrf_physical_line(freq_skrf, zns[i], lens[i], EP_EFF, ATTEN_A, F_REF, TAND, f'line{i}')
             for i in range(N_SECTIONS)
         ]
         load = rf.media.DefinedGammaZ0(frequency=freq_skrf, z0=50).resistor(ZL, name='load')
@@ -86,7 +87,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         """zns/lens hold either plain floats (fixed) or pmrf.Bounded instances (free parameters)."""
         p0, gnd = Port(), Ground()
         lines = [
-            PhysicalLine(zn=zns[i], length=lens[i], ep_r=EPR, A=ATTEN_A, f_A=ATTEN_FA, tand=TAND)
+            PhysicalLine(zn=zns[i], length=lens[i], ep_eff=EP_EFF, A=ATTEN_A, f_ref=F_REF, tand=TAND)
             for i in range(N_SECTIONS)
         ]
         load = Resistor(R=ZL)
@@ -100,7 +101,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
     # Starting point: every section set to the impedance of a single-section
     # quarter-wave transformer, before any per-section tuning.
     ZN0 = np.full(N_SECTIONS, np.sqrt(Z0 * ZL))
-    LEN0 = np.full(N_SECTIONS, c / (4 * 3e9 * np.sqrt(EPR)))
+    LEN0 = np.full(N_SECTIONS, c / (4 * 3e9 * np.sqrt(EP_EFF)))
 
     def run_forward_pass_benchmark():
         num_runs = 200

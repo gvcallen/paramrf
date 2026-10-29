@@ -4,14 +4,18 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 from pmrf.frequency import Frequency
+from pmrf.utils import unwrap
 
 from scipy.constants import c, mu_0, epsilon_0
 
 from pmrf.models import (
     PhaseLine, 
     RLGCLine, 
+    LowLossLine,
     PhysicalLine, 
     DatasheetLine, 
+    NominalEffectiveLineFormulation,
+    FirstOrderEffectiveLineFormulation,
     CoaxialLine, 
     MicrostripLine, 
     StriplineLine,
@@ -69,8 +73,11 @@ def test_constant_rlgc_line(basic_freq):
     assert jnp.allclose(jnp.abs(s[:, 1, 0]), 1.0, atol=1e-5)
 
 @pytest.mark.parametrize("line_model", [
+    LowLossLine(length=0.1),
     PhysicalLine(length=0.1),
+    PhysicalLine(length=0.1, formulation=FirstOrderEffectiveLineFormulation()),
     DatasheetLine(length=0.1),
+    DatasheetLine(length=0.1, formulation=FirstOrderEffectiveLineFormulation()),
     CoaxialLine(length=0.1),
     MicrostripLine(length=0.1)
 ])
@@ -88,14 +95,14 @@ def test_physical_line_phase_delay(basic_freq):
     """Test that PhysicalLine calculates the correct phase delay based on permittivity."""
     # 15 mm line in a dielectric with Er = 4.0
     length = 0.015
-    ep_r = 4.0
-    line = PhysicalLine(zn=50.0, length=length, ep_r=ep_r, A=0.0, tand=0.0)
+    ep_eff = 4.0
+    line = PhysicalLine(zn=50.0, length=length, ep_eff=ep_eff, A=0.0, tand=0.0)
     
     s = line.s(basic_freq)
     
-    # Expected phase shift: beta * L = w * sqrt(ep_r) * L / c
+    # Expected phase shift: beta * L = w * sqrt(ep_eff) * L / c
     # Since S21 = exp(-j * beta * L), angle(S21) = -beta * L
-    expected_phase = -basic_freq.w * jnp.sqrt(ep_r) * length / c
+    expected_phase = -basic_freq.w * jnp.sqrt(ep_eff) * length / c
     actual_phase = jnp.unwrap(jnp.angle(s[:, 1, 0]))
     
     assert jnp.allclose(actual_phase, expected_phase, atol=1e-4)
@@ -103,42 +110,57 @@ def test_physical_line_phase_delay(basic_freq):
     assert jnp.allclose(s[:, 0, 0], 0.0, atol=1e-5)
 
 def test_datasheet_line_attenuation(basic_freq):
-    """Test that the DatasheetLine applies the correct frequency-scaled attenuation."""
-    # Pure skin-effect loss (k1), no dielectric loss (k2), normalized coefficients
-    line = DatasheetLine(
-        zn=50.0, vf=1.0, k1=2.0, k2=0.0, length=10.0, loss_coeffs_normalized=True
-    )
-    
+    """DatasheetLine attenuates by k1 dB per 100 m at 1 MHz, rising as sqrt(f)."""
+    # Pure skin-effect loss (k1 in dB/(100 m sqrt(MHz))), no dielectric loss (k2).
+    k1, length = 2.0, 10.0
+    line = DatasheetLine(zn=50.0, vf=1.0, k1=k1, k2=0.0, length=length)
+
     s = line.s(basic_freq)
-    
-    # alpha_c = k1_norm * ln(10)/20 * sqrt(w)
-    # |S21| = exp(-alpha_c * L)
-    alpha_c = 2.0 * (jnp.log(10) / 20) * jnp.sqrt(basic_freq.w)
-    expected_mag = jnp.exp(-alpha_c * 10.0)
-    
-    assert jnp.allclose(jnp.abs(s[:, 1, 0]), expected_mag, atol=1e-4)
+
+    expected_db = -k1 * jnp.sqrt(basic_freq.f / 1e6) / 100 * length
+    actual_db = 20 * jnp.log10(jnp.abs(s[:, 1, 0]))
+
+    # The nominal line departs from the separable attenuation at higher order in
+    # R'/(wL') (at most 7e-3 here), and by the small mismatch of Zc to 50 ohm.
+    # Observed 7e-5 dB of 20 dB.
+    assert jnp.allclose(actual_db, expected_db, rtol=0, atol=2e-4)
 
 
 @pytest.mark.parametrize("line_type", [DatasheetLine, PhysicalLine])
 @pytest.mark.parametrize("length", [1.0, 10.0])
 def test_empirical_line_matches_half_space_coax(line_type, length):
-    """Skin-effect loss has the same resistance and reactance as a coax half-space."""
+    """The first-order line is a half-space coax with a Djordjevic-Sarkar dielectric.
+
+    `C'_n ep_DS / ep_eff` is the coax admittance and `(1 + j) R'_n` its half-space
+    conductor impedance, so the match is exact.
+    """
     d_in, d_out = 0.92e-3, 3.0e-3
-    ep_r, tand, sigma = 2.1, 1e-4, 5.8e7
+    ep_eff, tand, sigma = 2.1, 1e-4, 5.8e7
+    f_low, f_high, f_ref = 1e3, 1e12, 1e9
     a, b = d_in / 2, d_out / 2
-    zn = np.sqrt(mu_0 / epsilon_0) * np.log(b / a) / (2 * np.pi * np.sqrt(ep_r))
+    zn = np.sqrt(mu_0 / epsilon_0) * np.log(b / a) / (2 * np.pi * np.sqrt(ep_eff))
     k1 = (2000 / np.log(10)) * np.sqrt(np.pi * 1e6 * mu_0 / sigma) * (1 / a + 1 / b) / (4 * np.pi * zn)
-    k2 = (2000 / np.log(10)) * np.pi * 1e6 * np.sqrt(ep_r) * tand / c
+    k2 = (2000 / np.log(10)) * np.pi * 1e6 * np.sqrt(ep_eff) * tand / c
+    formulation = FirstOrderEffectiveLineFormulation(f_low=f_low, f_high=f_high)
 
     with jax.enable_x64():
         freq = Frequency(start=10, stop=500, npoints=491, unit='MHz')
         if line_type is DatasheetLine:
-            line = DatasheetLine(length=length, zn=zn, vf=1 / np.sqrt(ep_r), k1=k1, k2=k2)
+            line = DatasheetLine(
+                length=length, zn=zn, vf=1 / np.sqrt(ep_eff), k1=k1, k2=k2,
+                f_ref=f_ref, formulation=formulation,
+            )
         else:
-            line = PhysicalLine(length=length, zn=zn, ep_r=ep_r, A=k1 / 1e5, f_A=1.0, tand=tand)
+            A = k1 * np.sqrt(f_ref / 1e6) / 100
+            line = PhysicalLine(
+                length=length, zn=zn, ep_eff=ep_eff, A=A, tand=tand,
+                f_ref=f_ref, formulation=formulation,
+            )
         reference = CoaxialLine(
             d_in=d_in, d_out=d_out, length=length,
-            dielectric=ConstantDielectric(ep_r=ep_r, tand=tand),
+            dielectric=DjordjevicSarkarDielectric(
+                ep_r=ep_eff, tand=tand, f_low=f_low, f_high=f_high, f_ref=f_ref,
+            ),
             conductor=BulkConductor(sigma=sigma),
             formulation=SchelkunoffCoaxialFormulation(
                 inner_impedance=HalfSpaceSurfaceImpedance(),
@@ -149,6 +171,113 @@ def test_empirical_line_matches_half_space_coax(line_type, length):
         difference = np.abs(np.asarray(line.s(freq) - reference.s(freq)))
 
     assert np.max(difference) < 1e-8
+
+
+# -----------------------------------------------------------------------------
+# Effective-value lines (#322). The suggested configuration of the issue, on a
+# 1 MHz-1 GHz axis whose last point is f_ref.
+# -----------------------------------------------------------------------------
+
+_EFFECTIVE = dict(zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, f_ref=1e9)
+_DS_BOUNDS = dict(f_low=1e3, f_high=1e12)
+
+
+def _effective_freq():
+    return Frequency(start=1, stop=1000, npoints=200, unit='MHz')
+
+
+def _closed_form_gamma(w, zn, ep_eff, A, tand, f_ref):
+    alpha_c = np.log(10) / 20 * A * np.sqrt(w / (2 * np.pi * f_ref))
+    alpha_d = w * np.sqrt(ep_eff) * tand / (2 * c)
+    return alpha_c + alpha_d + 1j * w * np.sqrt(ep_eff) / c
+
+
+def test_low_loss_line_matches_closed_form():
+    with jax.enable_x64():
+        freq = _effective_freq()
+        line = LowLossLine(length=2.0, **_EFFECTIVE)
+        zc, gammaL = line.zc_and_gammaL(freq)
+        expected = _closed_form_gamma(np.asarray(freq.w), **_EFFECTIVE)
+
+        assert np.all(np.imag(np.asarray(zc)) == 0)
+        assert np.all(np.real(np.asarray(zc)) == _EFFECTIVE["zn"])
+        # Machine precision: a few ulps of the largest term.
+        np.testing.assert_allclose(np.asarray(gammaL) / 2.0, expected, rtol=1e-14)
+
+
+def test_nominal_line_reduces_to_low_loss_quadratically():
+    """The nominal gamma departs from the low-loss one at second order in the losses."""
+    def relative_difference(scale):
+        values = dict(_EFFECTIVE, A=_EFFECTIVE["A"] * scale, tand=_EFFECTIVE["tand"] * scale)
+        nominal = PhysicalLine(length=1.0, **values).gammaL(freq)
+        low_loss = LowLossLine(length=1.0, **values).gammaL(freq)
+        return np.max(np.abs(np.asarray(nominal - low_loss)) / np.abs(np.asarray(low_loss)))
+
+    with jax.enable_x64():
+        freq = _effective_freq()
+        coarse, fine = relative_difference(1.0), relative_difference(0.1)
+
+    assert coarse < 1e-4
+    # Scaling the losses by 1/10 scales a second-order difference by 1/100. The
+    # higher-order terms move the observed ratio, 99.995, by 5e-5.
+    np.testing.assert_allclose(coarse / fine, 100.0, rtol=1e-3)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: PhysicalLine(length=1.0, **_EFFECTIVE),
+    lambda: DatasheetLine(length=1.0, zn=50.0, vf=0.69, k1=0.2, k2=0.01),
+], ids=["PhysicalLine", "DatasheetLine"])
+def test_first_order_admittance_is_djordjevic_sarkar(make):
+    with jax.enable_x64():
+        freq = _effective_freq()
+        line = make()
+        values = unwrap(line).effective_values()
+        first_order = eqx.tree_at(
+            lambda m: m.formulation, line, FirstOrderEffectiveLineFormulation(**_DS_BOUNDS)
+        )
+        Y = np.asarray(first_order.immittance(freq).Y)
+        Y_nominal = np.asarray(line.immittance(freq).Y)
+
+        dielectric = DjordjevicSarkarDielectric(
+            ep_r=values.ep_eff, tand=values.tand, f_ref=values.f_ref, **_DS_BOUNDS
+        )
+        C = np.sqrt(values.ep_eff) / (values.zn * c)
+        expected = 1j * np.asarray(freq.w) * C * np.asarray(dielectric.properties(freq).ep_r) / values.ep_eff
+
+        np.testing.assert_allclose(Y, expected, rtol=1e-13)
+        # The last point is f_ref, where chi_DS = 1.
+        np.testing.assert_allclose(Y[-1], Y_nominal[-1], rtol=1e-13)
+        assert not np.allclose(Y[:-1], Y_nominal[:-1], rtol=1e-6)
+
+
+@pytest.mark.parametrize("formulation", [
+    NominalEffectiveLineFormulation(), FirstOrderEffectiveLineFormulation(**_DS_BOUNDS),
+], ids=["nominal", "first-order"])
+def test_datasheet_line_maps_onto_physical_line(formulation):
+    zn, vf, k1, k2, f_ref = 50.0, 0.69, 0.2, 0.01, 1e9
+    with jax.enable_x64():
+        freq = _effective_freq()
+        datasheet = DatasheetLine(
+            length=1.0, zn=zn, vf=vf, k1=k1, k2=k2, f_ref=f_ref, formulation=formulation,
+        )
+        physical = PhysicalLine(
+            length=1.0, zn=zn, ep_eff=1 / vf**2, A=k1 * np.sqrt(f_ref / 1e6) / 100,
+            tand=k2 * vf * c * np.log(10) / (2 * np.pi * 1e9), f_ref=f_ref,
+            formulation=formulation,
+        )
+        expected = physical.immittance(freq)
+        actual = datasheet.immittance(freq)
+
+        np.testing.assert_allclose(np.asarray(actual.Z), np.asarray(expected.Z), rtol=1e-13)
+        np.testing.assert_allclose(np.asarray(actual.Y), np.asarray(expected.Y), rtol=1e-13)
+
+
+@pytest.mark.parametrize("line_type", [PhysicalLine, DatasheetLine])
+def test_effective_lines_default_to_nominal_at_1_ghz(line_type):
+    line = line_type(length=1.0)
+    assert type(line.formulation) is NominalEffectiveLineFormulation
+    assert line.f_ref.value == 1e9
+
 
 def test_coaxial_line_impedance(basic_freq):
     """Verify CoaxialLine matches the analytical Zc formula for a lossless coax."""
@@ -1019,6 +1148,8 @@ def test_stripline_high_impedance_branch_is_selected():
 _ZERO_VALID_LINE = {
     "RLGCLine.R": (lambda x: RLGCLine(R=x, length=0.1), lambda line: line.R),
     "RLGCLine.G": (lambda x: RLGCLine(G=x, length=0.1), lambda line: line.G),
+    "LowLossLine.A": (lambda x: LowLossLine(A=x, length=0.1), lambda line: line.A),
+    "LowLossLine.tand": (lambda x: LowLossLine(tand=x, length=0.1), lambda line: line.tand),
     "PhysicalLine.A": (lambda x: PhysicalLine(A=x, length=0.1), lambda line: line.A),
     "PhysicalLine.tand": (lambda x: PhysicalLine(tand=x, length=0.1), lambda line: line.tand),
     "DatasheetLine.k1": (lambda x: DatasheetLine(k1=x, length=0.1), lambda line: line.k1),
@@ -1027,7 +1158,7 @@ _ZERO_VALID_LINE = {
 
 
 def test_coefficient_lines_construct_with_defaults(basic_freq):
-    for line in (RLGCLine(length=0.1), PhysicalLine(length=0.1), DatasheetLine(length=0.1)):
+    for line in (RLGCLine(length=0.1), LowLossLine(length=0.1), PhysicalLine(length=0.1), DatasheetLine(length=0.1)):
         assert jnp.all(jnp.isfinite(line.s(basic_freq)))
 
 
@@ -1053,14 +1184,21 @@ def test_negative_line_loss_is_rejected(make, where):
     lambda: RLGCLine(L=0.0, length=0.1),
     lambda: RLGCLine(C=0.0, length=0.1),
     lambda: RLGCLine(length=0.0),
+    lambda: LowLossLine(zn=0.0, length=0.1),
+    lambda: LowLossLine(f_ref=0.0, length=0.1),
     lambda: PhysicalLine(zn=0.0, length=0.1),
-    lambda: PhysicalLine(f_A=0.0, length=0.1),
+    lambda: PhysicalLine(f_ref=0.0, length=0.1),
     lambda: DatasheetLine(zn=0.0, length=0.1),
     lambda: DatasheetLine(vf=0.0, length=0.1),
+    lambda: DatasheetLine(f_ref=0.0, length=0.1),
+    lambda: FirstOrderEffectiveLineFormulation(f_low=0.0),
+    lambda: FirstOrderEffectiveLineFormulation(f_high=0.0),
 ], ids=[
     "RLGCLine.L", "RLGCLine.C", "RLGCLine.length",
-    "PhysicalLine.zn", "PhysicalLine.f_A",
-    "DatasheetLine.zn", "DatasheetLine.vf",
+    "LowLossLine.zn", "LowLossLine.f_ref",
+    "PhysicalLine.zn", "PhysicalLine.f_ref",
+    "DatasheetLine.zn", "DatasheetLine.vf", "DatasheetLine.f_ref",
+    "FirstOrderEffectiveLineFormulation.f_low", "FirstOrderEffectiveLineFormulation.f_high",
 ])
 def test_line_parameters_that_cannot_be_zero_reject_it(make):
     with pytest.raises(Exception, match="is not in Positive"):
