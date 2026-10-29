@@ -21,9 +21,10 @@ from pmrf.materials import (
     ConstantDielectric,
     DjordjevicSarkarDielectric,
     HammerstadRoughness,
-    MultipoleDebyeDielectric,
+    PoleDielectric,
     BulkConductor,
     DebyePole,
+    LorentzPole,
     RoughConductor,
     TabulatedDielectric,
 )
@@ -118,8 +119,16 @@ LINES = {
 MATERIALS = {
     "ConstantDielectric": ConstantDielectric(ep_r=4.3, tand=0.02, sigma=1e-3),
     "DjordjevicSarkarDielectric": DjordjevicSarkarDielectric(sigma=1e-3),
-    "MultipoleDebyeDielectric": MultipoleDebyeDielectric(
-        poles=(DebyePole(dep_r=0.5, f_relax=1e9),), sigma=1e-3
+    # One undamped Lorentz pole resonates above the 0-10 GHz sweep; the damped
+    # one may sit inside it.
+    "PoleDielectric": PoleDielectric(
+        ConstantDielectric(ep_r=2.0, sigma=1e-3),
+        poles=(
+            DebyePole(dep_r=0.5, f_relax=1e9),
+            LorentzPole(dep_r=0.3, f_res=5e9, zeta=0.2),
+            LorentzPole(dep_r=0.1, f_res=50e9),
+        ),
+        mu_poles=(LorentzPole(dep_r=0.2, f_res=3e9, zeta=0.5),),
     ),
     "ColeColeDielectric": ColeColeDielectric(dep_r=0.5, f_relax=1e9, alpha=0.3, sigma=1e-3),
     "TabulatedDielectric": TabulatedDielectric(
@@ -167,6 +176,7 @@ def test_line_is_finite_at_dc(line, dc_freq):
 def test_material_is_finite_at_dc(material, dc_freq):
     if isinstance(material, AbstractDielectric):
         _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).ep_r)
+        _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).mu_r)
     else:
         _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).zs)
         _assert_finite_value_and_grad(material, lambda m: m.properties(dc_freq).sigma)

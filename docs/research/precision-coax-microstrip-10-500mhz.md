@@ -291,7 +291,7 @@ ParamRF currently offers:
 |---|---|---|
 | `ConstantDielectric` | few parameters; useful control model | constant loss tangent is noncausal and cannot express linked phase dispersion |
 | `DjordjevicSarkarDielectric` | compact, causal, FR-4-like logarithmic trend | relaxation bounds and reference point must describe the actual laminate |
-| `MultipoleDebyeDielectric` | passive causal flexibility with interpretable poles | pole degeneracy without priors or adequate bandwidth |
+| `PoleDielectric` | passive causal flexibility with interpretable Debye and Lorentz poles | pole degeneracy without priors or adequate bandwidth |
 | `ColeColeDielectric` | one broadened relaxation | may be too restrictive for a heterogeneous laminate |
 | `TabulatedDielectric` | maximal interpolation freedom | causality/passivity and extrapolation are not guaranteed |
 

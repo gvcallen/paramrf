@@ -13,7 +13,8 @@ from pmrf.materials import (
     ConstantDielectric,
     DebyePole,
     DjordjevicSarkarDielectric,
-    MultipoleDebyeDielectric,
+    LorentzPole,
+    PoleDielectric,
     TabulatedDielectric,
     as_dielectric,
 )
@@ -115,24 +116,104 @@ def test_djordjevic_sarkar_is_dispersive(wideband_freq):
     assert jnp.all(jnp.diff(jnp.real(eps)) < 0)
 
 
-def test_multipole_debye_limits():
+def test_pole_dielectric_matches_multipole_debye_closed_form(wideband_freq):
+    """A constant base plus Debye poles is the classic N-pole Debye dielectric."""
+    ep_inf, sigma = 2.0, 0.01
+    pairs = [(1.0, 1e9), (0.5, 1e10)]
+    properties = PoleDielectric(ConstantDielectric(ep_r=ep_inf, sigma=sigma), pairs).properties(wideband_freq)
+
+    f = wideband_freq.f
+    expected = ep_inf + sum(dep_r / (1 + 1j * f / f_relax) for dep_r, f_relax in pairs)
+    assert jnp.allclose(properties.ep_r, expected, rtol=1e-14, atol=0.0)
+    assert jnp.allclose(properties.sigma, sigma, rtol=1e-14, atol=0.0)
+    assert jnp.allclose(properties.mu_r, 1.0, rtol=1e-14, atol=0.0)
+
+
+def test_pole_dielectric_debye_limits():
     lo = Frequency.from_f(jnp.array([1e3]))
     hi = Frequency.from_f(jnp.array([1e15]))
-    material = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9), (0.5, 1e10)])
+    material = PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[(1.0, 1e9), (0.5, 1e10)])
 
     assert jnp.allclose(jnp.real(material.properties(lo).ep_r), 3.5, rtol=1e-5)
     assert jnp.allclose(jnp.real(material.properties(hi).ep_r), 2.0, rtol=1e-5)
 
 
-def test_multipole_debye_coerces_pairs():
-    material = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)])
+def test_pole_dielectric_coerces_pairs_and_keeps_modules():
+    lorentz = LorentzPole(dep_r=0.2, f_res=50e9, zeta=0.1)
+    material = PoleDielectric(poles=[(1.0, 1e9), lorentz], mu_poles=[(0.5, 2e9)])
     assert isinstance(material.poles[0], DebyePole)
     assert jnp.allclose(material.poles[0].dep_r, 1.0)
+    assert material.poles[1] is lorentz
+    assert isinstance(material.mu_poles[0], DebyePole)
+
+
+def test_pole_dielectric_base_is_coerced():
+    material = PoleDielectric((4.3, 0.02))
+    assert isinstance(material.base, ConstantDielectric)
+    assert jnp.allclose(material.base.tand, 0.02)
+
+
+def test_pole_dielectric_adds_permeability_poles_and_keeps_base_sigma(freq):
+    base = ConstantDielectric(ep_r=4.3, tand=0.02, sigma=0.01, mu_r=2.0)
+    debye = DebyePole(dep_r=0.5, f_relax=3e9)
+    lorentz = LorentzPole(dep_r=0.3, f_res=5e9, zeta=0.2)
+    properties = PoleDielectric(base, poles=[debye], mu_poles=[debye, lorentz]).properties(freq)
+    base_properties = base.properties(freq)
+
+    assert jnp.allclose(properties.ep_r, base_properties.ep_r + debye.contribution(freq), rtol=1e-14)
+    assert jnp.allclose(
+        properties.mu_r, 2.0 + debye.contribution(freq) + lorentz.contribution(freq), rtol=1e-14
+    )
+    assert jnp.allclose(properties.sigma, 0.01, rtol=1e-14, atol=0.0)
+
+
+def test_lorentz_pole_matches_closed_form(wideband_freq):
+    dep_r, f_res, zeta = 0.7, 3e9, 0.15
+    f = wideband_freq.f
+    expected = dep_r / (1 - (f / f_res) ** 2 + 2j * zeta * f / f_res)
+    got = LorentzPole(dep_r=dep_r, f_res=f_res, zeta=zeta).contribution(wideband_freq)
+    assert jnp.allclose(got, expected, rtol=1e-14, atol=0.0)
+
+
+def test_undamped_lorentz_pole_is_real_away_from_resonance():
+    dep_r, f_res = 0.7, 3e9
+    for f in (jnp.linspace(0.0, 2e9, 21), jnp.linspace(4e9, 10e9, 21)):
+        got = LorentzPole(dep_r=dep_r, f_res=f_res).contribution(Frequency.from_f(f))
+        assert jnp.allclose(got, dep_r * f_res**2 / (f_res**2 - f**2), rtol=1e-14, atol=0.0)
+        assert jnp.all(jnp.imag(got) == 0.0)
+
+
+def test_lorentz_pole_dc_value():
+    dc = Frequency.from_f(jnp.array([0.0]))
+    assert jnp.allclose(LorentzPole(dep_r=0.7, f_res=3e9, zeta=0.15).contribution(dc), 0.7)
+
+
+@pytest.mark.parametrize("zeta", [1e-3, 0.1, 1.0, 5.0])
+def test_damped_lorentz_pole_is_passive(zeta, wideband_freq):
+    got = LorentzPole(dep_r=0.7, f_res=1e8, zeta=zeta).contribution(wideband_freq)
+    assert jnp.all(jnp.imag(got) <= 0.0)
+
+
+def test_undamped_lorentz_pole_in_band_raises(freq):
+    pole = LorentzPole(dep_r=0.7, f_res=5e9)
+    with pytest.raises(Exception, match="must resonate outside the evaluated band"):
+        pole.contribution(freq)
+    with pytest.raises(Exception, match="must resonate outside the evaluated band"):
+        jax.jit(lambda p: p.contribution(freq))(pole)
+
+
+@pytest.mark.parametrize("pole", [
+    LorentzPole(dep_r=0.7, f_res=50e9),
+    LorentzPole(dep_r=0.7, f_res=0.5e9),
+    LorentzPole(dep_r=0.7, f_res=5e9, zeta=0.1),
+], ids=["above band", "below band", "damped in band"])
+def test_lorentz_pole_does_not_raise_otherwise(pole, freq):
+    assert jnp.all(jnp.isfinite(pole.contribution(freq)))
 
 
 def test_cole_cole_reduces_to_debye(freq):
     cole = ColeColeDielectric(ep_inf=2.0, dep_r=1.0, f_relax=1e9, alpha=0.0)
-    debye = MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)])
+    debye = PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[(1.0, 1e9)])
     assert jnp.allclose(cole.properties(freq).ep_r, debye.properties(freq).ep_r)
 
 
@@ -190,7 +271,7 @@ def test_as_dielectric_converters():
 @pytest.mark.parametrize("material", [
     ConstantDielectric(4.3, 0.02, 0.01),
     DjordjevicSarkarDielectric(4.3, 0.02),
-    MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)]),
+    PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[(1.0, 1e9), LorentzPole(0.3, 1e8, 0.2)]),
     ColeColeDielectric(2.0, 1.0, 1e9, 0.3),
 ])
 def test_gradients_are_finite(material, wideband_freq):
@@ -207,7 +288,7 @@ def test_dielectrics_are_non_magnetic_by_default(freq):
     for material in (
         ConstantDielectric(4.3, 0.02),
         DjordjevicSarkarDielectric(4.3, 0.02),
-        MultipoleDebyeDielectric(ep_inf=2.0, poles=[(1.0, 1e9)]),
+        PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[(1.0, 1e9)]),
         ColeColeDielectric(2.0, 1.0, 1e9, 0.3),
     ):
         mu_r = material.properties(freq).mu_r
@@ -237,10 +318,14 @@ _ZERO_VALID = {
     "DjordjevicSarkarDielectric.sigma": (
         lambda x: DjordjevicSarkarDielectric(ep_r=4.3, sigma=x), lambda line: line.dielectric.sigma),
     "DebyePole.dep_r": (
-        lambda x: MultipoleDebyeDielectric(ep_inf=2.0, poles=[DebyePole(dep_r=x)]),
+        lambda x: PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[DebyePole(dep_r=x)]),
         lambda line: line.dielectric.poles[0].dep_r),
-    "MultipoleDebyeDielectric.sigma": (
-        lambda x: MultipoleDebyeDielectric(ep_inf=2.0, sigma=x), lambda line: line.dielectric.sigma),
+    "LorentzPole.dep_r": (
+        lambda x: PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[LorentzPole(dep_r=x, f_res=1e12)]),
+        lambda line: line.dielectric.poles[0].dep_r),
+    "LorentzPole.zeta": (
+        lambda x: PoleDielectric(ConstantDielectric(ep_r=2.0), poles=[LorentzPole(dep_r=0.3, f_res=1e12, zeta=x)]),
+        lambda line: line.dielectric.poles[0].zeta),
     "ColeColeDielectric.dep_r": (
         lambda x: ColeColeDielectric(ep_inf=2.0, dep_r=x, alpha=0.3), lambda line: line.dielectric.dep_r),
     "ColeColeDielectric.sigma": (
@@ -254,7 +339,8 @@ def test_dielectrics_construct_with_defaults():
     ConstantDielectric()
     DjordjevicSarkarDielectric()
     DebyePole()
-    MultipoleDebyeDielectric()
+    LorentzPole(dep_r=0.3, f_res=1e9)
+    PoleDielectric()
     ColeColeDielectric()
     TabulatedDielectric(_TABLE_F, _TABLE_EP_R)
 
@@ -283,6 +369,7 @@ def test_negative_loss_parameter_is_rejected(make, where):
     lambda: DjordjevicSarkarDielectric(f_high=0.0),
     lambda: DjordjevicSarkarDielectric(f_ref=0.0),
     lambda: DebyePole(f_relax=0.0),
+    lambda: LorentzPole(dep_r=0.3, f_res=0.0),
     lambda: ColeColeDielectric(f_relax=0.0),
 ], ids=[
     "ConstantDielectric.mu_r",
@@ -290,6 +377,7 @@ def test_negative_loss_parameter_is_rejected(make, where):
     "DjordjevicSarkarDielectric.f_high",
     "DjordjevicSarkarDielectric.f_ref",
     "DebyePole.f_relax",
+    "LorentzPole.f_res",
     "ColeColeDielectric.f_relax",
 ])
 def test_parameters_that_cannot_be_zero_reject_it(make):
