@@ -18,14 +18,21 @@ class EffectiveValues(eqx.Module):
     r"""
     The effective values that describe an effective-value line.
 
-    Every effective-value line reduces to these five numbers. They give the
-    attenuation constants
+    Every effective-value line reduces to these five numbers.
+
+    **Mathematical Formulation**
+
+    The attenuation constants are
     $$\alpha_c(\omega) = \frac{\ln 10}{20} A \sqrt{\frac{\omega}{\omega_{ref}}}
     \qquad
     \alpha_d(\omega) = \frac{\omega \sqrt{\varepsilon_{eff}} \tan\delta}{2 c_0}$$
     in Np/m, and the nominal per-unit-length quantities
     $$R'_n = 2 z_n \alpha_c \qquad L'_n = \frac{z_n \sqrt{\varepsilon_{eff}}}{c_0}
     \qquad G'_n = \frac{2 \alpha_d}{z_n} \qquad C'_n = \frac{\sqrt{\varepsilon_{eff}}}{z_n c_0}.$$
+
+    References
+    ----------
+    Pozar, D. M. (2011). Microwave Engineering (4th ed.), Section 2.7. Wiley.
 
     Parameters
     ----------
@@ -269,7 +276,8 @@ class LowLossLine(AbstractUniformLine):
         values = EffectiveValues(self.zn, self.ep_eff, self.A, self.tand, self.f_ref)
         w = frequency.w
         alpha_c, alpha_d = values.attenuation(w)
-        gamma = alpha_c + alpha_d + 1j * w * jnp.sqrt(self.ep_eff) / c
+        beta = w * jnp.sqrt(self.ep_eff) / c
+        gamma = alpha_c + alpha_d + 1j * beta
         zc = self.zn * jnp.ones_like(gamma)
         return zc, gamma * self.length
 
@@ -460,6 +468,9 @@ class DatasheetLine(AbstractEffectiveLine):
     f_ref: Param = param(default=1e9, constraint=Positive())
 
     def effective_values(self) -> EffectiveValues:
+        # The datasheet units are per 100 m and per MHz: k1 is k1 / 100 dB/m at 1 MHz,
+        # and k2 is k2 / 1e8 dB/m per Hz. tand follows from alpha_d = w sqrt(ep_eff)
+        # tand / (2 c0) = (ln 10 / 20) k2 f / 1e8, so its 1e9 is 20 * 1e8 / 2, not f_ref.
         return EffectiveValues(
             zn=self.zn,
             ep_eff=1 / self.vf**2,

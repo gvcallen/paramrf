@@ -205,6 +205,35 @@ def test_low_loss_line_matches_closed_form():
         np.testing.assert_allclose(np.asarray(gammaL) / 2.0, expected, rtol=1e-14)
 
 
+def test_effective_lines_match_skrf_defined_a_ep_tand_z0():
+    """scikit-rf's `DefinedAEpTandZ0` (frequency-invariant) is the same effective-value line.
+
+    Its gamma is always the low-loss one. Its Zc is `z0` when that is an array, which
+    makes it LowLossLine, and the nominal RLGC `sqrt(Z'/Y')` when `z0` is a scalar, which
+    pairs a nominal Zc with a low-loss gamma: a mixed model that ParamRF does not keep.
+    So Zc for a scalar `z0` is checked against the nominal PhysicalLine alone.
+    """
+    from skrf.media import DefinedAEpTandZ0
+
+    zn, ep_eff, A, tand, f_ref = (_EFFECTIVE[k] for k in ("zn", "ep_eff", "A", "tand", "f_ref"))
+    with jax.enable_x64():
+        freq = _effective_freq()
+        n = freq.npoints
+        skrf_low_loss = DefinedAEpTandZ0(
+            freq.to_skrf(), A=A, f_A=f_ref, ep_r=ep_eff, tanD=tand, z0=np.full(n, zn),
+        )
+        skrf_nominal_zc = DefinedAEpTandZ0(
+            freq.to_skrf(), A=A, f_A=f_ref, ep_r=ep_eff, tanD=tand, z0=zn,
+        ).z0_characteristic
+        zc, gammaL = LowLossLine(length=1.0, **_EFFECTIVE).zc_and_gammaL(freq)
+        nominal_zc = PhysicalLine(length=1.0, **_EFFECTIVE).zc(freq)
+
+    # Both evaluate the same closed forms in float64: a few ulps apart.
+    np.testing.assert_allclose(np.asarray(gammaL), skrf_low_loss.gamma, rtol=1e-14)
+    np.testing.assert_allclose(np.asarray(zc), skrf_low_loss.z0_characteristic, rtol=1e-14)
+    np.testing.assert_allclose(np.asarray(nominal_zc), skrf_nominal_zc, rtol=1e-14)
+
+
 def test_nominal_line_reduces_to_low_loss_quadratically():
     """The nominal gamma departs from the low-loss one at second order in the losses."""
     def relative_difference(scale):
