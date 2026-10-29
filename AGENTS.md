@@ -27,12 +27,16 @@ there are none.
 
 ```bash
 .venv/bin/python -m pytest tests/test_x.py  # the tests covering a change, while working
+.venv/bin/python -m pytest -n 2             # the full suite
+.venv/bin/python -m pytest --shard 1/4      # one CI shard: whole files, balanced by tests/durations.json
 .venv/bin/python -c "import pmrf"          # import smoke check
 ```
 
-CI runs the full suite on every PR. Compilation dominates test time, so `tests/conftest.py`
-keeps JAX's persistent compilation cache in `.jax_cache/`: the first run fills it (about 4 min
-with `-n 4`) and later runs take about 2 min. Deleting it is always safe.
+CI runs the full suite on every PR, split into the shards of `.github/workflows/tests.yml`.
+Compilation dominates test time, so `tests/conftest.py` keeps JAX's persistent compilation
+cache in `.jax_cache/` and prunes it to 1 GiB after each run; a warm cache makes reruns much
+faster. Deleting it is always safe. After adding or reshaping a slow test file, refresh the
+shard balance with `pytest -n 2 --store-durations` and commit `tests/durations.json`.
 
 No linter or formatter is configured. Match the style of surrounding code.
 
