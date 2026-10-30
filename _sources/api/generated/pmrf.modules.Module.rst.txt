@@ -1,0 +1,12 @@
+
+
+
+Module
+======
+
+.. currentmodule:: pmrf.modules
+
+.. autoclass:: Module
+   :members:
+   :show-inheritance:
+   :inherited-members:

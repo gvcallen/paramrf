@@ -1,0 +1,12 @@
+
+
+
+RCTerm
+======
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: RCTerm
+   :members:
+   :show-inheritance:
+   :inherited-members:

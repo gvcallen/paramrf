@@ -1,0 +1,12 @@
+
+
+
+RLTerm
+======
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: RLTerm
+   :members:
+   :show-inheritance:
+   :inherited-members:

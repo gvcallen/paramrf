@@ -1,0 +1,9 @@
+
+
+
+_djordjevic_sarkar
+==================
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autofunction:: _djordjevic_sarkar

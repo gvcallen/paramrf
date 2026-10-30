@@ -1,0 +1,9 @@
+
+
+
+_debye_pole
+===========
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autofunction:: _debye_pole

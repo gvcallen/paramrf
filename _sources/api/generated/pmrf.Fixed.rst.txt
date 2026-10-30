@@ -1,0 +1,9 @@
+﻿
+
+
+**Fixed** (pmrf.Fixed)
+======================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: Fixed

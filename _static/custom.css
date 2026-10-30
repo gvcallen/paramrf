@@ -1,0 +1,13 @@
+/* docs/_static/custom.css */
+
+/* Prevent Sphinx themes from stretching Jupyter plot outputs */
+div.nboutput .output_area img {
+    width: auto !important;
+    max-width: 100% !important;
+}
+
+/* Optional: Center the plots nicely */
+div.nboutput .output_area {
+    display: flex;
+    justify-content: center;
+}

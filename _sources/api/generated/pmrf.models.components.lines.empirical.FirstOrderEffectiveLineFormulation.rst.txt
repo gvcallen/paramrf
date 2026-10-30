@@ -1,0 +1,12 @@
+
+
+
+FirstOrderEffectiveLineFormulation
+==================================
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: FirstOrderEffectiveLineFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+as_conductor
+============
+
+.. currentmodule:: pmrf.materials
+
+.. autofunction:: as_conductor

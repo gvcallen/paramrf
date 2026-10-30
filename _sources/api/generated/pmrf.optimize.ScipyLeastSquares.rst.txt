@@ -1,0 +1,12 @@
+
+
+
+ScipyLeastSquares
+=================
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: ScipyLeastSquares
+   :members:
+   :show-inheritance:
+   :inherited-members:

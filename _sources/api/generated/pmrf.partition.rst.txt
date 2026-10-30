@@ -1,0 +1,9 @@
+﻿
+
+
+**partition** (pmrf.partition)
+==============================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: partition

@@ -1,0 +1,12 @@
+
+
+
+AbstractPole
+============
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: AbstractPole
+   :members:
+   :show-inheritance:
+   :inherited-members:

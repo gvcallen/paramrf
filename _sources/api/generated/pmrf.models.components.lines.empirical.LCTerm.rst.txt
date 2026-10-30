@@ -1,0 +1,12 @@
+
+
+
+LCTerm
+======
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: LCTerm
+   :members:
+   :show-inheritance:
+   :inherited-members:

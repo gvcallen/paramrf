@@ -1,0 +1,9 @@
+
+
+
+fit_joint
+=========
+
+.. currentmodule:: pmrf.fitting
+
+.. autofunction:: fit_joint

@@ -1,0 +1,267 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADR-0009: MAP fits are bounded least squares, alternating with a hyperparameter step &mdash; paramrf 0.38.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=9fa2033d"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ADR-0009: MAP fits are bounded least squares, alternating with a hyperparameter step</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/adr/0009-least-squares-map-fits.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="adr-0009-map-fits-are-bounded-least-squares-alternating-with-a-hyperparameter-step">
+<h1>ADR-0009: MAP fits are bounded least squares, alternating with a hyperparameter step<a class="headerlink" href="#adr-0009-map-fits-are-bounded-least-squares-alternating-with-a-hyperparameter-step" title="Link to this heading"></a></h1>
+<p>Status: accepted (2026-10)</p>
+<section id="context">
+<h2>Context<a class="headerlink" href="#context" title="Link to this heading"></a></h2>
+<p>Physical line models often have parameters that are each identifiable but jointly
+near-degenerate: the loss is a long, narrow valley. On a synthetic <code class="docutils literal notranslate"><span class="pre">MicrostripLine</span></code> fit
+(10-500 MHz, <code class="docutils literal notranslate"><span class="pre">w</span></code>, <code class="docutils literal notranslate"><span class="pre">h</span></code>, <code class="docutils literal notranslate"><span class="pre">ep_r</span></code>, <code class="docutils literal notranslate"><span class="pre">tand</span></code>, <code class="docutils literal notranslate"><span class="pre">sigma</span></code> and <code class="docutils literal notranslate"><span class="pre">length</span></code> free, noise 1e-5, Jacobian
+condition number about 4e5 in box space), starting from a perturbed point:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Method</p></th>
+<th class="head"><p>Outcome</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ScipyMinimize</span></code> L-BFGS-B (default)</p></td>
+<td><p>Reports success at a wrong point</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ScipyMinimize</span></code> trust-constr (BFGS)</p></td>
+<td><p>Not converged in 3000 iterations</p></td>
+</tr>
+<tr class="row-even"><td><p>trust-constr, exact JAX Hessian</p></td>
+<td><p>Not converged in 3000 iterations, about 20x slower</p></td>
+</tr>
+<tr class="row-odd"><td><p>trust-constr, Gauss-Newton Hessian</p></td>
+<td><p>Not converged in 3000 iterations</p></td>
+</tr>
+<tr class="row-even"><td><p>trust-exact, Levenberg-Marquardt (unbounded)</p></td>
+<td><p>Leave the box and fail</p></td>
+</tr>
+<tr class="row-odd"><td><p>Optimistix Levenberg-Marquardt, Dogleg, Gauss-Newton (raw space)</p></td>
+<td><p>Stall on the bounds, where the raw Jacobian vanishes</p></td>
+</tr>
+<tr class="row-even"><td><p>SciPy <code class="docutils literal notranslate"><span class="pre">least_squares</span></code>, <code class="docutils literal notranslate"><span class="pre">'trf'</span></code>, box space</p></td>
+<td><p>Recovers all six true values</p></td>
+</tr>
+</tbody>
+</table>
+<p>The exact Hessian adds the residual-weighted second derivative of the model, the term a
+linearisation drops. Far from the solution it hurts rather than helps.</p>
+<p>Under a Gaussian likelihood with fixed noise and discrepancy hyperparameters, the negative
+log posterior is half the squared norm of a residual vector, up to a constant, whenever
+each prior is Gaussian, truncated Gaussian or uniform. Noise and kernel hyperparameters
+are usually fitted too, and they enter through <span class="math notranslate nohighlight">\(\tfrac{1}{2}\ln|\Sigma_D|\)</span>, which is not a
+square.</p>
+</section>
+<section id="decision">
+<h2>Decision<a class="headerlink" href="#decision" title="Link to this heading"></a></h2>
+<section id="a-least-squares-minimiser-over-box-space">
+<h3>A least-squares minimiser over box space<a class="headerlink" href="#a-least-squares-minimiser-over-box-space" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">pmrf.optimize.ScipyLeastSquares</span></code> wraps <code class="docutils literal notranslate"><span class="pre">scipy.optimize.least_squares</span></code> with <code class="docutils literal notranslate"><span class="pre">'trf'</span></code>. Like
+any minimiser that honours bounds, it searches box space and is given the box’s edges
+(ADR-0007). It minimises half the squared norm of a residual vector, not a scalar.</p>
+</section>
+<section id="the-residual-vector">
+<h3>The residual vector<a class="headerlink" href="#the-residual-vector" title="Link to this heading"></a></h3>
+<p>The vector stacks the <strong>whitened residual</strong> of each term and the <strong>prior residual</strong> of each
+free parameter.</p>
+<ul class="simple">
+<li><p><strong>Whitened residual.</strong> For a <code class="docutils literal notranslate"><span class="pre">MarginalLogLikelihood</span></code>, <span class="math notranslate nohighlight">\(L^{-1} r\)</span> per event block, with
+<span class="math notranslate nohighlight">\(L\)</span> the lower Cholesky factor of <span class="math notranslate nohighlight">\(\Sigma_D = K + \Sigma_n\)</span>: the same factor
+<code class="docutils literal notranslate"><span class="pre">linearize</span></code> uses. For a <code class="docutils literal notranslate"><span class="pre">TargetLoss</span></code> with <code class="docutils literal notranslate"><span class="pre">MSELoss</span></code>, the prediction error scaled so
+that half its squared norm is the loss.</p></li>
+<li><p><strong>Prior residual.</strong> Computed from the distribution, in the space it is over. It is not
+the raw value, since truncation makes the raw map nonlinear.</p></li>
+</ul>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Prior</p></th>
+<th class="head"><p>Prior residual</p></th>
+<th class="head"><p>Bounds</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Normal</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\((\theta - \mu)/\sigma\)</span></p></td>
+<td><p>none</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TruncatedNormal</span></code>, including a <code class="docutils literal notranslate"><span class="pre">Normal</span></code> truncated to a validity</p></td>
+<td><p><span class="math notranslate nohighlight">\((\theta - \mu)/\sigma\)</span></p></td>
+<td><p>the truncation</p></td>
+</tr>
+<tr class="row-even"><td><p>Joint multivariate normal, including <code class="docutils literal notranslate"><span class="pre">truncate='unnormalised'</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(L_0^{-1}(\theta - \mu)\)</span>, with <span class="math notranslate nohighlight">\(\Sigma_0 = L_0 L_0^\top\)</span></p></td>
+<td><p>each parameter’s validity</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Uniform</span></code>, or no prior</p></td>
+<td><p>none</p></td>
+<td><p>the parameter’s bounds</p></td>
+</tr>
+</tbody>
+</table>
+<p>A truncation normaliser is constant in <span class="math notranslate nohighlight">\(\theta\)</span>, so it does not move the MAP.</p>
+</section>
+<section id="alternating-with-a-hyperparameter-step">
+<h3>Alternating with a hyperparameter step<a class="headerlink" href="#alternating-with-a-hyperparameter-step" title="Link to this heading"></a></h3>
+<p>The level above the minimiser splits the free parameters. The model parameters are the
+free parameters of <code class="docutils literal notranslate"><span class="pre">problem.model</span></code>. The <strong>hyperparameters</strong> are the free parameters the
+terms own, such as white noise and kernel hyperparameters. <code class="docutils literal notranslate"><span class="pre">run_minimizer</span></code> hands the
+minimiser both groups: a residual function of the model parameters given the
+hyperparameters, and the full scalar objective of the hyperparameters given the model
+parameters. The minimiser knows nothing about noise or kernels.</p>
+<p>Each round is a least-squares solve over the model parameters, then a <strong>hyperparameter
+step</strong>: a scalar minimisation of the full negative log posterior over the hyperparameters
+with the model parameters held, by <code class="docutils literal notranslate"><span class="pre">hyper_minimizer</span></code> (default <code class="docutils literal notranslate"><span class="pre">ScipyMinimize()</span></code>). The fit
+stops when a round no longer decreases the full objective. With no free hyperparameters
+it is a single least-squares solve.</p>
+</section>
+<section id="not-yet-supported">
+<h3>Not yet supported<a class="headerlink" href="#not-yet-supported" title="Link to this heading"></a></h3>
+<p>Each of these raises an error saying it is not yet supported:</p>
+<ul class="simple">
+<li><p>noise given as a callable of the prediction, since <span class="math notranslate nohighlight">\(\Sigma_D\)</span> then depends on the
+model parameters;</p></li>
+<li><p>a mixing that depends on the prediction, for the same reason;</p></li>
+<li><p>orthogonal discrepancy without a fixed reference basis;</p></li>
+<li><p>priors other than those in the table, such as a prior over raw space carried to
+declared space with a change-of-variables term;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GibbsMarginalLogLikelihood</span></code>, losses other than <code class="docutils literal notranslate"><span class="pre">MSELoss</span></code>, and any term without a
+whitened residual.</p></li>
+</ul>
+</section>
+</section>
+<section id="considered-options">
+<h2>Considered options<a class="headerlink" href="#considered-options" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Restore the exact Hessian in <code class="docutils literal notranslate"><span class="pre">ScipyMinimize</span></code>.</strong> Rejected as the fix: it did not
+converge on the degenerate fit and is slow to compile. It may still be added for other
+reasons.</p></li>
+<li><p><strong>Optimistix least-squares solvers.</strong> They keep the fit in JAX, but take no bounds, and
+in raw space they stall on the bounds. Rejected.</p></li>
+<li><p><strong>One least-squares solve over model parameters and hyperparameters together.</strong> The
+log-determinant is not a square; writing it as one gives a residual with a singular
+derivative. Rejected.</p></li>
+</ul>
+</section>
+<section id="consequences">
+<h2>Consequences<a class="headerlink" href="#consequences" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>At the MAP, the stacked whitened Jacobian and prior square root of the last
+least-squares solve are the <span class="math notranslate nohighlight">\(A\)</span> of <code class="docutils literal notranslate"><span class="pre">posterior_covariance_factor</span></code>. The fit and its
+linearisation share one approximation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ScipyMinimize</span></code>’s commented-out Hessian path is removed.</p></li>
+<li><p>Shared discrepancy is supported once its whitened residual covers the joint covariance
+across datasets, for mixings that do not depend on the prediction.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

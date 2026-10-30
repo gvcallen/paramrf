@@ -1,0 +1,12 @@
+
+
+
+Linearization
+=============
+
+.. currentmodule:: pmrf.stats.linearization
+
+.. autoclass:: Linearization
+   :members:
+   :show-inheritance:
+   :inherited-members:

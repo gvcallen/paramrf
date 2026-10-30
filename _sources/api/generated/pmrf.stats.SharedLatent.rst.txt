@@ -1,0 +1,12 @@
+
+
+
+SharedLatent
+============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: SharedLatent
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+﻿
+
+
+**Partial** (pmrf.Partial)
+==========================
+
+.. currentmodule:: pmrf
+
+.. autoclass:: Partial
+   :members:
+   :show-inheritance:
+   :inherited-members:

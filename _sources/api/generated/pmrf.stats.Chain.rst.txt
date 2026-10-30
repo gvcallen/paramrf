@@ -1,0 +1,12 @@
+
+
+
+Chain
+=====
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Chain
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+BoundEvaluator
+==============
+
+.. currentmodule:: pmrf.objectives.terms
+
+.. autoclass:: BoundEvaluator
+   :members:
+   :show-inheritance:
+   :inherited-members:

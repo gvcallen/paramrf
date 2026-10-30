@@ -1,0 +1,9 @@
+
+
+
+cross_gram
+==========
+
+.. currentmodule:: pmrf.stats
+
+.. autofunction:: cross_gram

@@ -1,0 +1,12 @@
+
+
+
+Transformed
+===========
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Transformed
+   :members:
+   :show-inheritance:
+   :inherited-members:

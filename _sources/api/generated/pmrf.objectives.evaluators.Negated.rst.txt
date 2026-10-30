@@ -1,0 +1,12 @@
+
+
+
+Negated
+=======
+
+.. currentmodule:: pmrf.objectives.evaluators
+
+.. autoclass:: Negated
+   :members:
+   :show-inheritance:
+   :inherited-members:

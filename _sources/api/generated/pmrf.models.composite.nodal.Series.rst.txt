@@ -1,0 +1,12 @@
+
+
+
+Series
+======
+
+.. currentmodule:: pmrf.models.composite.nodal
+
+.. autoclass:: Series
+   :members:
+   :show-inheritance:
+   :inherited-members:

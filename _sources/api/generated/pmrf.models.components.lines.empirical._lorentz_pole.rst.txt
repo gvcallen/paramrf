@@ -1,0 +1,9 @@
+
+
+
+_lorentz_pole
+=============
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autofunction:: _lorentz_pole

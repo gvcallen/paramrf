@@ -1,0 +1,9 @@
+
+
+
+whitened_residual
+=================
+
+.. currentmodule:: pmrf.objectives.evaluators
+
+.. autofunction:: whitened_residual

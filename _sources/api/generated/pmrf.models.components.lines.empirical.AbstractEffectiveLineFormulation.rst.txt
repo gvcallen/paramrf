@@ -1,0 +1,12 @@
+
+
+
+AbstractEffectiveLineFormulation
+================================
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: AbstractEffectiveLineFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

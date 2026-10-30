@@ -1,0 +1,12 @@
+
+
+
+GlobalNodalCircuitSolver
+========================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.solvers.nodal
+
+.. autoclass:: GlobalNodalCircuitSolver
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,9 @@
+
+
+
+_as_terms
+=========
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autofunction:: _as_terms

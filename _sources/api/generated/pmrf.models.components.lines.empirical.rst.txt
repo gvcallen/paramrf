@@ -1,0 +1,68 @@
+
+
+
+empirical
+=========
+
+.. automodule:: pmrf.models.components.lines.empirical
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractEffectiveLine
+
+   AbstractEffectiveLineFormulation
+
+   DatasheetLine
+
+   EffectiveValues
+
+   FirstOrderEffectiveLineFormulation
+
+   GeneralizedLine
+
+   LCTerm
+
+   LowLossLine
+
+   NominalEffectiveLineFormulation
+
+   PhysicalLine
+
+   RCTerm
+
+   RLTerm
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   _as_terms
+
+   _debye_pole
+
+   _djordjevic_sarkar
+
+   _lorentz_pole
+
+

@@ -1,0 +1,12 @@
+
+
+
+AbstractRoughness
+=================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: AbstractRoughness
+   :members:
+   :show-inheritance:
+   :inherited-members:

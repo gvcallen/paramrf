@@ -1,0 +1,379 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeneralizedLine &mdash; paramrf 0.38.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/jupyter-sphinx.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/thebelab.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=7b27aacc" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=9fa2033d"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/thebelab-helper.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]], "processEscapes": true, "displayMath": [["\\[", "\\]"], ["$$", "$$"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="LCTerm" href="pmrf.models.components.lines.empirical.LCTerm.html" />
+    <link rel="prev" title="FirstOrderEffectiveLineFormulation" href="pmrf.models.components.lines.empirical.FirstOrderEffectiveLineFormulation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            paramrf
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core_concepts/index.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models/index.html">Model Hierarchy</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#core-primitives">Core Primitives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#working-with-parameters">Working with Parameters</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#main-modules">Main Modules</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.adapters.html">adapters</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="pmrf.models.components.html">components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.composite.html">composite</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pmrf.models.surrogates.html">surrogates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.modules.html"><strong>modules</strong> (pmrf.modules)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.materials.html"><strong>materials</strong> (pmrf.materials)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.parameters.html"><strong>parameters</strong> (pmrf.parameters)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.stats.html"><strong>stats</strong> (pmrf.stats)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.objectives.html"><strong>objectives</strong> (pmrf.objectives)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.optimize.html"><strong>optimize</strong> (pmrf.optimize)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.infer.html"><strong>infer</strong> (pmrf.infer)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pmrf.fitting.html"><strong>fitting</strong> (pmrf.fitting)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#other-modules">Other Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#utilities">Utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../skrf_comparison/index.html">scikit-rf Comparison</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">paramrf</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.html"><strong>models</strong> (pmrf.models)</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.html">components</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.html">lines</a></li>
+          <li class="breadcrumb-item"><a href="pmrf.models.components.lines.empirical.html">empirical</a></li>
+      <li class="breadcrumb-item active">GeneralizedLine</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/pmrf.models.components.lines.empirical.GeneralizedLine.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="generalizedline">
+<h1>GeneralizedLine<a class="headerlink" href="#generalizedline" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pmrf.models.components.lines.empirical.</span></span><span class="sig-name descname"><span class="pre">GeneralizedLine</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ep_eff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tand</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_ref</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_low</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_high</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000000000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">R_dc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_s</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conductor_terms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dielectric_terms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inductive_dispersion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">capacitive_dispersion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="pmrf.models.components.lines.empirical.AbstractEffectiveLine.html#pmrf.models.components.lines.empirical.AbstractEffectiveLine" title="pmrf.models.components.lines.empirical.AbstractEffectiveLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractEffectiveLine</span></code></a></p>
+<p>Causal effective-value line with RL, RC and LC refinement terms.</p>
+<p>The base is the first-order effective-value line, as
+<a class="reference internal" href="pmrf.models.components.lines.empirical.PhysicalLine.html#pmrf.models.components.lines.empirical.PhysicalLine" title="pmrf.models.components.lines.empirical.PhysicalLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysicalLine</span></code></a> with <a class="reference internal" href="pmrf.models.components.lines.empirical.FirstOrderEffectiveLineFormulation.html#pmrf.models.components.lines.empirical.FirstOrderEffectiveLineFormulation" title="pmrf.models.components.lines.empirical.FirstOrderEffectiveLineFormulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">FirstOrderEffectiveLineFormulation</span></code></a>.
+On top of it, an optional skin-effect onset, a DC resistance and four
+families of terms model higher-order behaviour: extra conductor relaxations
+(<a class="reference internal" href="pmrf.models.components.lines.empirical.RLTerm.html#pmrf.models.components.lines.empirical.RLTerm" title="pmrf.models.components.lines.empirical.RLTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">RLTerm</span></code></a>), dielectric relaxations (<a class="reference internal" href="pmrf.models.components.lines.empirical.RCTerm.html#pmrf.models.components.lines.empirical.RCTerm" title="pmrf.models.components.lines.empirical.RCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">RCTerm</span></code></a>) and modal
+dispersion of the inductance and capacitance (<a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">LCTerm</span></code></a>). Every part
+is causal, so the line is too. With <cite>R_dc = 0</cite>, <cite>f_s = None</cite> and no terms it
+is exactly the first-order <a class="reference internal" href="pmrf.models.components.lines.empirical.PhysicalLine.html#pmrf.models.components.lines.empirical.PhysicalLine" title="pmrf.models.components.lines.empirical.PhysicalLine"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysicalLine</span></code></a>.</p>
+<p><strong>Mathematical Formulation</strong></p>
+<p>With the nominal <span class="math notranslate nohighlight">\(R'_n(\omega)\)</span>, <span class="math notranslate nohighlight">\(L'_n\)</span> and <span class="math notranslate nohighlight">\(C'_n\)</span> of <a class="reference internal" href="pmrf.models.components.lines.empirical.EffectiveValues.html#pmrf.models.components.lines.empirical.EffectiveValues" title="pmrf.models.components.lines.empirical.EffectiveValues"><code class="xref py py-class docutils literal notranslate"><span class="pre">EffectiveValues</span></code></a>,
+<div class="math notranslate nohighlight">
+\[Z'(\omega) = j\omega L'_n \mu(\omega) + Z'_{int}(\omega)
+\qquad
+Y'(\omega) = j\omega C'_n \frac{\varepsilon(\omega)}{\varepsilon_{eff}}.\]</div>
+</p>
+<p>The medium <span class="math notranslate nohighlight">\((\varepsilon, \mu)\)</span> is a
+<a class="reference internal" href="pmrf.materials.PoleDielectric.html#pmrf.materials.PoleDielectric" title="pmrf.materials.PoleDielectric"><code class="xref py py-class docutils literal notranslate"><span class="pre">PoleDielectric</span></code></a> whose base is the
+<a class="reference internal" href="pmrf.materials.DjordjevicSarkarDielectric.html#pmrf.materials.DjordjevicSarkarDielectric" title="pmrf.materials.DjordjevicSarkarDielectric"><code class="xref py py-class docutils literal notranslate"><span class="pre">DjordjevicSarkarDielectric</span></code></a> with
+<span class="math notranslate nohighlight">\(\varepsilon_r' = \varepsilon_{eff}\)</span>, <span class="math notranslate nohighlight">\(\tan\delta\)</span>, <cite>f_low</cite>, <cite>f_high</cite> and
+<cite>f_ref</cite>. Each <a class="reference internal" href="pmrf.models.components.lines.empirical.RCTerm.html#pmrf.models.components.lines.empirical.RCTerm" title="pmrf.models.components.lines.empirical.RCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">RCTerm</span></code></a> adds a
+<a class="reference internal" href="pmrf.materials.DebyePole.html#pmrf.materials.DebyePole" title="pmrf.materials.DebyePole"><code class="xref py py-class docutils literal notranslate"><span class="pre">DebyePole</span></code></a> with
+<span class="math notranslate nohighlight">\(\Delta\varepsilon_r = 2\varepsilon_{eff}\tan\delta_i\)</span> and <span class="math notranslate nohighlight">\(f_{relax} = f_i\)</span>,
+each capacitive <a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">LCTerm</span></code></a> a <a class="reference internal" href="pmrf.materials.LorentzPole.html#pmrf.materials.LorentzPole" title="pmrf.materials.LorentzPole"><code class="xref py py-class docutils literal notranslate"><span class="pre">LorentzPole</span></code></a> with
+<span class="math notranslate nohighlight">\(\Delta\varepsilon_r = \varepsilon_{eff} a_i\)</span>, and each inductive
+<a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">LCTerm</span></code></a> a permeability <a class="reference internal" href="pmrf.materials.LorentzPole.html#pmrf.materials.LorentzPole" title="pmrf.materials.LorentzPole"><code class="xref py py-class docutils literal notranslate"><span class="pre">LorentzPole</span></code></a> with
+<span class="math notranslate nohighlight">\(\Delta\mu_r = a_i\)</span>, both at <span class="math notranslate nohighlight">\(f_{res} = f_i\)</span> with damping <span class="math notranslate nohighlight">\(\zeta_i\)</span>. So an
+RC term adds
+<div class="math notranslate nohighlight">
+\[j\omega C'_n \frac{2\tan\delta_i}{1 + j\omega/\omega_i}\]</div>
+
+to <span class="math notranslate nohighlight">\(Y'\)</span>, and an undamped LC term adds
+<div class="math notranslate nohighlight">
+\[j\omega C'_n \frac{a_i \omega_i^2}{\omega_i^2 - \omega^2}
+\quad\text{or}\quad
+j\omega L'_n \frac{a_i \omega_i^2}{\omega_i^2 - \omega^2}\]</div>
+
+to <span class="math notranslate nohighlight">\(Y'\)</span> or <span class="math notranslate nohighlight">\(Z'\)</span>. A damped one, <span class="math notranslate nohighlight">\(\zeta_i &gt; 0\)</span>, is a lossy RLC term.</p>
+<p>The conductor’s internal impedance is
+<div class="math notranslate nohighlight">
+\[Z'_{int}(\omega) = R_{dc} + \frac{2}{\pi}(1 + j) R'_n(\omega)
+\arctan\sqrt{\frac{j\omega}{\omega_s}}
++ 2 z_n \frac{\ln 10}{20} \sum_i A_i \frac{j\omega}{\omega_i + j\omega},\]</div>
+
+where the sum runs over <cite>conductor_terms</cite>, each a parallel
+<span class="math notranslate nohighlight">\(R_i \parallel L_i\)</span> with <span class="math notranslate nohighlight">\(R_i = 2 z_n \frac{\ln 10}{20} A_i\)</span> and
+<span class="math notranslate nohighlight">\(L_i = R_i/\omega_i\)</span>. The arctan is the closed form of a distribution of RL
+terms truncated below <span class="math notranslate nohighlight">\(\omega_s\)</span>,
+<div class="math notranslate nohighlight">
+\[\frac{\sqrt{2} R'_n(\omega_{ref})}{\pi\sqrt{\omega_{ref}}}
+\int_{\omega_s}^{\infty} \frac{j\omega}{\sqrt{x}(x + j\omega)}\,dx,\]</div>
+
+which tends to <span class="math notranslate nohighlight">\((1 + j) R'_n(\omega)\)</span> as <span class="math notranslate nohighlight">\(\omega_s \to 0\)</span>. With
+<cite>f_s = None</cite> the onset is absent and that limit is used exactly.</p>
+<p><cite>ep_eff</cite> and <cite>tand</cite> describe the <em>base</em> medium at <cite>f_ref</cite>. The terms add to
+it, so once any are present <span class="math notranslate nohighlight">\(\Re\,\varepsilon(f_{ref}) \neq \varepsilon_{eff}\)</span>.
+Each RC term also raises the static capacitance by <span class="math notranslate nohighlight">\(2\tan\delta_i C'_n\)</span>, as
+the Kramers-Kronig relations require. An undamped LC term is singular at its
+resonance, so <cite>f</cite> must lie outside the evaluated band;
+<a class="reference internal" href="pmrf.materials.LorentzPole.html#pmrf.materials.LorentzPole" title="pmrf.materials.LorentzPole"><code class="xref py py-class docutils literal notranslate"><span class="pre">LorentzPole</span></code></a> raises if it does not.</p>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pmrf</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">prf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pmrf.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">GeneralizedLine</span><span class="p">,</span> <span class="n">LCTerm</span>
+
+<span class="n">line</span> <span class="o">=</span> <span class="n">GeneralizedLine</span><span class="p">(</span>
+    <span class="n">zn</span><span class="o">=</span><span class="mf">50.0</span><span class="p">,</span>
+    <span class="n">ep_eff</span><span class="o">=</span><span class="mf">2.1</span><span class="p">,</span>
+    <span class="n">A</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+    <span class="n">tand</span><span class="o">=</span><span class="mf">2e-4</span><span class="p">,</span>
+    <span class="n">length</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">f_s</span><span class="o">=</span><span class="mf">1e6</span><span class="p">,</span>
+    <span class="n">conductor_terms</span><span class="o">=</span><span class="p">[(</span><span class="mf">0.01</span><span class="p">,</span> <span class="mf">10e6</span><span class="p">)],</span>
+    <span class="n">dielectric_terms</span><span class="o">=</span><span class="p">[(</span><span class="mf">1e-4</span><span class="p">,</span> <span class="mf">100e6</span><span class="p">)],</span>
+    <span class="n">capacitive_dispersion</span><span class="o">=</span><span class="p">[</span><span class="n">LCTerm</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">f</span><span class="o">=</span><span class="mf">20e9</span><span class="p">)],</span>
+<span class="p">)</span>
+
+<span class="n">freq</span> <span class="o">=</span> <span class="n">prf</span><span class="o">.</span><span class="n">Frequency</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">npoints</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">'mhz'</span><span class="p">)</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">s</span><span class="p">(</span><span class="n">freq</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="rubric">References</p>
+<p>Allen, G. V. C. Precision Circuit Modelling for 21 cm Radiometer Calibration.
+PhD thesis.</p>
+<p>Djordjevic, A. R., Biljic, R. M., Likar-Smiljanic, V. D., &amp; Sarkar, T. K. (2001).
+Wideband frequency-domain characterization of FR-4 and time-domain causality.
+IEEE Transactions on Electromagnetic Compatibility, 43(4), 662-667.</p>
+<p>Debye, P. (1929). Polar Molecules. Chemical Catalog Company.</p>
+<p>Jackson, J. D. (1999). Classical Electrodynamics (3rd ed.), Section 7.5. Wiley.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>zn</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=50.0</em>) – Nominal characteristic impedance in ohm, defining the L/C ratio.</p></li>
+<li><p><strong>ep_eff</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=1.0</em>) – Effective relative permittivity of the base medium at <cite>f_ref</cite>.</p></li>
+<li><p><strong>A</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=0.0</em>) – Conductor attenuation in dB/m at <cite>f_ref</cite>.</p></li>
+<li><p><strong>tand</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=0.0</em>) – Effective loss tangent of the base medium at <cite>f_ref</cite>.</p></li>
+<li><p><strong>f_ref</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=1e9</em>) – Reference frequency in Hz of <cite>ep_eff</cite>, <cite>A</cite> and <cite>tand</cite>.</p></li>
+<li><p><strong>f_low</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=1e3</em>) – Lower bound of the base medium’s relaxation-time distribution in Hz.</p></li>
+<li><p><strong>f_high</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=1e12</em>) – Upper bound of the base medium’s relaxation-time distribution in Hz.</p></li>
+<li><p><strong>R_dc</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em>, </em><em>default=0.0</em>) – DC series resistance in ohm/m.</p></li>
+<li><p><strong>f_s</strong> (<a class="reference internal" href="pmrf.Param.html#pmrf.Param" title="pmrf.Param"><em>Param</em></a><em> | </em><em>None</em><em>, </em><em>default=None</em>) – Skin-effect onset frequency in Hz, or <code class="docutils literal notranslate"><span class="pre">None</span></code> for no onset.</p></li>
+<li><p><strong>conductor_terms</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="pmrf.models.components.lines.empirical.RLTerm.html#pmrf.models.components.lines.empirical.RLTerm" title="pmrf.models.components.lines.empirical.RLTerm"><em>RLTerm</em></a><em>, </em><em>default=</em><em>(</em><em>)</em>) – Conductor relaxations. <code class="docutils literal notranslate"><span class="pre">(A,</span> <span class="pre">f)</span></code> tuples are coerced to <a class="reference internal" href="pmrf.models.components.lines.empirical.RLTerm.html#pmrf.models.components.lines.empirical.RLTerm" title="pmrf.models.components.lines.empirical.RLTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">RLTerm</span></code></a>.</p></li>
+<li><p><strong>dielectric_terms</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="pmrf.models.components.lines.empirical.RCTerm.html#pmrf.models.components.lines.empirical.RCTerm" title="pmrf.models.components.lines.empirical.RCTerm"><em>RCTerm</em></a><em>, </em><em>default=</em><em>(</em><em>)</em>) – Dielectric relaxations. <code class="docutils literal notranslate"><span class="pre">(tand,</span> <span class="pre">f)</span></code> tuples are coerced to <a class="reference internal" href="pmrf.models.components.lines.empirical.RCTerm.html#pmrf.models.components.lines.empirical.RCTerm" title="pmrf.models.components.lines.empirical.RCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">RCTerm</span></code></a>.</p></li>
+<li><p><strong>inductive_dispersion</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><em>LCTerm</em></a><em>, </em><em>default=</em><em>(</em><em>)</em>) – Resonances in the inductance. <code class="docutils literal notranslate"><span class="pre">(a,</span> <span class="pre">f)</span></code> or <code class="docutils literal notranslate"><span class="pre">(a,</span> <span class="pre">f,</span> <span class="pre">zeta)</span></code> tuples are
+coerced to <a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">LCTerm</span></code></a>.</p></li>
+<li><p><strong>capacitive_dispersion</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><em>LCTerm</em></a><em>, </em><em>default=</em><em>(</em><em>)</em>) – Resonances in the capacitance, coerced as <cite>inductive_dispersion</cite>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.effective_values">
+<span class="sig-name descname"><span class="pre">effective_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="pmrf.models.components.lines.empirical.EffectiveValues.html#pmrf.models.components.lines.empirical.EffectiveValues" title="pmrf.models.components.lines.empirical.EffectiveValues"><span class="pre">EffectiveValues</span></a></span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.effective_values" title="Link to this definition"></a></dt>
+<dd><p>The effective values of the line.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The nominal impedance, effective permittivity, conductor attenuation,
+loss tangent and their reference frequency.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="pmrf.models.components.lines.empirical.EffectiveValues.html#pmrf.models.components.lines.empirical.EffectiveValues" title="pmrf.models.components.lines.empirical.EffectiveValues">EffectiveValues</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.immittance">
+<span class="sig-name descname"><span class="pre">immittance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">freq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.frequency.Frequency"><span class="pre">Frequency</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="pmrf.models.components.lines.base.ImmittanceResult.html#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult"><span class="pre">ImmittanceResult</span></a></span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.immittance" title="Link to this definition"></a></dt>
+<dd><p>Calculates the frequency-dependent per-unit-length immittance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>freq</strong> (<a class="reference internal" href="pmrf.Frequency.html#pmrf.Frequency" title="pmrf.Frequency"><em>Frequency</em></a>) – The frequency axis.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The series impedance and shunt admittance vectors.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="pmrf.models.components.lines.base.ImmittanceResult.html#pmrf.models.components.lines.base.ImmittanceResult" title="pmrf.models.components.lines.base.ImmittanceResult">ImmittanceResult</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.A">
+<span class="sig-name descname"><span class="pre">A</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.A" title="Link to this definition"></a></dt>
+<dd><p>Conductor attenuation in dB/m at <cite>f_ref</cite></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.R_dc">
+<span class="sig-name descname"><span class="pre">R_dc</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.R_dc" title="Link to this definition"></a></dt>
+<dd><p>DC series resistance in ohm/m</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.capacitive_dispersion">
+<span class="sig-name descname"><span class="pre">capacitive_dispersion</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><span class="pre">LCTerm</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">()</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.capacitive_dispersion" title="Link to this definition"></a></dt>
+<dd><p>Resonances in the capacitance</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.conductor_terms">
+<span class="sig-name descname"><span class="pre">conductor_terms</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.models.components.lines.empirical.RLTerm.html#pmrf.models.components.lines.empirical.RLTerm" title="pmrf.models.components.lines.empirical.RLTerm"><span class="pre">RLTerm</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">()</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.conductor_terms" title="Link to this definition"></a></dt>
+<dd><p>Conductor relaxations</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.dielectric_terms">
+<span class="sig-name descname"><span class="pre">dielectric_terms</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.models.components.lines.empirical.RCTerm.html#pmrf.models.components.lines.empirical.RCTerm" title="pmrf.models.components.lines.empirical.RCTerm"><span class="pre">RCTerm</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">()</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.dielectric_terms" title="Link to this definition"></a></dt>
+<dd><p>Dielectric relaxations</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.ep_eff">
+<span class="sig-name descname"><span class="pre">ep_eff</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.ep_eff" title="Link to this definition"></a></dt>
+<dd><p>Effective relative permittivity of the base medium at <cite>f_ref</cite></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.f_high">
+<span class="sig-name descname"><span class="pre">f_high</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1000000000000.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.f_high" title="Link to this definition"></a></dt>
+<dd><p>Upper bound of the base medium’s relaxation-time distribution</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.f_low">
+<span class="sig-name descname"><span class="pre">f_low</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1000.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.f_low" title="Link to this definition"></a></dt>
+<dd><p>Lower bound of the base medium’s relaxation-time distribution</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.f_ref">
+<span class="sig-name descname"><span class="pre">f_ref</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1000000000.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.f_ref" title="Link to this definition"></a></dt>
+<dd><p>Reference frequency of <cite>ep_eff</cite>, <cite>A</cite> and <cite>tand</cite></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.f_s">
+<span class="sig-name descname"><span class="pre">f_s</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.f_s" title="Link to this definition"></a></dt>
+<dd><p>Skin-effect onset frequency, or None for no onset</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.inductive_dispersion">
+<span class="sig-name descname"><span class="pre">inductive_dispersion</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="pmrf.models.components.lines.empirical.LCTerm.html#pmrf.models.components.lines.empirical.LCTerm" title="pmrf.models.components.lines.empirical.LCTerm"><span class="pre">LCTerm</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">()</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.inductive_dispersion" title="Link to this definition"></a></dt>
+<dd><p>Resonances in the inductance</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.tand">
+<span class="sig-name descname"><span class="pre">tand</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.tand" title="Link to this definition"></a></dt>
+<dd><p>Effective loss tangent of the base medium at <cite>f_ref</cite></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pmrf.models.components.lines.empirical.GeneralizedLine.zn">
+<span class="sig-name descname"><span class="pre">zn</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="pmrf.parameters.Param.html#pmrf.parameters.Param" title="pmrf.parameters.Param"><span class="pre">Param</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50.0</span></span><a class="headerlink" href="#pmrf.models.components.lines.empirical.GeneralizedLine.zn" title="Link to this definition"></a></dt>
+<dd><p>Nominal characteristic impedance</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pmrf.models.components.lines.empirical.FirstOrderEffectiveLineFormulation.html" class="btn btn-neutral float-left" title="FirstOrderEffectiveLineFormulation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="pmrf.models.components.lines.empirical.LCTerm.html" class="btn btn-neutral float-right" title="LCTerm" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

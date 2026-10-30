@@ -1,0 +1,12 @@
+
+
+
+SharedMarginalLogLikelihood
+===========================
+
+.. currentmodule:: pmrf.objectives.shared
+
+.. autoclass:: SharedMarginalLogLikelihood
+   :members:
+   :show-inheritance:
+   :inherited-members:

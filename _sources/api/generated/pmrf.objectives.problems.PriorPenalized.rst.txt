@@ -1,0 +1,12 @@
+
+
+
+PriorPenalized
+==============
+
+.. currentmodule:: pmrf.objectives.problems
+
+.. autoclass:: PriorPenalized
+   :members:
+   :show-inheritance:
+   :inherited-members:

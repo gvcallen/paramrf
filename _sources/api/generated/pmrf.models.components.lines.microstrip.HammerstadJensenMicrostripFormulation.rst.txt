@@ -1,0 +1,12 @@
+
+
+
+HammerstadJensenMicrostripFormulation
+=====================================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: HammerstadJensenMicrostripFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

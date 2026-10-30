@@ -1,0 +1,9 @@
+
+
+
+cross_gram
+==========
+
+.. currentmodule:: pmrf.stats.covariance_kernels
+
+.. autofunction:: cross_gram

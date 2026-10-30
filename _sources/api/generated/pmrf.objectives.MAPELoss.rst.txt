@@ -1,0 +1,12 @@
+
+
+
+MAPELoss
+========
+
+.. currentmodule:: pmrf.objectives
+
+.. autoclass:: MAPELoss
+   :members:
+   :show-inheritance:
+   :inherited-members:

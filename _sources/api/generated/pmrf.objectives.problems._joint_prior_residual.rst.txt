@@ -1,0 +1,9 @@
+
+
+
+_joint_prior_residual
+=====================
+
+.. currentmodule:: pmrf.objectives.problems
+
+.. autofunction:: _joint_prior_residual

@@ -1,0 +1,9 @@
+
+
+
+problem_terms
+=============
+
+.. currentmodule:: pmrf.objectives.problems
+
+.. autofunction:: problem_terms

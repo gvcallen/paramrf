@@ -1,0 +1,12 @@
+
+
+
+GeneralizedLine
+===============
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: GeneralizedLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

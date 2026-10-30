@@ -1,0 +1,9 @@
+
+
+
+weighted_sum
+============
+
+.. currentmodule:: pmrf.math.aggregations
+
+.. autofunction:: weighted_sum
