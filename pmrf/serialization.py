@@ -67,6 +67,14 @@ def _get_jsonpickle(for_serialization: bool = True):
 
     return jsonpickle
 
+def _state_fields(node_or_cls: Any) -> tuple[dataclasses.Field, ...]:
+    """The fields that make up a dynamic node's saved state.
+
+    These are its real dataclass fields. ``ClassVar`` pseudo-fields are class
+    attributes, so they are neither written nor read.
+    """
+    return dataclasses.fields(node_or_cls)
+
 def _serialize_generic(node: Any) -> Any:
     """Recursively converts any PyTree/Equinox node into a JSON-serializable dict.
     Falls back to jsonpickle for unregistered or non-standard objects if installed.
@@ -94,14 +102,15 @@ def _serialize_generic(node: Any) -> Any:
             "__dummy_tree__": _serialize_generic(dummy_tree)
         }
         
-    # 1. Dynamic Nodes: Equinox Modules (Dataclasses)
+    # 1. Dynamic Nodes: Equinox Module (dataclass) instances
     # Always processed first so Equinox modules are serialized by state, not reference.
-    if hasattr(node, "__dataclass_fields__"):
+    # A dataclass *type* falls through and is saved by reference below.
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
         # Every field is written, defaults included, so a later change to a
         # default cannot silently alter a saved model when it is loaded.
         state = {
-            field_name: _serialize_generic(getattr(node, field_name))
-            for field_name in node.__dataclass_fields__
+            field.name: _serialize_generic(getattr(node, field.name))
+            for field in _state_fields(node)
         }
                 
         cls = type(node)
@@ -268,7 +277,10 @@ def _deserialize_generic(data: Any) -> Any:
             
             instance = object.__new__(cls) 
             
-            for field_name, field_def in getattr(cls, "__dataclass_fields__", {}).items():
+            # Keys that are not fields (e.g. ClassVars written by ParamRF 0.38.0)
+            # are never read: the class supplies its own class attributes.
+            for field_def in _state_fields(cls):
+                field_name = field_def.name
                 if field_name in data["__state__"]:
                     # The field was saved in the file; deserialize it
                     val = _deserialize_generic(data["__state__"][field_name])
