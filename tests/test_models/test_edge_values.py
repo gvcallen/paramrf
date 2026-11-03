@@ -107,18 +107,19 @@ EXAMPLES = {
     # length=0.1 (half a wavelength at 1 GHz) with R = 0, MNA and scattering differ by 7e-6.
     RLGCLine: lambda: RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.07),
     LowLossLine: lambda: LowLossLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
-    EquivalentLine: lambda: EquivalentLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
-    # The generalized formulation with the onset, an RC term and a damped capacitive LC
-    # term, so f_low, f_high, R_dc, f_s, the term strengths and the damping are swept;
-    # EquivalentLine keeps the default nominal one. The LC term resonates above FREQ so
+    DatasheetLine: lambda: DatasheetLine(zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0),
+    # The generalized formulation, so ep_eff and tand meet their closed bounds inside the
+    # Djordjevic-Sarkar dielectric, with the onset, an RC term and a damped capacitive LC
+    # term, so f_low, f_high, R_dc, f_s, the term strengths and the damping are swept too;
+    # DatasheetLine keeps the default nominal one. The LC term resonates above FREQ so
     # that zeta = 0 is valid. Each further term family would take it past FREQ's 16 S
     # entries (15 here). The inductive LC terms are the same GeneralizedLCTerm as the
     # capacitive ones, and an RL term's A meets no constraint inside the line, so neither
     # adds an edge to cover.
     # Short, as RLGCLine: at length=1.0 the LC term moves the line near a half wavelength
     # on FREQ, and MNA and scattering dS differ by 1e-10 at tand_i = 0.
-    DatasheetLine: lambda: DatasheetLine(
-        zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=0.07,
+    EquivalentLine: lambda: EquivalentLine(
+        zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=0.07,
         formulation=GeneralizedEffectiveLineFormulation(
             f_s=1e6, dielectric_terms=[(1e-3, 1e8)], capacitive_dispersion=[(1e-2, 5e9, 0.1)],
         ),

@@ -262,15 +262,15 @@ def test_nominal_line_reduces_to_low_loss_quadratically():
     lambda: EquivalentLine(length=1.0, **_EFFECTIVE),
     lambda: DatasheetLine(length=1.0, zn=50.0, vf=0.69, k1=0.2, k2=0.01),
 ], ids=["EquivalentLine", "DatasheetLine"])
-def test_first_order_admittance_is_djordjevic_sarkar(make):
+def test_generalized_admittance_is_djordjevic_sarkar(make):
     with jax.enable_x64():
         freq = _effective_freq()
         line = make()
         values = unwrap(line).effective_values()
-        first_order = eqx.tree_at(
+        generalized = eqx.tree_at(
             lambda m: m.formulation, line, GeneralizedEffectiveLineFormulation(**_DS_BOUNDS)
         )
-        Y = np.asarray(first_order.immittance(freq).Y)
+        Y = np.asarray(generalized.immittance(freq).Y)
         Y_nominal = np.asarray(line.immittance(freq).Y)
 
         dielectric = DjordjevicSarkarDielectric(

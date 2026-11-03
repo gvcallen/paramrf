@@ -608,7 +608,6 @@ class AbstractEffectiveLine(AbstractImmittanceLine):
         raise NotImplementedError
 
 
-
 class EquivalentLine(AbstractEffectiveLine):
     r"""
     Effective-value line parameterised by its effective values directly.
