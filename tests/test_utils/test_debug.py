@@ -167,6 +167,6 @@ def test_differentiable_through_print_arguments():
 
 
 def test_grad_through_parameter_update():
-    model = CapacitorQ(C=1e-12, Q=prf.Unconstrained(30.0))
+    model = CapacitorQ(C=1e-12, Q=prf.unconstrained(30.0))
     objective = lambda q: prf.update(model, {"Q": q}).Q.value
     assert jnp.allclose(jax.grad(objective)(30.0), 1.0)

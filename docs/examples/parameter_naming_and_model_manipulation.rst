@@ -16,8 +16,8 @@ Let's define an RLC network, giving names to some of its models and parameters:
    from pmrf.models import Resistor, Inductor, Capacitor
 
    res = Resistor(R=100.0, name='myR')
-   ind = Inductor(L=prf.Unconstrained(2.0, scale=1e-9, name='L_val'), name='myL')
-   cap = Capacitor(C=prf.Unconstrained(1.0, scale=1e-12, name='C_global'))
+   ind = Inductor(L=prf.unconstrained(2.0, scale=1e-9, name='L_val'), name='myL')
+   cap = Capacitor(C=prf.unconstrained(1.0, scale=1e-12, name='C_global'))
 
    rlc = res ** ind ** cap
 
@@ -107,7 +107,7 @@ The same approach replaces a parameter with a new one, for example to give the c
    :include-source:
 
    rlc_bounded = prf.update(
-       rlc, 'C_global', prf.Bounded(0.5, 2.0, value=1.0, scale=1e-12, name='C_global')
+       rlc, 'C_global', prf.bounded(0.5, 2.0, value=1.0, scale=1e-12, name='C_global')
    )
 
 Any later value update to ``C_global`` is now checked against these bounds.

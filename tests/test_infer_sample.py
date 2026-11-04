@@ -10,7 +10,7 @@ import numpy as np
 import parax.distributions as dd
 
 import pmrf as prf
-from pmrf.parameters import Param, Random, prior
+from pmrf.parameters import Param, random, prior
 from pmrf.stats.distributions import Normal
 from pmrf.infer.sample import sample
 from pmrf.infer.solvers.blackjax import NUTS
@@ -29,7 +29,7 @@ def basic_freq():
     return Frequency(start=1.0, stop=2.0, npoints=2, unit='GHz')
 
 class DummyInferModel(Model):
-    val: Param = Random(Normal(0.0, 5.0), value=0.0)
+    val: Param = random(Normal(0.0, 5.0), value=0.0)
 
     def s(self, freq: Frequency) -> jnp.ndarray:
         nf = freq.npoints
@@ -59,7 +59,7 @@ def penalty_ll(model, freq):
 @pytest.mark.parametrize("entrypoint", ["sample", "fit_sample"])
 def test_sampling_entrypoints_reject_unnormalised_joint_prior_before_solver_run(entrypoint):
     model = CoaxialLine(
-        length=prf.Unconstrained(0.1), d_in=prf.Unconstrained(1.12e-3)
+        length=prf.unconstrained(0.1), d_in=prf.unconstrained(1.12e-3)
     )
     distribution = dd.MultivariateNormalDiag(jnp.array([0.1, 1.12e-3]), jnp.array([0.2, 1e-3]))
     model = prior(model, ["length", "d_in"], distribution, truncate="unnormalised")

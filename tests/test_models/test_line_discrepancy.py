@@ -138,7 +138,7 @@ def test_reference_features_and_prediction_map_to_carrier():
 
 def test_reference_joint_prediction_attaches_to_transfer_line_by_name():
     frequency = prf.Frequency(1, 2, 5, 'GHz')
-    line = RLGCLine(length=0.3, R=prf.Random(Normal(1.0, 0.1), value=1.0))
+    line = RLGCLine(length=0.3, R=prf.random(Normal(1.0, 0.1), value=1.0))
     injected = np.zeros((2, 2, frequency.npoints))
     injected[0, 0] = 0.003
     injected[1, 0] = -0.005
@@ -159,7 +159,7 @@ def test_reference_joint_prediction_attaches_to_transfer_line_by_name():
     sigma = np.sqrt(np.diag(np.asarray(joint.covariance()))[1:].reshape(injected.shape))
     assert np.all(np.abs(mean - injected) <= 2 * sigma)
     carrier = GridLineDiscrepancy.from_prediction(frequency, joint, joint=True)
-    transfer = LineCorrected(RLGCLine(length=0.15, R=prf.Unconstrained(1.0)), carrier)
+    transfer = LineCorrected(RLGCLine(length=0.15, R=prf.unconstrained(1.0)), carrier)
     transfer = prf.prior(transfer, [*names, 'discrepancy.values'], joint,
                          truncate='unnormalised')
     assert np.isfinite(prf.log_prior(transfer))
@@ -200,9 +200,9 @@ def test_s_only_map_and_laplace_projection_transfer():
 
     def circuit(discrepancy, length):
         line = LineCorrected(
-            RLGCLine(length=prf.Fixed(length), R=prf.Fixed(3.0),
-                     L=prf.Fixed(2.8e-7), G=prf.Fixed(0.0),
-                     C=prf.Fixed(9e-11), name='line'), discrepancy)
+            RLGCLine(length=prf.fixed(length), R=prf.fixed(3.0),
+                     L=prf.fixed(2.8e-7), G=prf.fixed(0.0),
+                     C=prf.fixed(9e-11), name='line'), discrepancy)
         left, right = Port(name='left'), Port(name='right')
         return Circuit([[(left, 0), (line, 0)], [(line, 1), (right, 0)]])
 
@@ -252,8 +252,8 @@ def test_s_only_map_and_laplace_projection_transfer():
 def test_basis_joint_projection_keeps_free_line_parameter_covariance():
     frequency = prf.Frequency(1, 2, 5, 'GHz')
     basis = _basis(frequency)
-    line = RLGCLine(length=prf.Fixed(0.30), R=prf.Random(Normal(3.0, 0.5), value=3.0),
-                    L=prf.Fixed(2.8e-7), G=prf.Fixed(0.0), C=prf.Fixed(9e-11))
+    line = RLGCLine(length=prf.fixed(0.30), R=prf.random(Normal(3.0, 0.5), value=3.0),
+                    L=prf.fixed(2.8e-7), G=prf.fixed(0.0), C=prf.fixed(9e-11))
     model = LineCorrected(line, basis)
     mll = MarginalLogLikelihood(
         predictor=lambda m, f: m.s(f), observed=model.s(frequency),
@@ -267,9 +267,9 @@ def test_basis_joint_projection_keeps_free_line_parameter_covariance():
     assert np.all(np.isfinite(joint.covariance()))
     assert np.any(np.abs(np.asarray(joint.covariance())[0, 1:]) > 0)
     carrier = GridLineDiscrepancy.from_prediction(frequency, joint, joint=True)
-    transfer = LineCorrected(RLGCLine(length=prf.Fixed(0.15), R=prf.Unconstrained(3.0),
-                                      L=prf.Fixed(2.8e-7), G=prf.Fixed(0.0),
-                                      C=prf.Fixed(9e-11)), carrier)
+    transfer = LineCorrected(RLGCLine(length=prf.fixed(0.15), R=prf.unconstrained(3.0),
+                                      L=prf.fixed(2.8e-7), G=prf.fixed(0.0),
+                                      C=prf.fixed(9e-11)), carrier)
     transfer = prf.prior(transfer, [*names, 'discrepancy.values'], joint,
                          truncate='unnormalised')
     assert np.isfinite(prf.log_prior(transfer))

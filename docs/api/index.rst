@@ -13,11 +13,21 @@ Core Primitives
    pmrf.Module
    pmrf.Frequency
    pmrf.Param
-   pmrf.Unconstrained
-   pmrf.Fixed
-   pmrf.Bounded
-   pmrf.Constrained
-   pmrf.Random
+   pmrf.unconstrained
+   pmrf.fixed
+   pmrf.bounded
+   pmrf.constrained
+   pmrf.random
+   pmrf.uniform
+   pmrf.normal
+   pmrf.lognormal
+   pmrf.truncated_normal
+
+``bounded`` creates an interval constraint without a prior; ``uniform`` creates
+a random parameter with a uniform prior. For ``normal``, ``lognormal`` and
+``truncated_normal``, ``sigma`` is the distribution spread and ``scale`` is the
+parameter's unit multiplier. ``lognormal`` takes ``loc`` and ``sigma`` in log
+space.
 
 
 Working with Parameters

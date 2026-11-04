@@ -19,7 +19,7 @@ def test_module_parameter_helpers():
 
     assert set(prf.values(module)) == {"gain"}
     assert jnp.allclose(prf.values(module)["gain"], 2.0)
-    updated = prf.update(module, "gain", prf.Unconstrained(3.0, name="gain"))
+    updated = prf.update(module, "gain", prf.unconstrained(3.0, name="gain"))
     assert jnp.allclose(updated.gain, 3.0)
 
 
@@ -42,8 +42,8 @@ def test_module_parameters_can_be_tied():
 
 def test_tied_model_preserves_rf_interface():
     frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
-    model = Resistor(R=prf.Unconstrained(50.0)) ** Capacitor(
-        C=prf.Unconstrained(1e-12)
+    model = Resistor(R=prf.unconstrained(50.0)) ** Capacitor(
+        C=prf.unconstrained(1e-12)
     )
     tied = prf.tie(
         model,
@@ -61,8 +61,8 @@ def test_tied_model_preserves_rf_interface():
 
 
 def test_tied_model_stacking_keeps_one_rf_wrapper():
-    model = Resistor(R=prf.Unconstrained(50.0)) ** Capacitor(
-        C=prf.Unconstrained(1e-12)
+    model = Resistor(R=prf.unconstrained(50.0)) ** Capacitor(
+        C=prf.unconstrained(1e-12)
     )
     once = prf.tie(
         model,

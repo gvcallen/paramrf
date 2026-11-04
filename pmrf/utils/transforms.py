@@ -78,7 +78,7 @@ def derivative(eval_fn: Callable[..., Any], *args: *Ts, space: str = 'declared')
     >>> from pmrf.models import ShuntCapacitor
     >>>
     >>> freq = prf.Frequency(2.4, 2.4, 1, 'GHz')
-    >>> cap = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
+    >>> cap = ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12), name='c1')
     >>>
     >>> def eval_s21(model):
     ...     return model.s_mag(freq)[0, 1, 0]

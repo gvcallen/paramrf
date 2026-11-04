@@ -23,7 +23,10 @@ from parax.annotation import AbstractAnnotated
 
 from pmrf.stats.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.parameters.constraints import AbstractConstraint, Interval
-from pmrf.stats.distributions import AbstractDistribution, Transformed, truncate
+from pmrf.stats.distributions import (
+    AbstractDistribution, LogNormal, Normal, Transformed, TruncatedNormal,
+    Uniform, truncate,
+)
 from pmrf.utils import error_if, field
 from pmrf.utils.tree import Pathgetter, path_nodes, path_to_name, resolve_target
 
@@ -37,7 +40,7 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
 
     Parameters can be created by instantiating this class, or using factories
     in :mod:`pmrf.parameters`, most of which are re-exported at root
-    (e.g. :func:`pmrf.Unconstrained`, :func:`pmrf.Fixed`, :func:`pmrf.Bounded`).
+    (e.g. :func:`pmrf.unconstrained`, :func:`pmrf.fixed`, :func:`pmrf.bounded`).
     
     Wraps a `Parax <https://gvcallen.github.io/parax>`_ variable,
     applying an optional scale, name and metadata.
@@ -55,7 +58,7 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
     --------
     .. code-block:: python
 
-        p = prf.Unconstrained(2.0, scale=1e-12)
+        p = prf.unconstrained(2.0, scale=1e-12)
         p.value            # 2.0
         p.physical_value   # 2e-12
     """
@@ -259,7 +262,7 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
         The bijector mapping the raw value to the declared value.
 
         Raw space is what Parax calls unconstrained space. ParamRF calls it raw to
-        avoid confusion with :func:`pmrf.Unconstrained`, which creates a parameter
+        avoid confusion with :func:`pmrf.unconstrained`, which creates a parameter
         without bounds.
 
         Returns
@@ -573,7 +576,7 @@ def as_param(
     as_fixed : bool, optional
         Whether to enforce that the value is a fixed parameter.
         If False, incoming values will keep the variability (e.g. constants will remain constants).
-        If True, all values will be wrapped in :func:`pmrf.Fixed`.
+        If True, all values will be wrapped in :func:`pmrf.fixed`.
 
     Returns
     -------
@@ -661,7 +664,7 @@ def param(
     constraints, scaling, bounds and variability within the model itself.
 
     `constraint` is the parameter's validity, such as a positive width: it always
-    holds. A range the value brings, such as :func:`pmrf.Bounded`, is intersected
+    holds. A range the value brings, such as :func:`pmrf.bounded`, is intersected
     with it, and a prior is truncated to the result and renormalised.
     
     This simply creates a `pmrf.field` with a `pmrf.as_param` converter.
@@ -684,7 +687,7 @@ def param(
         rc.C.value            # 2.0, in pF
         rc.C.physical_value   # 2e-12
 
-        RC(1.0, prf.Unconstrained(2.0, scale=1e-9)).C.physical_value
+        RC(1.0, prf.unconstrained(2.0, scale=1e-9)).C.physical_value
         # 2e-09: an explicit scale overrides the field's
 
         RC(-1.0, 2.0)
@@ -706,7 +709,7 @@ def param(
     as_fixed : bool, optional
         Whether to enforce that the value is a fixed parameter.
         If False, incoming values will keep the variability (e.g. constants will remain constants).
-        If True, all values will be wrapped in :func:`pmrf.Fixed`.
+        If True, all values will be wrapped in :func:`pmrf.fixed`.
     **kwargs
         Additional key-word arguments to pass to the general :func:`pmrf.field` specifier.
 
@@ -727,7 +730,7 @@ def param(
     return eqx.field(default=default, converter=converter, **kwargs)
 
 
-def Fixed(
+def fixed(
     value: ArrayLike,
     *,
     name: Optional[str] = None,
@@ -763,7 +766,7 @@ def Fixed(
     return Param(value=value, scale=scale, name=name, fixed=True, metadata=metadata)
 
 
-def Unconstrained(
+def unconstrained(
     value: ArrayLike,
     *,
     fixed: bool = False,
@@ -779,7 +782,7 @@ def Unconstrained(
     value : ArrayLike
         The initial declared value.
     fixed : bool, optional
-        Wraps the parameter in a :class:`pmrf.Fixed` parameter.
+        Initializes the parameter as fixed.
     name : str, optional
         A name for the parameter, by default None.
     scale : float, optional
@@ -796,7 +799,7 @@ def Unconstrained(
     return Param(value=value, scale=scale, name=name, fixed=fixed, metadata=metadata)
 
 
-def Constrained(
+def constrained(
     constraint: AbstractConstraint, 
     value: ArrayLike,
     *,
@@ -835,7 +838,7 @@ def Constrained(
     return Param(value=value, constraint=constraint, scale=scale, name=name, fixed=fixed, metadata=metadata)
 
 
-def Bounded(
+def bounded(
     lower: Any, 
     upper: Any, 
     *,
@@ -849,6 +852,7 @@ def Bounded(
     Create a free parameter constrained within a specific interval.
 
     Used as the main factory to define parameters for bounded optimization.
+    This parameter has no prior; use :func:`pmrf.uniform` for a uniform prior.
 
     Parameters
     ----------
@@ -876,7 +880,7 @@ def Bounded(
     return Param(value=value, constraint=Interval(lower, upper), scale=scale, name=name, fixed=fixed, metadata=metadata)
 
 
-def Random(
+def random(
     distribution: AbstractDistribution,
     *,
     constraint: Optional[AbstractConstraint] = None,
@@ -926,6 +930,175 @@ def Random(
         the distribution reaches outside `constraint` and cannot be truncated to it.
     """
     return Param(value=value, distribution=distribution, constraint=constraint, scale=scale, name=name, fixed=fixed, metadata=metadata)
+
+
+def uniform(
+    lower: ArrayLike, upper: ArrayLike, *,
+    constraint: Optional[AbstractConstraint] = None,
+    value: Optional[ArrayLike] = None,
+    fixed: bool = False,
+    name: Optional[str] = None,
+    scale: Optional[float] = None,
+    metadata: Optional[Any] = None,
+) -> Param:
+    """Create a random parameter with a uniform prior in declared space.
+
+    Unlike :func:`pmrf.bounded`, this parameter has a prior.
+    The arguments are passed to :class:`pmrf.stats.distributions.Uniform` and
+    :func:`pmrf.random`.
+
+    Parameters
+    ----------
+    lower, upper : ArrayLike
+        The prior's bounds in declared space.
+    constraint : AbstractConstraint, optional
+        An additional range to truncate the prior to.
+    value : ArrayLike, optional
+        Initial declared value; defaults to the prior mean.
+    fixed : bool, optional
+        Whether the parameter is fixed.
+    name : str, optional
+        Parameter name.
+    scale : float, optional
+        Units multiplier from declared to physical space.
+    metadata : Any, optional
+        Arbitrary metadata.
+
+    Returns
+    -------
+    pmrf.Param
+        The random parameter.
+    """
+    return random(Uniform(lower, upper), constraint=constraint, value=value,
+                  fixed=fixed, name=name, scale=scale, metadata=metadata)
+
+
+def normal(
+    loc: ArrayLike, sigma: ArrayLike, *,
+    constraint: Optional[AbstractConstraint] = None,
+    value: Optional[ArrayLike] = None,
+    fixed: bool = False,
+    name: Optional[str] = None,
+    scale: Optional[float] = None,
+    metadata: Optional[Any] = None,
+) -> Param:
+    """Create a random parameter with a normal prior in declared space.
+
+    `sigma` is the distribution's standard deviation. `scale` sets the
+    parameter's units. The distribution is in declared space.
+
+    Parameters
+    ----------
+    loc : ArrayLike
+        Prior location in declared space.
+    sigma : ArrayLike
+        Prior standard deviation in declared space.
+    constraint : AbstractConstraint, optional
+        A range to truncate the prior to.
+    value : ArrayLike, optional
+        Initial declared value; defaults to the prior mean.
+    fixed : bool, optional
+        Whether the parameter is fixed.
+    name : str, optional
+        Parameter name.
+    scale : float, optional
+        Units multiplier from declared to physical space.
+    metadata : Any, optional
+        Arbitrary metadata.
+
+    Returns
+    -------
+    pmrf.Param
+        The random parameter.
+    """
+    return random(Normal(loc, sigma), constraint=constraint, value=value,
+                  fixed=fixed, name=name, scale=scale, metadata=metadata)
+
+
+def lognormal(
+    loc: ArrayLike, sigma: ArrayLike, *,
+    constraint: Optional[AbstractConstraint] = None,
+    value: Optional[ArrayLike] = None,
+    fixed: bool = False,
+    name: Optional[str] = None,
+    scale: Optional[float] = None,
+    metadata: Optional[Any] = None,
+) -> Param:
+    """Create a random parameter with a log-normal prior in declared space.
+
+    `loc` and `sigma` are the distribution's log-space parameters, not the
+    mean and standard deviation of the parameter value. `scale` sets the
+    parameter's units.
+
+    Parameters
+    ----------
+    loc, sigma : ArrayLike
+        Location and standard deviation of the underlying normal distribution
+        in log space.
+    constraint : AbstractConstraint, optional
+        An additional range for the parameter. Unsupported prior truncation raises.
+    value : ArrayLike, optional
+        Initial declared value; defaults to the prior mean.
+    fixed : bool, optional
+        Whether the parameter is fixed.
+    name : str, optional
+        Parameter name.
+    scale : float, optional
+        Units multiplier from declared to physical space.
+    metadata : Any, optional
+        Arbitrary metadata.
+
+    Returns
+    -------
+    pmrf.Param
+        The random parameter.
+    """
+    return random(LogNormal(loc, sigma), constraint=constraint, value=value,
+                  fixed=fixed, name=name, scale=scale, metadata=metadata)
+
+
+def truncated_normal(
+    loc: ArrayLike, sigma: ArrayLike, low: ArrayLike, high: ArrayLike, *,
+    constraint: Optional[AbstractConstraint] = None,
+    value: Optional[ArrayLike] = None,
+    fixed: bool = False,
+    name: Optional[str] = None,
+    scale: Optional[float] = None,
+    metadata: Optional[Any] = None,
+) -> Param:
+    """Create a random parameter with a truncated normal prior in declared space.
+
+    `sigma` is the distribution's standard deviation; `scale` sets the
+    parameter's units. `low` and `high` are declared-space truncation bounds.
+
+    Parameters
+    ----------
+    loc : ArrayLike
+        Location of the underlying normal distribution in declared space.
+    sigma : ArrayLike
+        Standard deviation of the underlying normal distribution.
+    low, high : ArrayLike
+        Bounds of the truncated prior in declared space.
+    constraint : AbstractConstraint, optional
+        An additional range to truncate the prior to.
+    value : ArrayLike, optional
+        Initial declared value; defaults to the prior mean.
+    fixed : bool, optional
+        Whether the parameter is fixed.
+    name : str, optional
+        Parameter name.
+    scale : float, optional
+        Units multiplier from declared to physical space.
+    metadata : Any, optional
+        Arbitrary metadata.
+
+    Returns
+    -------
+    pmrf.Param
+        The random parameter.
+    """
+    return random(TruncatedNormal(loc, sigma, low, high), constraint=constraint,
+                  value=value, fixed=fixed, name=name, scale=scale, metadata=metadata)
 
 
 def is_leaf(x: Any) -> bool:
@@ -1619,7 +1792,7 @@ def params(tree, where: Selector = '*', *, free_only: bool = False) -> dict[str,
     --------
     .. code-block:: python
 
-        rc = Resistor(50.0, name='r') ** Capacitor(prf.Unconstrained(2.0, scale=1e-12), name='c')
+        rc = Resistor(50.0, name='r') ** Capacitor(prf.unconstrained(2.0, scale=1e-12), name='c')
         prf.params(rc)          # {'r.R': Param(...), 'c.C': Param(...)}
         prf.params(rc, 'c.*')   # {'c.C': Param(...)}
     """
@@ -1664,7 +1837,7 @@ def values(
     --------
     .. code-block:: python
 
-        c = Capacitor(prf.Unconstrained(2.0, scale=1e-12))
+        c = Capacitor(prf.unconstrained(2.0, scale=1e-12))
         prf.values(c)                      # {'C': 2.0}
         prf.values(c, space='physical')    # {'C': 2e-12}
     """
@@ -2393,7 +2566,7 @@ def resolve(tree):
     --------
     .. code-block:: python
 
-        parts = {'a': Resistor(prf.Random(...), name='a'), 'b': Resistor(50.0, name='b')}
+        parts = {'a': Resistor(prf.random(...), name='a'), 'b': Resistor(50.0, name='b')}
         tied = prf.tie(parts, 'b.R', 'a.R')
         resolved = prf.resolve(tied)
         resolved['b'].R                  # the tied value
@@ -2470,7 +2643,7 @@ def _declared_prior(node, distribution: AbstractDistribution, space: str) -> Abs
 
 
 def _with_prior(node, distribution: AbstractDistribution | None) -> Any:
-    """Returns `node`, a parameter or raw array, rebuilt as if by :func:`Random` with
+    """Returns `node`, a parameter or raw array, rebuilt as if by :func:`random` with
     the declared-space prior `distribution` in place of any prior and range, keeping
     its validity. With no `distribution`, a raw array is returned as it is."""
     if not is_param(node):
@@ -2498,10 +2671,10 @@ def prior(
     Returns a copy of a model with a prior attached to the parameters `names` selects.
 
     This attaches a prior after construction, instead of rebuilding a parameter with
-    :func:`Random`. The distribution's event size decides how it is attached:
+    :func:`random`. The distribution's event size decides how it is attached:
 
     - **Scalar event**: each selected parameter gets its own prior, exactly as if it
-      had been built with :func:`Random`. Its raw space becomes the new prior's
+      had been built with :func:`random`. Its raw space becomes the new prior's
       whitening. The prior is truncated to the parameter's validity and renormalised,
       so the validity still holds. A prior whose support already lies inside the
       validity is kept as given.
@@ -2518,8 +2691,8 @@ def prior(
 
     A parameter's bounds combine its validity, the constraint of the model field it
     was passed to (see :func:`param`), which always holds, with its range: a
-    :func:`Bounded` interval, a ``constraint`` given to :func:`Random` or
-    :func:`Constrained`, or a :func:`Random` distribution's own support. A range is
+    :func:`bounded` interval, a ``constraint`` given to :func:`random` or
+    :func:`constrained`, or a :func:`random` distribution's own support. A range is
     prior information, so a prior over declared or physical space replaces it, along
     with any prior the parameters already had, and keeps their validity. A prior over
     raw space keeps their range, since it reaches declared space through it. Their
@@ -2599,7 +2772,7 @@ def prior(
         class Line(prf.Model):
             w: prf.Param = prf.param(constraint=Positive())   # validity
 
-        line = Line(prf.Bounded(1.0, 5.0, value=2.0), name='line')   # a range
+        line = Line(prf.bounded(1.0, 5.0, value=2.0), name='line')   # a range
         model = prf.prior(line, 'w', Normal(2.0, 3.0))
         prf.params(model)['w'].distribution   # Normal(2, 3) truncated to [0, inf)
         prf.params(model)['w'].bounds         # (0.0, inf): the range is replaced
@@ -2747,11 +2920,15 @@ __all__ = [
     "is_param",
     "as_param",
     "param",
-    "Fixed",
-    "Unconstrained",
-    "Bounded",
-    "Constrained",
-    "Random",
+    "fixed",
+    "unconstrained",
+    "bounded",
+    "constrained",
+    "random",
+    "uniform",
+    "normal",
+    "lognormal",
+    "truncated_normal",
     "params",
     "values",
     "log_prior",

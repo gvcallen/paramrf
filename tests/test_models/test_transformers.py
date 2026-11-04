@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
-from pmrf.parameters import Unconstrained
+from pmrf.parameters import unconstrained
 from pmrf.models import (
     Transformer, CentreTappedTransformer, Autotransformer, Balun,
     SourceConverter, MixedModeConverter, CoupledInductors, Inductor,
@@ -76,7 +76,7 @@ def test_transformer_turns_ratio_is_tunable(basic_freq):
     def s13_real(n_val):
         return jnp.real(Transformer(N=n_val).s(single_freq)[0, 0, 2])
 
-    N = Unconstrained(2.0)
+    N = unconstrained(2.0)
 
     # S13 = N / (1 + N^2), so dS13/dN = (1 - N^2) / (1 + N^2)^2
     expected = (1.0 - N**2) / (1.0 + N**2)**2

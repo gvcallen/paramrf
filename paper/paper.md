@@ -62,9 +62,9 @@ import pmrf as prf
 from pmrf.models import Resistor, Inductor, Capacitor
 from pmrf.objectives import Goal
 
-R = prf.Unconstrained(50.0)
-L = prf.Bounded(0.0, 100.0, scale=1e-9)
-C = prf.Bounded(0.0, 100.0, scale=1e-12)
+R = prf.unconstrained(50.0)
+L = prf.bounded(0.0, 100.0, scale=1e-9)
+C = prf.bounded(0.0, 100.0, scale=1e-12)
 
 model = Resistor(R) ** Inductor(L) ** Capacitor(C)
 goal = Goal('s11_db', '<', -20)

@@ -9,7 +9,7 @@ from pmrf.frequency import Frequency
 from pmrf.models import CoaxialLine
 from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_sample
-from pmrf.parameters import Fixed, Random
+from pmrf.parameters import fixed, random
 from pmrf.stats.distributions import Normal
 from pmrf.infer import NUTS
 
@@ -37,12 +37,12 @@ def target_network(fit_freq, truth_model):
 @pytest.fixture
 def starting_model():
     return CoaxialLine(
-        d_in=Fixed(1.12e-3),
-        d_out=Fixed(3.2e-3),
-        dielectric=ConstantDielectric(ep_r=Fixed(1.384), tand=Fixed(0.001)),
-        conductor=BulkConductor(sigma=Fixed(1 / 1.6e-8)),
+        d_in=fixed(1.12e-3),
+        d_out=fixed(3.2e-3),
+        dielectric=ConstantDielectric(ep_r=fixed(1.384), tand=fixed(0.001)),
+        conductor=BulkConductor(sigma=fixed(1 / 1.6e-8)),
         # Normal prior centered at 0.1 with standard deviation 0.05
-        length=Random(Normal(0.1, 0.05), value=jnp.array(0.095))
+        length=random(Normal(0.1, 0.05), value=jnp.array(0.095))
     )
 
 

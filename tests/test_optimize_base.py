@@ -10,7 +10,7 @@ from parax.constraints import infer_distribution_constraint
 
 import parax as prx
 import pmrf as prf
-from pmrf.parameters import Param, Fixed
+from pmrf.parameters import Param, fixed
 from pmrf.optimize import base
 from pmrf.optimize.solvers.optimistix import BFGS, NelderMead
 from pmrf.optimize.solvers.jaxopt import LBFGSB
@@ -42,7 +42,7 @@ def quadratic_objective(model: QuadraticModel, args=None):
 
 
 # ==========================================
-# 2. Unconstrained Optimizer Tests
+# 2. unconstrained Optimizer Tests
 # ==========================================
 
 @pytest.mark.parametrize("solver_cls", [BFGS, NelderMead])
@@ -52,7 +52,7 @@ def test_unconstrained_dict_model(solver_cls):
     y0 = {
         "x": jnp.array(0.1), 
         "y": jnp.array(0.1), 
-        "z": Fixed(1.0),
+        "z": fixed(1.0),
     }
     
     solver = solver_cls()
@@ -97,14 +97,14 @@ def test_unconstrained_equinox_model():
 
 
 # ==========================================
-# 3. Bounded Optimizer Tests
+# 3. bounded Optimizer Tests
 # ==========================================
 
 def test_bounded_minimization_jaxopt():
     """Test bounded minimization using the JAXopt L-BFGS-B backend."""
     y0 = {
-        "x": prf.Unconstrained(jnp.array(0.0)),
-        "y": prf.Unconstrained(jnp.array(0.0)),
+        "x": prf.unconstrained(jnp.array(0.0)),
+        "y": prf.unconstrained(jnp.array(0.0)),
     }
     
     solver = LBFGSB()
@@ -126,8 +126,8 @@ def test_bounded_minimization_jaxopt():
 def test_bounded_minimization_scipy():
     """Test bounded minimization using SciPy. SciPy cannot be JIT compiled."""
     y0 = {
-        "x": prf.Unconstrained(jnp.array(0.0)),
-        "y": prf.Unconstrained(jnp.array(0.0)),
+        "x": prf.unconstrained(jnp.array(0.0)),
+        "y": prf.unconstrained(jnp.array(0.0)),
     }
     
     solver = ScipyMinimize()
@@ -168,7 +168,7 @@ def test_fixed_variable_partitioning():
         solver=solver
     )
     
-    # Assert 'y' is safely locked as a Fixed Parax node
+    # Assert 'y' is safely locked as a fixed Parax node
     assert isinstance(opt_model["y"], prx.Fixed)
     
     unwrapped = prx.unwrap(opt_model)
@@ -208,7 +208,7 @@ def test_unconstrained_solver_with_univariate_constraint():
     from parax.constraints import GreaterThan
     
     y0 = {
-        "x": prf.Constrained(GreaterThan(5.0), jnp.array(8.0)),  # Start in valid space
+        "x": prf.constrained(GreaterThan(5.0), jnp.array(8.0)),  # Start in valid space
     }
     
     solver = BFGS()
@@ -256,7 +256,7 @@ def test_unconstrained_whitened_geometry_correlated_starved():
     y0_physical = bijector.forward(y0_latent)
     
     y0 = {
-        "x": prf.Constrained(constraint, y0_physical)
+        "x": prf.constrained(constraint, y0_physical)
     }
     
     # 4. Objective: Perfect sphere in LATENT space. 
@@ -314,7 +314,7 @@ def test_bounded_whitened_geometry_correlated_starved():
     y0_physical = bijector.forward(y0_latent)
     
     y0 = {
-        "x": prf.Constrained(constraint, y0_physical)
+        "x": prf.constrained(constraint, y0_physical)
     }
     
     # 4. Objective: Perfect sphere in LATENT space. 

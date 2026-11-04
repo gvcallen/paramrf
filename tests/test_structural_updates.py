@@ -17,7 +17,7 @@ from pmrf.modules import Tied
 
 
 def _rc():
-    return Resistor(prf.Unconstrained(50.0)) ** Capacitor(prf.Unconstrained(1e-12))
+    return Resistor(prf.unconstrained(50.0)) ** Capacitor(prf.unconstrained(1e-12))
 
 
 # ---- Structural update ----------------------------------------------------------------
@@ -32,15 +32,15 @@ def test_update_swaps_a_sub_model_in_a_cascade():
 
 
 def test_update_swaps_a_named_sub_model():
-    load = Resistor(prf.Unconstrained(50.0), name="load")
-    model = Cascade([Capacitor(prf.Unconstrained(1e-12), name="c"), load])
+    load = Resistor(prf.unconstrained(50.0), name="load")
+    model = Cascade([Capacitor(prf.unconstrained(1e-12), name="c"), load])
     swapped = prf.update(model, "load", Short())
     assert isinstance(swapped.cascade[1], Short)
 
 
 def test_update_replaces_a_parameter_with_a_new_param():
     rc = _rc()
-    updated = prf.update(rc, "cascade[0].R", prf.Bounded(0.0, 100.0, value=75.0))
+    updated = prf.update(rc, "cascade[0].R", prf.bounded(0.0, 100.0, value=75.0))
     new = prf.params(updated)["cascade[0].R"]
     assert np.allclose(new.value, 75.0)
     assert new.bounds is not None
@@ -62,8 +62,8 @@ def test_update_node_with_callable_selector():
 
 
 def test_update_fn_replaces_each_selected_part():
-    load = Resistor(prf.Unconstrained(50.0, scale=2.0), name="load")
-    cap = Capacitor(prf.Unconstrained(1e-12), name="c")
+    load = Resistor(prf.unconstrained(50.0, scale=2.0), name="load")
+    cap = Capacitor(prf.unconstrained(1e-12), name="c")
     model = load ** cap
     updated = prf.update(model, "load.*", fn=lambda p: prf.update(p, fixed=True))
     assert prf.params(updated)["load.R"].fixed
@@ -77,7 +77,7 @@ def test_update_fn_on_a_sub_model():
 
 
 def test_update_fn_on_several_names():
-    rc = Resistor(prf.Unconstrained(1.0), name="r") ** Capacitor(prf.Unconstrained(2.0), name="c")
+    rc = Resistor(prf.unconstrained(1.0), name="r") ** Capacitor(prf.unconstrained(2.0), name="c")
     updated = prf.update(rc, ["r.R", "c.C"], fn=lambda p: prf.update(p, value=p.value * 3))
     assert prf.values(updated) == pytest.approx({"r.R": 3.0, "c.C": 6.0})
 
@@ -140,13 +140,13 @@ def test_tie_model_keeps_rf_interface():
 
 
 def test_tie_default_is_identity():
-    rc = Resistor(prf.Unconstrained(50.0), name="r1") ** Resistor(prf.Unconstrained(75.0), name="r2")
+    rc = Resistor(prf.unconstrained(50.0), name="r1") ** Resistor(prf.unconstrained(75.0), name="r2")
     tied = prf.tie(rc, "r2.R", "r1.R")
     assert np.allclose(tied.build().cascade[1].R, 50.0)
 
 
 def test_tie_after_update_tracks_source():
-    rc = Resistor(prf.Unconstrained(50.0), name="r") ** Capacitor(prf.Unconstrained(1e-12), name="c")
+    rc = Resistor(prf.unconstrained(50.0), name="r") ** Capacitor(prf.unconstrained(1e-12), name="c")
     tied = prf.tie(rc, "r.R", "c.C", fn=lambda c: c * 5e13)
     assert np.allclose(prf.update(tied, {"c.C": 2e-12}).build().cascade[0].R, 100.0)
 
@@ -173,7 +173,7 @@ def test_tie_unknown_name_raises():
 def _line_like(r, c, name):
     """A two-parameter sub-model, standing in for a component with several parameters."""
     return Cascade(
-        [Resistor(prf.Unconstrained(r), name="r"), Capacitor(prf.Unconstrained(c), name="c")],
+        [Resistor(prf.unconstrained(r), name="r"), Capacitor(prf.unconstrained(c), name="c")],
         name=name,
     )
 
@@ -182,7 +182,7 @@ def _pair():
     return {
         "a": _line_like(50.0, 1e-12, "a"),
         "b": _line_like(1.0, 2e-12, "b"),
-        "other": Resistor(prf.Unconstrained(75.0), name="other"),
+        "other": Resistor(prf.unconstrained(75.0), name="other"),
     }
 
 
@@ -251,8 +251,8 @@ def test_tie_sub_models_with_unmatched_parameters_raise():
         "a": _line_like(50.0, 1e-12, "a"),
         "b": Cascade(
             [
-                Resistor(prf.Unconstrained(1.0), name="r"),
-                Resistor(prf.Unconstrained(2.0), name="c"),
+                Resistor(prf.unconstrained(1.0), name="r"),
+                Resistor(prf.unconstrained(2.0), name="c"),
             ],
             name="b",
         ),
@@ -273,16 +273,16 @@ def test_tie_unknown_name_beside_a_sub_model_name_names_the_unknown_one():
 
 
 def test_tie_sub_model_without_parameters_raises():
-    parts = {"a": Resistor(prf.Unconstrained(50.0), name="a"), "b": Short(name="b")}
+    parts = {"a": Resistor(prf.unconstrained(50.0), name="a"), "b": Short(name="b")}
     with pytest.raises(ValueError, match="no parameters to tie"):
         prf.tie(parts, "b", "a")
 
 
 def test_tie_ambiguous_sub_model_name_raises():
     parts = {
-        "one": Resistor(prf.Unconstrained(50.0, name="r1"), name="shared"),
-        "two": Resistor(prf.Unconstrained(1.0, name="r2"), name="shared"),
-        "a": Resistor(prf.Unconstrained(1.0), name="a"),
+        "one": Resistor(prf.unconstrained(50.0, name="r1"), name="shared"),
+        "two": Resistor(prf.unconstrained(1.0, name="r2"), name="shared"),
+        "a": Resistor(prf.unconstrained(1.0), name="a"),
     }
     with pytest.raises(ValueError, match="ambiguous"):
         prf.tie(parts, "shared", "a")
@@ -319,7 +319,7 @@ def test_tie_docstring_documents_sub_model_names():
 
 
 def _named_resistor(value, name):
-    return Resistor(prf.Unconstrained(value), name=name)
+    return Resistor(prf.unconstrained(value), name=name)
 
 
 def test_resolve_is_top_level():
@@ -449,9 +449,9 @@ def test_handoff_acceptance_a_tied_container_reads_back_parameterised():
     untied parts keep their parameters.
     """
     parts = {
-        "a": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="a"),
-        "b": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="b"),
-        "c": Capacitor(C=prf.Random(RTNormal(1.0, 0.1), scale=1e-12), name="c"),
+        "a": Resistor(R=prf.random(RTNormal(50.0, 0.1)), name="a"),
+        "b": Resistor(R=prf.random(RTNormal(50.0, 0.1)), name="b"),
+        "c": Capacitor(C=prf.random(RTNormal(1.0, 0.1), scale=1e-12), name="c"),
     }
 
     tied = prf.tie(parts, "b", "a")
@@ -538,7 +538,7 @@ def test_module_repr_shows_declared_values():
 
 
 def test_tied_repr_shows_derived_target():
-    rc = Resistor(prf.Unconstrained(50.0), name="r") ** Capacitor(prf.Unconstrained(1e-12), name="c")
+    rc = Resistor(prf.unconstrained(50.0), name="r") ** Capacitor(prf.unconstrained(1e-12), name="c")
     text = repr(prf.tie(rc, "r.R", "c.C", fn=lambda c: c * 5e13).wrapped)
     assert "50." in text
 
@@ -548,9 +548,9 @@ def test_tied_repr_shows_derived_target():
 
 def _named():
     return Cascade([
-        Capacitor(prf.Unconstrained(1e-12), name="c"),
-        Cascade([Resistor(prf.Unconstrained(10.0), name="inner"), Resistor(prf.Unconstrained(20.0))], name="sub"),
-        Resistor(prf.Unconstrained(50.0), name="load"),
+        Capacitor(prf.unconstrained(1e-12), name="c"),
+        Cascade([Resistor(prf.unconstrained(10.0), name="inner"), Resistor(prf.unconstrained(20.0))], name="sub"),
+        Resistor(prf.unconstrained(50.0), name="load"),
     ])
 
 
@@ -563,7 +563,7 @@ def _same(a, b):
 
 def test_update_mapping_replaces_a_single_sub_model():
     model = _named()
-    new = Resistor(prf.Unconstrained(75.0), name="load")
+    new = Resistor(prf.unconstrained(75.0), name="load")
     _same(prf.update(model, {"load": new}), prf.update(model, "load", new))
 
 
@@ -601,7 +601,7 @@ def test_update_mapping_unknown_sub_model_raises():
 
 
 def test_update_mapping_ambiguous_sub_model_raises():
-    model = Cascade([Resistor(prf.Unconstrained(1.0, name="r1"), name="x"), Resistor(prf.Unconstrained(2.0, name="r2"), name="x")])
+    model = Cascade([Resistor(prf.unconstrained(1.0, name="r1"), name="x"), Resistor(prf.unconstrained(2.0, name="r2"), name="x")])
     with pytest.raises(ValueError, match="ambiguous"):
         prf.update(model, {"x": Short()})
 

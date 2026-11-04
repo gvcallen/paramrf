@@ -24,9 +24,9 @@ def _coaxial_line():
 @pytest.mark.parametrize(
     ("factory", "target_ms", "calls"),
     [
-        (lambda: prf.Random(RelativeTruncatedNormal(50.0, 0.025)), 1.0, 100),
-        (lambda: prf.Random(Uniform(0.0, 50.0), value=0.0), 0.5, 100),
-        (lambda: prf.Bounded(0.0, 10.0, value=1.0), 0.5, 100),
+        (lambda: prf.random(RelativeTruncatedNormal(50.0, 0.025)), 1.0, 100),
+        (lambda: prf.random(Uniform(0.0, 50.0), value=0.0), 0.5, 100),
+        (lambda: prf.bounded(0.0, 10.0, value=1.0), 0.5, 100),
         (_coaxial_line, 5.0, 20),
     ],
     ids=["truncated-normal", "uniform", "bounded", "coaxial-line"],

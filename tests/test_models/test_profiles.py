@@ -154,8 +154,8 @@ def test_plain_values_and_constrained_parameters_are_interchangeable(cls):
     describe the same shape."""
     plain = cls(start=2e-3, end=8e-3)
     constrained = cls(
-        start=prf.Bounded(1e-3, 5e-3, value=2e-3),
-        end=prf.Bounded(5e-3, 9e-3, value=8e-3),
+        start=prf.bounded(1e-3, 5e-3, value=2e-3),
+        end=prf.bounded(5e-3, 9e-3, value=8e-3),
     )
     assert constrained.evaluate(T) == pytest.approx(plain.evaluate(T))
 

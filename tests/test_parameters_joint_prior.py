@@ -42,9 +42,9 @@ def _gaussian_log_prob(x, mean, tril):
 
 def _parts():
     return {
-        "a": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="a"),
-        "b": Resistor(R=prf.Random(RTNormal(50.0, 0.1)), name="b"),
-        "c": Capacitor(C=prf.Random(RTNormal(1.0, 0.1), scale=1e-12), name="c"),
+        "a": Resistor(R=prf.random(RTNormal(50.0, 0.1)), name="a"),
+        "b": Resistor(R=prf.random(RTNormal(50.0, 0.1)), name="b"),
+        "c": Capacitor(C=prf.random(RTNormal(1.0, 0.1), scale=1e-12), name="c"),
     }
 
 
@@ -52,8 +52,8 @@ def _unbounded_parts():
     """As :func:`_parts`, but with `a.R` and `b.R` unbounded, so a joint prior over their
     declared or physical values fits inside their bounds."""
     return {
-        "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
-        "b": Resistor(R=prf.Unconstrained(50.0), name="b"),
+        "a": Resistor(R=prf.unconstrained(50.0), name="a"),
+        "b": Resistor(R=prf.unconstrained(50.0), name="b"),
         "c": _parts()["c"],
     }
 
@@ -112,8 +112,8 @@ def test_joint_prior_over_a_scaled_parameter_in_physical_space():
     """A physical-space joint prior differs from its declared-space density by the
     scale, whether or not the parameter had a prior of its own."""
     parts = {
-        "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
-        "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
+        "a": Resistor(R=prf.unconstrained(50.0), name="a"),
+        "c": Capacitor(C=prf.unconstrained(2.0, scale=1e-12), name="c"),
     }
     mean, tril = [49.0, 2.2e-12], [[2.0, 0.0], [0.0, 0.5e-12]]
     model = prf.prior(parts, ["a.R", "c.C"], _gaussian(mean, tril), space="physical")
@@ -138,9 +138,9 @@ def test_batched_raw_joint_prior_sums_closed_form_densities_in_every_space(space
     z = np.array([[0.1, -0.2], [0.3, 0.4], [-1.0, 0.5]])
     c = np.array([0.2, -0.5, 0.8])
     parts = {
-        "a": prf.Bounded(-2.0, 4.0, value=0.0, scale=2.0),
-        "b": prf.Bounded(-2.0, 4.0, value=0.0, scale=3.0),
-        "c": prf.Random(Normal(0.0, 1.0), value=0.0, scale=5.0),
+        "a": prf.bounded(-2.0, 4.0, value=0.0, scale=2.0),
+        "b": prf.bounded(-2.0, 4.0, value=0.0, scale=3.0),
+        "c": prf.random(Normal(0.0, 1.0), value=0.0, scale=5.0),
     }
     model = prf.prior(parts, ["a", "b"], _gaussian(mean, tril), space="raw")
     model = prf.update(model, {"a": z[:, 0], "b": z[:, 1]}, space="raw")
@@ -179,8 +179,8 @@ def test_a_glob_expands_to_sorted_names():
 
 def test_a_value_outside_the_bounds_scores_minus_infinity():
     parts = {
-        "a": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="a"),
-        "b": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="b"),
+        "a": Resistor(R=prf.bounded(40.0, 60.0, value=50.0), name="a"),
+        "b": Resistor(R=prf.bounded(40.0, 60.0, value=50.0), name="b"),
     }
     model = prf.prior(parts, NAMES, _gaussian([0.0, 0.0], [[2.0, 0.0], [0.0, 2.0]]), space="raw")
     distributions = tree_param_distributions(model)
@@ -209,8 +209,8 @@ class _OutsidePriorModel(prf.Model):
 def _positive_parts():
     """`a.R` and `b.R` with a positive validity, and ranges inside it."""
     return {
-        "a": _PositiveResistor(R=prf.Random(RTNormal(50.0, 0.1)), name="a"),
-        "b": _PositiveResistor(R=prf.Random(RTNormal(50.0, 0.1)), name="b"),
+        "a": _PositiveResistor(R=prf.random(RTNormal(50.0, 0.1)), name="a"),
+        "b": _PositiveResistor(R=prf.random(RTNormal(50.0, 0.1)), name="b"),
     }
 
 
@@ -218,8 +218,8 @@ def test_nan_update_checks_values_after_raw_joint_log_normal_whitening():
     base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)), 1)
     prior = dd.Transformed(base, db.Block(db.Exp(), 1))
     parts = {
-        "a": _PositiveResistor(R=prf.Unconstrained(50.0), name="a"),
-        "b": _PositiveResistor(R=prf.Unconstrained(50.0), name="b"),
+        "a": _PositiveResistor(R=prf.unconstrained(50.0), name="a"),
+        "b": _PositiveResistor(R=prf.unconstrained(50.0), name="b"),
     }
     model = prf.prior(parts, NAMES, prior, space="raw")
 
@@ -242,7 +242,7 @@ def test_a_joint_prior_whose_support_leaves_validity_raises(space):
 
 
 def test_the_attach_error_names_only_the_parameters_whose_validity_is_left():
-    parts = {"a": Resistor(R=prf.Unconstrained(50.0), name="a"), "b": _positive_parts()["b"]}
+    parts = {"a": Resistor(R=prf.unconstrained(50.0), name="a"), "b": _positive_parts()["b"]}
     with pytest.raises(ValueError, match=r"validity of 'b\.R'\. "):
         prf.prior(parts, NAMES, _gaussian([50.0, 50.0], [[2.0, 0.0], [1.6, 1.2]]))
 
@@ -253,8 +253,8 @@ def test_a_joint_prior_whose_support_fits_the_bounds_is_accepted():
     model = prf.prior(_unbounded_parts(), NAMES, _gaussian(MU, L))
     assert isinstance(model, Probabilistic)
     bounded = {
-        "a": Resistor(R=prf.Bounded(0.0, 1.0, value=0.5), name="a"),
-        "b": Resistor(R=prf.Bounded(-1.0, 3.0, value=0.5), name="b"),
+        "a": Resistor(R=prf.bounded(0.0, 1.0, value=0.5), name="a"),
+        "b": Resistor(R=prf.bounded(-1.0, 3.0, value=0.5), name="b"),
     }
     # A sigmoid over a standard-normal base, shifted: support (0, 1) x (1, 2).
     squash = db.Chain([db.Block(db.Shift(jnp.array([0.0, 1.0])), 1), db.Block(db.Sigmoid(), 1)])
@@ -309,11 +309,11 @@ def test_unnormalised_joint_prior_masks_array_member_and_keeps_outside_prior():
     distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
     parts = {
         "scalar": _PositiveResistor(
-            R=prf.Random(Normal(50.0, 2.0), value=50.0), name="scalar"
+            R=prf.random(Normal(50.0, 2.0), value=50.0), name="scalar"
         ),
         "array": _ArrayPriorModel(value=jnp.array([0.2, 0.3]), name="array"),
         "outside": _OutsidePriorModel(
-            value=prf.Random(Normal(0.0, 0.5), value=0.4), name="outside"
+            value=prf.random(Normal(0.0, 0.5), value=0.4), name="outside"
         ),
     }
     model = prf.prior(parts, ["scalar.R", "array.value"], distribution, truncate="unnormalised")
@@ -342,11 +342,11 @@ def test_unnormalised_joint_prior_penalized_mirror_counts_array_and_outside_prio
     distribution = dd.MultivariateNormalFullCovariance(mean, covariance)
     parts = {
         "scalar": _PositiveResistor(
-            R=prf.Random(Normal(50.0, 2.0), value=50.0), name="scalar"
+            R=prf.random(Normal(50.0, 2.0), value=50.0), name="scalar"
         ),
         "array": _ArrayPriorModel(value=jnp.array([0.2, 0.3]), name="array"),
         "outside": _OutsidePriorModel(
-            value=prf.Random(Normal(0.0, 0.5), value=0.4), name="outside"
+            value=prf.random(Normal(0.0, 0.5), value=0.4), name="outside"
         ),
     }
     model = prf.prior(parts, ["scalar.R", "array.value"], distribution, truncate="unnormalised")
@@ -429,15 +429,15 @@ def test_unnormalised_physical_joint_prior_keeps_density_and_applies_scale_jacob
 
 def test_a_raw_joint_prior_over_bounded_parameters_is_accepted():
     parts = {
-        "a": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="a"),
-        "b": Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="b"),
+        "a": Resistor(R=prf.bounded(40.0, 60.0, value=50.0), name="a"),
+        "b": Resistor(R=prf.bounded(40.0, 60.0, value=50.0), name="b"),
     }
     model = prf.prior(parts, NAMES, _gaussian([0.0, 0.0], [[2.0, 0.0], [1.6, 1.2]]), space="raw")
     assert isinstance(model, Probabilistic)
 
 
 def test_two_disjoint_joint_priors_are_both_scored():
-    parts = {name: Resistor(R=prf.Unconstrained(v), name=name) for name, v in zip("abcd", (1.0, 2.0, 3.0, 4.0))}
+    parts = {name: Resistor(R=prf.unconstrained(v), name=name) for name, v in zip("abcd", (1.0, 2.0, 3.0, 4.0))}
     tril = [[1.0, 0.0], [0.5, 1.0]]
     model = prf.prior(parts, ["a.R", "b.R"], _gaussian([0.0, 0.0], tril))
     model = prf.prior(model, ["c.R", "d.R"], _gaussian([1.0, 1.0], tril))
@@ -463,8 +463,8 @@ def test_raw_values_are_the_whitened_values_in_the_prior_space():
 @pytest.mark.parametrize("space", ["declared", "physical"])
 def test_raw_values_are_whitened_in_every_prior_space(space):
     parts = {
-        "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
-        "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
+        "a": Resistor(R=prf.unconstrained(50.0), name="a"),
+        "c": Capacitor(C=prf.unconstrained(2.0, scale=1e-12), name="c"),
     }
     names = ["a.R", "c.C"]
     mean = jnp.array([49.0, 2.2]) if space == "declared" else jnp.array([49.0, 2.2e-12])
@@ -530,8 +530,8 @@ def test_raw_log_prior_carries_the_jacobian_of_the_whitening():
 @pytest.mark.parametrize("space", ["declared", "physical"])
 def test_raw_log_prior_carries_the_jacobian_in_every_prior_space(space):
     parts = {
-        "a": Resistor(R=prf.Unconstrained(50.0), name="a"),
-        "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
+        "a": Resistor(R=prf.unconstrained(50.0), name="a"),
+        "c": Capacitor(C=prf.unconstrained(2.0, scale=1e-12), name="c"),
     }
     mean = [49.0, 2.2] if space == "declared" else [49.0, 2.2e-12]
     tril = [[2.0, 0.0], [0.1, 0.5]] if space == "declared" else [[2.0, 0.0], [0.1e-12, 0.5e-12]]
@@ -588,10 +588,10 @@ def _mvn_example(space):
     Cholesky factor of its covariance. `c.C` is scaled, so the spaces differ, and over
     raw space `a.R` has a range, so its raw-to-declared map is not the identity."""
     # A joint prior over declared or physical space must fit inside `a.R`'s bounds.
-    a = prf.Random(RTNormal(50.0, 0.1)) if space == "raw" else prf.Unconstrained(50.0)
+    a = prf.random(RTNormal(50.0, 0.1)) if space == "raw" else prf.unconstrained(50.0)
     parts = {
         "a": Resistor(R=a, name="a"),
-        "c": Capacitor(C=prf.Unconstrained(2.0, scale=1e-12), name="c"),
+        "c": Capacitor(C=prf.unconstrained(2.0, scale=1e-12), name="c"),
     }
     mean, tril = {
         "raw": ([3.9, 2.0], [[0.10, 0.0], [0.08, 0.06]]),
@@ -696,11 +696,11 @@ def test_names_are_kept():
 def test_names_are_kept_for_a_named_module_at_the_root():
     """A root module's own name is not part of its parameters' names, and wrapping it
     in a joint prior does not make it so."""
-    root = Resistor(R=prf.Unconstrained(50.0), name="load") ** Resistor(R=prf.Unconstrained(20.0), name="b")
+    root = Resistor(R=prf.unconstrained(50.0), name="load") ** Resistor(R=prf.unconstrained(20.0), name="b")
     root = prf.replace(root, name="chain")
     model = prf.prior(root, ["load.R", "b.R"], _gaussian([50.0, 20.0], [[1.0, 0.0], [0.0, 1.0]]))
     assert list(prf.params(model)) == list(prf.params(root)) == ["load.R", "b.R"]
-    single = Resistor(R=prf.Unconstrained(50.0), name="load")
+    single = Resistor(R=prf.unconstrained(50.0), name="load")
     joint = prf.prior(single, ["R"], dd.MultivariateNormalDiag(jnp.array([50.0]), jnp.array([1.0])))
     assert list(prf.params(joint)) == list(prf.params(single)) == ["R"]
     assert np.allclose(prf.log_prior(joint), Normal(50.0, 1.0).log_prob(50.0))
@@ -725,7 +725,7 @@ def test_joint_prior_across_siblings_leaves_their_parent_unwrapped():
 
 def test_a_model_keeps_its_rf_interface():
     frequency = prf.Frequency(1.0, 2.0, 3, unit="GHz")
-    cascade = Resistor(R=prf.Unconstrained(50.0), name="a") ** Resistor(R=prf.Unconstrained(20.0), name="b")
+    cascade = Resistor(R=prf.unconstrained(50.0), name="a") ** Resistor(R=prf.unconstrained(20.0), name="b")
     model = prf.prior(cascade, NAMES, _gaussian([50.0, 20.0], [[1.0, 0.0], [0.0, 1.0]]))
     assert isinstance(model, Wrapped) and isinstance(model.wrapped, Probabilistic)
     assert np.allclose(model.s(frequency), cascade.s(frequency))
@@ -779,10 +779,10 @@ def test_fixing_a_parameter_under_a_joint_prior_raises():
 def test_a_structural_update_cannot_fix_or_drop_a_parameter_under_a_joint_prior():
     model = _example()
     with pytest.raises(ValueError, match=r"Cannot update: 'a.R'.*joint prior"):
-        prf.update(model, {"a": Resistor(R=prf.Fixed(50.0), name="a")})
+        prf.update(model, {"a": Resistor(R=prf.fixed(50.0), name="a")})
     with pytest.raises(ValueError, match=r"Cannot update: 'a.R'.*joint prior"):
         prf.update(model, "a.R", fn=prf.freeze)
-    replaced = prf.update(model, {"a": Resistor(R=prf.Unconstrained(48.0), name="a")})
+    replaced = prf.update(model, {"a": Resistor(R=prf.unconstrained(48.0), name="a")})
     assert np.allclose(prf.values(replaced)["a.R"], 48.0)
 
 
@@ -1013,11 +1013,11 @@ def _array_parts(flat=False):
     """A scalar `a.R` and a scaled, bounded array `v` of shape (2, 3), or with `flat`,
     the same values as one scalar parameter `v0` ... `v5` per element, in C order. A
     width `w` like `v` stays outside the joint prior."""
-    a = Resistor(R=prf.Bounded(40.0, 60.0, value=50.5), name="a")
-    w = prf.Unconstrained(jnp.zeros(V.shape))
+    a = Resistor(R=prf.bounded(40.0, 60.0, value=50.5), name="a")
+    w = prf.unconstrained(jnp.zeros(V.shape))
     if flat:
-        return {"a": a, "w": w, **{f"v{i}": prf.Bounded(-5.0, 5.0, value=x, scale=1e-3) for i, x in enumerate(V.ravel())}}
-    return {"a": a, "w": w, "v": prf.Bounded(-5.0, 5.0, value=V, scale=1e-3)}
+        return {"a": a, "w": w, **{f"v{i}": prf.bounded(-5.0, 5.0, value=x, scale=1e-3) for i, x in enumerate(V.ravel())}}
+    return {"a": a, "w": w, "v": prf.bounded(-5.0, 5.0, value=V, scale=1e-3)}
 
 
 def _array_distribution(kind, space):
@@ -1050,8 +1050,8 @@ Z = jnp.array([0.2, -0.4, 0.3, 0.1, -0.6, 0.5, 0.05])
 @pytest.mark.parametrize("prior_space", ["raw", "declared", "physical"])
 def test_array_joint_prior_sums_multiple_batch_axes_and_differentiates(kind, prior_space):
     parts = {
-        "a": prf.Random(Normal(0.0, 1.0), value=0.0, scale=2.0),
-        "v": prf.Random(Normal(0.0, 1.0), value=jnp.zeros(V.shape), scale=3.0),
+        "a": prf.random(Normal(0.0, 1.0), value=0.0, scale=2.0),
+        "v": prf.random(Normal(0.0, 1.0), value=jnp.zeros(V.shape), scale=3.0),
     }
     mean = np.linspace(-0.3, 0.3, 7)
     tril = np.diag(np.linspace(0.6, 1.2, 7))
@@ -1089,7 +1089,7 @@ def test_array_joint_prior_sums_multiple_batch_axes_and_differentiates(kind, pri
 
 
 def test_attaching_to_batched_parameters_uses_the_attachment_shapes_as_the_event():
-    parts = {"a": prf.Unconstrained(0.0, scale=2.0), "b": prf.Unconstrained(0.0, scale=3.0)}
+    parts = {"a": prf.unconstrained(0.0, scale=2.0), "b": prf.unconstrained(0.0, scale=3.0)}
     parts = prf.update(parts, {"a": jnp.zeros(3), "b": jnp.zeros(3)})
     mean, tril = np.arange(6) / 10, 0.7 * np.eye(6)
     model = prf.prior(parts, ["a", "b"], _gaussian(mean, tril))
@@ -1161,8 +1161,8 @@ def test_a_hypercube_sampler_maps_the_cube_through_an_array_parameters_block():
     u = jax.random.uniform(jax.random.key(3), (n, 7)).at[0].set(1e-12).at[1].set(1.0 - 1e-12)
     points = {"a.R": u[:, 0], "v": u[:, 1:].reshape(n, *V.shape), "w": jnp.full((n, *V.shape), 0.5)}
     flat_points = {"a.R": u[:, 0], "w": points["w"], **{f"v{i}": u[:, 1 + i] for i in range(V.size)}}
-    model = prf.update(_array_prior("mvn", "raw"), "w", fn=lambda w: prf.Random(Normal(0.0, 1.0), value=jnp.zeros(V.shape)))
-    flat = prf.update(_array_prior("mvn", "raw", flat=True), "w", fn=lambda w: prf.Random(Normal(0.0, 1.0), value=jnp.zeros(V.shape)))
+    model = prf.update(_array_prior("mvn", "raw"), "w", fn=lambda w: prf.random(Normal(0.0, 1.0), value=jnp.zeros(V.shape)))
+    flat = prf.update(_array_prior("mvn", "raw", flat=True), "w", fn=lambda w: prf.random(Normal(0.0, 1.0), value=jnp.zeros(V.shape)))
     values = prf.values(_cube_draws(model, _CubeDraws(points=points)))
     expected = prf.values(_cube_draws(flat, _CubeDraws(points=flat_points)))
     assert values["v"].shape == (n, *V.shape)
@@ -1184,8 +1184,8 @@ def test_a_support_outside_an_array_parameters_validity_raises_naming_it():
     """The support is checked element by element: one element of `a.R` reaching below
     zero is enough."""
     parts = {
-        "x": prf.Unconstrained(0.0),
-        "a": _PositiveResistor(R=prf.Unconstrained(jnp.array([50.0, 51.0, 52.0])), name="a"),
+        "x": prf.unconstrained(0.0),
+        "a": _PositiveResistor(R=prf.unconstrained(jnp.array([50.0, 51.0, 52.0])), name="a"),
     }
 
     def box(lower):

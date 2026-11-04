@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 import pmrf as prf
 from pmrf.models import Model
-from pmrf.parameters import Bounded, Fixed, Param
+from pmrf.parameters import bounded, fixed, Param
 from pmrf.frequency import Frequency
 from pmrf.objectives.losses import MSELoss
 from pmrf.network_collection import NetworkCollection
@@ -26,14 +26,14 @@ class SubModel(Model):
 class CompositeModel(Model):
     wide: SubModel
     narrow: SubModel
-    global_fixed: Param = Fixed(10.0)
+    global_fixed: Param = fixed(10.0)
 
 
 @pytest.fixture
 def starting_model():
     return CompositeModel(
-        wide=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
-        narrow=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
+        wide=SubModel(val=bounded(0.0, 10.0, value=1.0)),
+        narrow=SubModel(val=bounded(0.0, 10.0, value=1.0)),
     )
 
 
@@ -70,7 +70,7 @@ def test_resolve_prefixes_the_predictor_with_the_network_name(heterogeneous, sta
     datasets = resolve_datasets('s', heterogeneous)
 
     # The first dataset must predict from `wide`, whose value differs from `narrow`.
-    model = prf.replace(starting_model, wide=SubModel(val=Fixed(4.0)))
+    model = prf.replace(starting_model, wide=SubModel(val=fixed(4.0)))
     predicted = datasets[0].predictor(model, wide_band)
 
     assert jnp.allclose(predicted, 4.0)
@@ -156,13 +156,13 @@ def test_fit_joint_reports_the_full_span(starting_model, heterogeneous):
 def test_map_problem_penalizes_the_prior(wide_band):
     """PriorPenalized is SummedTerms plus the negative log prior of its parameters."""
     import parax.distributions as dist
-    from pmrf.parameters import Random
+    from pmrf.parameters import random
     from pmrf.objectives.problems import SummedTerms, PriorPenalized
     from pmrf.objectives.terms import BoundEvaluator
 
     model = CompositeModel(
-        wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
-        narrow=SubModel(val=Fixed(7.0)),
+        wide=SubModel(val=random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
+        narrow=SubModel(val=fixed(7.0)),
     )
     term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
     expected = -dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0))
@@ -173,7 +173,7 @@ def test_map_problem_penalizes_the_prior(wide_band):
 def test_map_problem_covers_hyper_parameters_in_terms(wide_band):
     """A prior on a term's own hyper-parameter is counted alongside the model's."""
     import parax.distributions as dist
-    from pmrf.parameters import Random, Param
+    from pmrf.parameters import random, Param
     from pmrf.objectives.problems import SummedTerms, PriorPenalized
     from pmrf.objectives.terms import AbstractTerm
 
@@ -183,10 +183,10 @@ def test_map_problem_covers_hyper_parameters_in_terms(wide_band):
             return jnp.asarray(0.0)
 
     model = CompositeModel(
-        wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
-        narrow=SubModel(val=Fixed(7.0)),
+        wide=SubModel(val=random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
+        narrow=SubModel(val=fixed(7.0)),
     )
-    sigma = Random(dist.Normal(jnp.array(0.1), jnp.array(0.05)), value=0.1)
+    sigma = random(dist.Normal(jnp.array(0.1), jnp.array(0.05)), value=0.1)
     model_prior = -dist.Normal(jnp.array(3.0), jnp.array(1.0)).log_prob(jnp.array(3.0))
     noise_prior = -dist.Normal(jnp.array(0.1), jnp.array(0.05)).log_prob(jnp.array(0.1))
 
@@ -198,13 +198,13 @@ def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
     """The bound distributions must not be seen as free parameters."""
     import parax.distributions as dist
     import equinox as eqx, jax, parax as prx
-    from pmrf.parameters import Random
+    from pmrf.parameters import random
     from pmrf.objectives.problems import SummedTerms, PriorPenalized
     from pmrf.objectives.terms import BoundEvaluator
 
     model = CompositeModel(
-        wide=SubModel(val=Random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
-        narrow=SubModel(val=Fixed(7.0)),
+        wide=SubModel(val=random(dist.Normal(jnp.array(3.0), jnp.array(1.0)), value=3.0)),
+        narrow=SubModel(val=fixed(7.0)),
     )
     term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
     count = lambda p: len(jax.tree.leaves(prx.unwrap(
@@ -216,7 +216,7 @@ def test_map_problem_prior_stays_out_of_the_parameter_set(wide_band):
 def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
     """The regression: a tight prior must move the estimate away from the MLE."""
     import parax.distributions as dist
-    from pmrf.parameters import Random
+    from pmrf.parameters import random
     from pmrf.fitting.minimize import fit_minimize
 
     ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5.0, name='wide')
@@ -224,8 +224,8 @@ def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
 
     def fit(prior_std):
         model = CompositeModel(
-            wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(prior_std)), value=3.0)),
-            narrow=SubModel(val=Fixed(7.0)),
+            wide=SubModel(val=random(dist.Normal(jnp.array(1.0), jnp.array(prior_std)), value=3.0)),
+            narrow=SubModel(val=fixed(7.0)),
         )
         result = fit_minimize(model, collection, solver=prf.optimize.ScipyMinimize(),
                               inference='bayesian', max_iter=400)
@@ -238,13 +238,13 @@ def test_fit_minimize_bayesian_applies_the_prior(starting_model, wide_band):
 
 def test_fit_minimize_frequentist_ignores_the_prior(starting_model, wide_band):
     import parax.distributions as dist
-    from pmrf.parameters import Random
+    from pmrf.parameters import random
     from pmrf.fitting.minimize import fit_minimize
 
     ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5.0, name='wide')
     model = CompositeModel(
-        wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(0.01)), value=3.0)),
-        narrow=SubModel(val=Fixed(7.0)),
+        wide=SubModel(val=random(dist.Normal(jnp.array(1.0), jnp.array(0.01)), value=3.0)),
+        narrow=SubModel(val=fixed(7.0)),
     )
     result = fit_minimize(model, NetworkCollection([ntwk]),
                           solver=prf.optimize.ScipyMinimize(), max_iter=400)
@@ -258,8 +258,8 @@ def test_fit_minimize_frequentist_ignores_the_prior(starting_model, wide_band):
 
 def _correlated(a=3.0, b=7.0):
     """A model a joint prior can be attached across two of its parameters."""
-    return CompositeModel(wide=SubModel(val=prf.Unconstrained(a)),
-                          narrow=SubModel(val=prf.Unconstrained(b)))
+    return CompositeModel(wide=SubModel(val=prf.unconstrained(a)),
+                          narrow=SubModel(val=prf.unconstrained(b)))
 
 
 def _correlated_normal(mean, scale=1.0):
@@ -333,7 +333,7 @@ def test_correlated_prior_moves_a_fit(wide_band):
     ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 10.0)
 
     def fit(scale):
-        model = prf.prior(_Pair(val=prf.Unconstrained(1.0), other=prf.Unconstrained(1.0)),
+        model = prf.prior(_Pair(val=prf.unconstrained(1.0), other=prf.unconstrained(1.0)),
                           ['val', 'other'], _correlated_normal([1.0, 1.0], scale))
         result = fit_minimize(model, ntwk, solver=prf.optimize.ScipyMinimize(),
                               inference='bayesian', max_iter=400)
@@ -371,8 +371,8 @@ def test_joint_prior_folds_the_scale_of_its_parameters():
     scored = {}
     for value in (75.0, 60.0):
         # Authored over mm, held in metres.
-        plain = Resistor(prf.Random(prf.stats.distributions.Normal(75.0, 5.0), value=value, scale=1e-3))
-        wrapped = prf.prior(Resistor(prf.Unconstrained(value, scale=1e-3)), ['R'], joint)
+        plain = Resistor(prf.random(prf.stats.distributions.Normal(75.0, 5.0), value=value, scale=1e-3))
+        wrapped = prf.prior(Resistor(prf.unconstrained(value, scale=1e-3)), ['R'], joint)
         scored[value] = (log_prior(plain), log_prior(wrapped))
         assert jnp.allclose(prf.unwrap(wrapped).build().R, value * 1e-3)
 
@@ -393,13 +393,13 @@ def test_map_prior_survives_pytree_round_trips(wide_band):
     """
     import equinox as eqx
     import parax.distributions as dist
-    from pmrf.parameters import Random
+    from pmrf.parameters import random
     from pmrf.objectives.problems import SummedTerms, PriorPenalized
     from pmrf.objectives.terms import BoundEvaluator
 
     model = CompositeModel(
-        wide=SubModel(val=Random(dist.Normal(jnp.array(1.0), jnp.array(0.1)), value=3.0)),
-        narrow=SubModel(val=Fixed(7.0)),
+        wide=SubModel(val=random(dist.Normal(jnp.array(1.0), jnp.array(0.1)), value=3.0)),
+        narrow=SubModel(val=fixed(7.0)),
     )
     term = BoundEvaluator(lambda m, f: jnp.asarray(0.0), wide_band)
     problem = PriorPenalized(SummedTerms(model=model, terms=(term,)))
@@ -430,8 +430,8 @@ def test_prior_is_finite_for_a_scaled_parameter(wide_band):
     from pmrf.objectives.terms import BoundEvaluator
 
     # Authored over mm, held in metres: the reported failure.
-    scaled = prf.Random(prf.stats.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
-    model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=Fixed(7.0)))
+    scaled = prf.random(prf.stats.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
+    model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=fixed(7.0)))
 
     log_prior = tree_param_log_prob(tree_param_distributions(model), prf.unwrap(model))
     assert jnp.isfinite(log_prior)
@@ -444,8 +444,8 @@ def test_scaled_parameter_still_moves_under_map(wide_band):
     from pmrf.fitting.minimize import fit_minimize
 
     ntwk = skrf.Network(frequency=wide_band.to_skrf(), s=np.ones((21, 1, 1)) * 5e-3, name='wide')
-    scaled = prf.Random(prf.stats.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
-    model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=Fixed(7.0)))
+    scaled = prf.random(prf.stats.distributions.Uniform(0.0, 100.0), value=75.0, scale=1e-3)
+    model = CompositeModel(wide=SubModel(val=scaled), narrow=SubModel(val=fixed(7.0)))
 
     result = fit_minimize(model, NetworkCollection([ntwk]),
                           solver=prf.optimize.ScipyMinimize(), inference='bayesian', max_iter=200)

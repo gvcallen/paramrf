@@ -53,8 +53,8 @@ def test_derivative_model_structure():
 def _filter():
     from pmrf.models import Resistor, Inductor, ShuntCapacitor
 
-    c1 = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
-    l1 = Inductor(L=prf.Bounded(0.5, 2.0, value=1.0, scale=1e-9), name='l1')
+    c1 = ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12), name='c1')
+    l1 = Inductor(L=prf.bounded(0.5, 2.0, value=1.0, scale=1e-9), name='l1')
     r = Resistor(5.0, name='r')
     return c1 ** l1 ** r
 
@@ -159,7 +159,7 @@ def autodiff_calls(monkeypatch):
 def test_derivative_of_a_wide_real_output_uses_forward_mode(autodiff_calls):
     freq = prf.Frequency(1, 1000, 1000, 'MHz')
     from pmrf.models import ShuntCapacitor
-    cap = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
+    cap = ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12), name='c1')
 
     (d_cap,) = prf.derivative(lambda m: m.s_mag(freq)[:, 1, 0], cap)
 
@@ -201,7 +201,7 @@ def _assert_complex_derivative_is_split_parts(fn, model):
 def test_derivative_of_a_wide_complex_output(autodiff_calls):
     from pmrf.models import ShuntCapacitor
     freq = prf.Frequency(1, 1000, 1000, 'MHz')
-    cap = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
+    cap = ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12), name='c1')
 
     actual = _assert_complex_derivative_is_split_parts(lambda m: m.s(freq), cap)
 
@@ -214,8 +214,8 @@ def test_derivative_of_a_tall_complex_output(autodiff_calls):
     freq = prf.Frequency(1, 2, 2, 'GHz')
     model = (
         _filter()
-        ** Inductor(L=prf.Unconstrained(2.0, scale=1e-9), name='l2')
-        ** ShuntCapacitor(C=prf.Unconstrained(0.5, scale=1e-12), name='c2')
+        ** Inductor(L=prf.unconstrained(2.0, scale=1e-9), name='l2')
+        ** ShuntCapacitor(C=prf.unconstrained(0.5, scale=1e-12), name='c2')
     )
 
     # 2 complex outputs (4 reals) against 5 parameters.
@@ -286,7 +286,7 @@ def test_derivative_on_a_closed_bound_is_exact_and_confined(bound, space, n):
     scale = 1e-3
     tree = {
         'a': prf.Param(value=value, constraint=constraint, scale=scale),
-        'b': prf.Unconstrained(1.5),
+        'b': prf.unconstrained(1.5),
     }
     x = jnp.linspace(0.0, 1.0, n)
 

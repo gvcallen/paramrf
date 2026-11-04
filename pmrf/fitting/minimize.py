@@ -18,7 +18,7 @@ from pmrf.objectives.terms import as_terms
 from pmrf.fitting.targets import resolve_datasets, union_frequency
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.objectives.losses import MSELoss
-from pmrf.parameters import Random
+from pmrf.parameters import random
 from pmrf.stats.distributions import Uniform
 
 from pmrf.optimize.minimize import minimize, AbstractMinimizer
@@ -170,7 +170,7 @@ def fit_minimize(
                 # Lower bound kept strictly positive: at noise=0 the Gaussian likelihood
                 # becomes infinitely peaked, producing huge gradients that can drive other
                 # parameters to their own bounds within a couple of solver steps.
-                noise = Random(Uniform(1e-6, 0.1))
+                noise = random(Uniform(1e-6, 0.1))
             likelihood = GaussianLikelihood(noise)
 
     objective = []

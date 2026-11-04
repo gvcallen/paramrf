@@ -123,7 +123,7 @@ def _assert_close(actual, expected, tolerance):
 
 
 def test_linear_gaussian_posterior_covariance_is_exact():
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     mll = _mll(A, _observed(A, 0))
     lin = mll.linearize(model, FREQ)
     assert lin.J.shape == (2, N, P)
@@ -137,7 +137,7 @@ def test_linear_gaussian_posterior_covariance_is_exact():
 
 
 def test_posterior_covariance_of_several_datasets_is_that_of_the_stacked_problem():
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     noise_b = np.linspace(5e-7, 2e-6, N)
     lin_a = _mll(A, _observed(A, 0)).linearize(model, FREQ)
     lin_b = _mll(B, _observed(B, 1), noise=noise_b).linearize(model, FREQ)
@@ -165,12 +165,12 @@ def _map_by_newton(mll, model):
 def test_marginal_map_equals_explicit_discrepancy_map():
     observed = _observed(A, 0)
     marginal = _map_by_newton(
-        _mll(A, observed), _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+        _mll(A, observed), _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     )
 
     # δ as explicit parameters with prior N(0, K) per block, and no discrepancy.
     K = np.asarray(gram(_kernel(), FREQ.f_scaled, jitter=JITTER))
-    explicit_model = _Linear(theta=prf.Unconstrained(jnp.zeros(P)), delta=prf.Unconstrained(jnp.zeros((2, N))))
+    explicit_model = _Linear(theta=prf.unconstrained(jnp.zeros(P)), delta=prf.unconstrained(jnp.zeros((2, N))))
     explicit_model = prf.prior(
         _theta_prior(explicit_model), 'delta',
         dd.MultivariateNormalFullCovariance(jnp.zeros(2 * N), jnp.asarray(np.kron(np.eye(2), K))),
@@ -206,7 +206,7 @@ def test_jacobian_through_conditional_event_transform_matches_finite_differences
         discrepancy=GaussianProcess(_kernel(), jitter=JITTER),
         event_transform=conditional,
     )
-    model = _Linear(theta=prf.Unconstrained(jnp.array([0.3, -0.2, 0.4])))
+    model = _Linear(theta=prf.unconstrained(jnp.array([0.3, -0.2, 0.4])))
     lin = mll.linearize(model, FREQ)
 
     # The prediction's own derivative misses the observation's dependence on θ.
@@ -233,9 +233,9 @@ def test_parameter_without_prior_adds_no_prior_precision():
         return h.T
 
     model = _theta_prior(_Linear(
-        theta=prf.Unconstrained(jnp.zeros(P)),
-        beta=prf.Unconstrained(0.1),
-        gamma=prf.Bounded(-5.0, 5.0, value=0.2),
+        theta=prf.unconstrained(jnp.zeros(P)),
+        beta=prf.unconstrained(0.1),
+        gamma=prf.bounded(-5.0, 5.0, value=0.2),
     ))
     mll = MarginalLogLikelihood(
         predictor=predictor,
@@ -258,7 +258,7 @@ def test_parameter_without_prior_adds_no_prior_precision():
     np.linspace(5e-7, 2e-6, 2 * N).reshape(2, N),  # one factor per block
 ], ids=['shared', 'per_block'])
 def test_without_discrepancy_sigma_d_is_the_noise(noise):
-    model = _Linear(theta=prf.Unconstrained(jnp.zeros(P)))
+    model = _Linear(theta=prf.unconstrained(jnp.zeros(P)))
     lin = _mll(A, _observed(A, 0), noise=noise, discrepancy=False).linearize(model, FREQ)
     assert lin.chol.shape == noise.shape[:-1] + (N, N)
     np.testing.assert_allclose(lin.chol, np.sqrt(noise)[..., None] * np.eye(N), rtol=1e-14)
@@ -268,7 +268,7 @@ def test_without_discrepancy_sigma_d_is_the_noise(noise):
 
 
 def test_orthogonal_linearization_matches_projected_covariance_and_fisher():
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     mll = _mll(A, _observed(A, 0), use_orthogonal_discrepancy=True,
                orthogonal_rcond=1e-10).with_orthogonal_reference(model, FREQ)
     lin = mll.linearize(model, FREQ)
@@ -290,7 +290,7 @@ def test_orthogonal_discrepancy_without_reference_raises():
         A, _observed(A, 0),
         use_orthogonal_discrepancy=True, orthogonal_rcond=1e-10,
     )
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     for predict in (lambda: mll.linearize(model, FREQ),
                     lambda: mll.predict_discrepancy(model, FREQ, FREQ),
                     lambda: mll.predict_joint(model, FREQ, FREQ)):
@@ -299,14 +299,14 @@ def test_orthogonal_discrepancy_without_reference_raises():
 
 
 def test_posterior_covariance_rejects_another_space():
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     lin = _mll(A, _observed(A, 0)).linearize(model, FREQ)
     with pytest.raises(ValueError, match="space"):
         posterior_covariance([lin], model, space='raw')
 
 
 def test_ill_conditioned_covariance_uses_whitened_jacobian():
-    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    model = _Linear(theta=prf.unconstrained(jnp.zeros(2)))
     J = jnp.array([[1.0, 1.0], [0.0, 1e-8]])
     lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
                         ('theta',), ((2,),), 'declared')
@@ -324,7 +324,7 @@ def test_ill_conditioned_covariance_uses_whitened_jacobian():
 
 
 def test_uninformed_parameter_direction_raises_eager_and_jit():
-    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    model = _Linear(theta=prf.unconstrained(jnp.zeros(2)))
     J = jnp.array([[1.0, 0.0], [2.0, 0.0]])
     lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
                         ('theta',), ((2,),), 'declared')
@@ -337,14 +337,14 @@ def test_uninformed_parameter_direction_raises_eager_and_jit():
 @pytest.mark.parametrize('open_load', [True, False], ids=['open_load', '50_ohm_load'])
 def test_circuit_covariance_matches_high_precision_reference(open_load):
     frequency = prf.Frequency(50, 130, 81, 'MHz')
-    gaussian = lambda value: prf.Random(prf.stats.Normal(1.0, 0.05), scale=value)
-    uniform = lambda value, scale: prf.Random(prf.stats.Uniform(0.0, 2.0), value=value, scale=scale)
-    load = (prf.Random(prf.stats.Uniform(1.0, 1000.0), value=100.0, scale=1e6)
-            if open_load else prf.Random(prf.stats.Normal(1.0, 0.05), scale=50.0))
+    gaussian = lambda value: prf.random(prf.stats.Normal(1.0, 0.05), scale=value)
+    uniform = lambda value, scale: prf.random(prf.stats.Uniform(0.0, 2.0), value=value, scale=scale)
+    load = (prf.random(prf.stats.Uniform(1.0, 1000.0), value=100.0, scale=1e6)
+            if open_load else prf.random(prf.stats.Normal(1.0, 0.05), scale=50.0))
     model = (
         EquivalentLine(length=gaussian(10.0), zn=gaussian(50.0),
-                     ep_eff=prf.Random(prf.stats.Normal(1.45, 0.07)),
-                     A=gaussian(0.1), f_ref=prf.Fixed(1e8), tand=gaussian(1e-4))
+                     ep_eff=prf.random(prf.stats.Normal(1.45, 0.07)),
+                     A=gaussian(0.1), f_ref=prf.fixed(1e8), tand=gaussian(1e-4))
         ** PiSectionCLC(C1=uniform(1.0, 1e-12), L=uniform(1.0, 1e-9),
                         C2=uniform(1.0, 1e-12))
         ** Resistor(R=load).terminated()
@@ -413,7 +413,7 @@ def _joint_reference(new_frequency, observed):
 
 
 def _orthogonal_reference(observed):
-    initial = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    initial = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     mll = _mll(A, observed, use_orthogonal_discrepancy=True,
                orthogonal_rcond=1e-10).with_orthogonal_reference(initial, FREQ)
     K = np.asarray(gram(_kernel(), FREQ.f_scaled, jitter=JITTER))
@@ -494,7 +494,7 @@ def test_orthogonal_prediction_names_off_grid_point():
 def test_joint_prediction_equals_dense_gaussian_conditioning(new_frequency):
     observed = _observed(A, 0)
     theta_map = _mp_map(A, _sigma_d(), np.asarray(observed).T)
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(theta_map))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.asarray(theta_map))))
     mll = _mll(A, observed)
     names, joint = mll.predict_joint(model, FREQ, new_frequency)
     assert names == ('theta',)
@@ -505,7 +505,7 @@ def test_joint_prediction_equals_dense_gaussian_conditioning(new_frequency):
 
 @pytest.mark.parametrize('noise', [NOISE, np.linspace(5e-7, 2e-6, 2 * N).reshape(2, N)], ids=['shared', 'per_block'])
 def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(MU0))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.asarray(MU0))))
     mll = _mll(A, _observed(A, 0), noise=noise)
     new_frequency = prf.Frequency(0.9, 5.3, 7, 'GHz')
     lin = mll.linearize(model, FREQ)
@@ -525,7 +525,7 @@ def test_joint_prediction_parameter_term_and_supplied_covariance(noise):
 
 
 def test_joint_prediction_accepts_combined_covariance_factor():
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.asarray(MU0))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.asarray(MU0))))
     mll = _mll(A, _observed(A, 0))
     lin_a = mll.linearize(model, FREQ)
     lin_b = _mll(B, _observed(B, 1)).linearize(model, FREQ)
@@ -543,7 +543,7 @@ def test_joint_prediction_ill_conditioned_gp_has_finite_density(new_frequency):
     matrix = np.zeros((1, N, 2))
     matrix[0, :, 0] = np.linspace(0.2, 1.1, N)
     matrix[0, :, 1] = matrix[0, :, 0] + 1e-8 * np.linspace(-1, 1, N)
-    model = _Linear(theta=prf.Unconstrained(jnp.zeros(2)))
+    model = _Linear(theta=prf.unconstrained(jnp.zeros(2)))
     observed = _linear_predictor(matrix)(model, FREQ)
     mll = _mll(matrix, observed, noise=1e-10, jitter=1e-12)
     names, joint = mll.predict_joint(model, FREQ, new_frequency)
@@ -559,13 +559,13 @@ def test_joint_prediction_as_transfer_prior_matches_joint_fit():
     # No nugget: A and B observe the same δ on the same grid. Prediction jitter
     # otherwise represents distinct independent nuggets at the two evaluations.
     mll_a = _mll(A, observed_a, jitter=0.0)
-    model_a = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model_a = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     theta_map = _map_by_newton(mll_a, model_a)
     model_a = prf.update(model_a, {'theta': theta_map})
     names, joint = mll_a.predict_joint(model_a, FREQ, FREQ)
     transfer = _Linear(
-        theta=prf.Unconstrained(jnp.zeros(P)),
-        delta=prf.Unconstrained(jnp.zeros((2, N))),
+        theta=prf.unconstrained(jnp.zeros(P)),
+        delta=prf.unconstrained(jnp.zeros((2, N))),
     )
     transfer = prf.prior(transfer, [*names, 'delta'], joint)
     # The identity hand-off uses the joint mean's values in the original shapes.
@@ -609,7 +609,7 @@ def test_joint_prediction_as_transfer_prior_matches_joint_fit():
 
 @pytest.mark.parametrize('unsupported', ['no_gp', 'non_gaussian'])
 def test_joint_prediction_rejects_unsupported_combinations(unsupported):
-    model = _theta_prior(_Linear(theta=prf.Unconstrained(jnp.zeros(P))))
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     kwargs = {}
     if unsupported == 'no_gp':
         kwargs['discrepancy'] = False

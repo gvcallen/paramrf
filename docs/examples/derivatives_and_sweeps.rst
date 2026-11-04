@@ -15,9 +15,9 @@ Derivatives and sweeps can be performed across the parameters in a model. Let's 
    import pmrf as prf
    from pmrf.models import ShuntCapacitor, Inductor, Cascade
    
-   c1 = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c1')
-   l1 = Inductor(L=prf.Unconstrained(1.0, scale=1e-9), name='l1')
-   c2 = ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12), name='c2')
+   c1 = ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12), name='c1')
+   l1 = Inductor(L=prf.unconstrained(1.0, scale=1e-9), name='l1')
+   c2 = ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12), name='c2')
    
    lpf = Cascade([c1, l1, c2])
 
@@ -71,9 +71,9 @@ We can also evaluate derivatives/sensitivity across an entire frequency band, kn
    
    def s21_mag_array(c1_val, l_val):
        model = (
-           ShuntCapacitor(C=prf.Unconstrained(c1_val, scale=1e-12))
-           ** Inductor(L=prf.Unconstrained(l_val, scale=1e-9))
-           ** ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12))
+           ShuntCapacitor(C=prf.unconstrained(c1_val, scale=1e-12))
+           ** Inductor(L=prf.unconstrained(l_val, scale=1e-9))
+           ** ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12))
        )
        return model.s_mag(band)[:,1,0]
    
@@ -117,9 +117,9 @@ We can perform vectorized sweeps using :func:`pmrf.sweep`. By default, this is d
    
    def eval_s21_mag(c_val, l_val):
        model = (
-           ShuntCapacitor(C=prf.Unconstrained(c_val, scale=1e-12))
-           ** Inductor(L=prf.Unconstrained(l_val, scale=1e-9))
-           ** ShuntCapacitor(C=prf.Unconstrained(1.0, scale=1e-12))
+           ShuntCapacitor(C=prf.unconstrained(c_val, scale=1e-12))
+           ** Inductor(L=prf.unconstrained(l_val, scale=1e-9))
+           ** ShuntCapacitor(C=prf.unconstrained(1.0, scale=1e-12))
        )
        return model.s_mag(freq)[0, 1, 0]
    

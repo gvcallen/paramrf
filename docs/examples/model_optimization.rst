@@ -6,7 +6,7 @@ ParamRF allows you to easily optimize model parameters to meet a given design go
 Defining the Model
 ~~~~~~~~~~~~~~~~~~~
 
-When optimizing a model, instead of passing fixed floats, we pass *free* parameters to indicate that they are free to be tuned by the optimizer. This can be done using constructors like :class:`pmrf.Unconstrained` or, more commonly, :class:`pmrf.Bounded`:
+When optimizing a model, instead of passing fixed floats, we pass *free* parameters to indicate that they are free to be tuned by the optimizer. This can be done using constructors like :func:`pmrf.unconstrained` or, more commonly, :func:`pmrf.bounded`:
 
 .. plot::
    :context: reset
@@ -15,13 +15,13 @@ When optimizing a model, instead of passing fixed floats, we pass *free* paramet
    import pmrf as prf
    from pmrf.models import ShuntCapacitor, Inductor
    
-   C1 = ShuntCapacitor(C=prf.Bounded(1.0, 100.0, scale=1e-12))
-   L1 = Inductor(L=prf.Bounded(1.0, 100.0, scale=1e-9))
-   C2 = ShuntCapacitor(C=prf.Bounded(1.0, 100.0, scale=1e-12))
+   C1 = ShuntCapacitor(C=prf.bounded(1.0, 100.0, scale=1e-12))
+   L1 = Inductor(L=prf.bounded(1.0, 100.0, scale=1e-9))
+   C2 = ShuntCapacitor(C=prf.bounded(1.0, 100.0, scale=1e-12))
    
    lpf = C1 ** L1 ** C2
 
-It is best practice to apply a scaling factor to our values in order to keep the optimization numerically stable. To apply more complicated constraints and metadata, more parameters are available in :mod:`pmrf.parameters` that are re-exported at the root, such as :func:`pmrf.Constrained`, :func:`pmrf.Random` and :func:`pmrf.Fixed`.
+It is best practice to apply a scaling factor to our values in order to keep the optimization numerically stable. To apply more complicated constraints and metadata, more parameters are available in :mod:`pmrf.parameters` that are re-exported at the root, such as :func:`pmrf.constrained`, :func:`pmrf.random` and :func:`pmrf.fixed`.
 
 Running the Optimizer
 ~~~~~~~~~~~~~~~~~~~~~

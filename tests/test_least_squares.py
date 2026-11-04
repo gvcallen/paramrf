@@ -51,7 +51,7 @@ def _mse(target, predictor=None):
 def test_half_squared_norm_of_residual_is_the_mse_objective(freq):
     target = Pair(u=1.0, v=2.0).s(freq)
     real_target = jnp.real(target[:, 0, 0]) + 0.5
-    model = Pair(u=prf.Bounded(0.0, 5.0, value=1.7), v=prf.Unconstrained(0.4))
+    model = Pair(u=prf.bounded(0.0, 5.0, value=1.7), v=prf.unconstrained(0.4))
     problem = SummedTerms(
         model=model,
         terms=(
@@ -71,7 +71,7 @@ def test_an_unsupported_term_raises_before_scipy_is_called(monkeypatch, freq):
         raise AssertionError("SciPy was called")
 
     monkeypatch.setattr(scipy_solver, "scipy_least_squares", never)
-    model = Pair(u=prf.Bounded(0.0, 5.0, value=1.0), v=prf.Unconstrained(0.0))
+    model = Pair(u=prf.bounded(0.0, 5.0, value=1.0), v=prf.unconstrained(0.0))
     target = Pair(u=2.0, v=1.0).s(freq)
     gibbs = GibbsMarginalLogLikelihood(predictor=Feature("s"), observed=target, loss=MSELoss())
     unsupported = [
@@ -102,7 +102,7 @@ def test_iterates_stay_inside_the_box_from_a_start_on_a_closed_bound(freq):
 
     # The optimum of u is past its upper bound, so the fit presses against it.
     target = Pair(u=12.0, v=1.5).s(freq)
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=0.0), v=prf.Bounded(-2.0, 2.0, value=-2.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=0.0), v=prf.bounded(-2.0, 2.0, value=-2.0))
     result = minimize((_mse(target, predictor), freq), model, solver=_quiet())
 
     assert result.success
@@ -118,7 +118,7 @@ def test_run_minimizer_hands_a_least_squares_minimiser_the_box():
             Recording.seen = (y0, bounds, residual_fn(y0, kwargs["hyper0"], args))
             return optimize_base.MinimizeResult(y=y0)
 
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=2.5), v=prf.Fixed(0.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=2.5), v=prf.fixed(0.0))
     optimize_base.run_minimizer(
         lambda m, _: 0.5 * (m.u - 1.0) ** 2, model, Recording(),
         residual_fn=lambda m, _: jnp.atleast_1d(m.u - 1.0),
@@ -192,7 +192,7 @@ _NAMES = dict(
 
 
 def _line(v, bounded):
-    b = (lambda lo, hi, x: prf.Bounded(lo, hi, value=x)) if bounded else (lambda lo, hi, x: x)
+    b = (lambda lo, hi, x: prf.bounded(lo, hi, value=x)) if bounded else (lambda lo, hi, x: x)
     return MicrostripLine(
         w=b(1e-3, 5e-3, v["w"]),
         h=b(0.8e-3, 3.2e-3, v["h"]),
@@ -277,7 +277,7 @@ def _declared_residual(problem, names):
 def test_map_with_fixed_hyperparameters_matches_scipy_minimize():
     freq = Frequency(1.0, 3.0, 41, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.1)
-    start = Pair(u=prf.Random(Normal(0.5, 0.3), value=0.2), v=prf.Random(Normal(2.5, 0.5), value=1.0))
+    start = Pair(u=prf.random(Normal(0.5, 0.3), value=0.2), v=prf.random(Normal(2.5, 0.5), value=1.0))
     problem = _map_problem(start, data, freq, noise=0.01, discrepancy=_gp())
 
     least_squares = minimize(problem, solver=_quiet_map(ftol=1e-12, xtol=1e-12, gtol=1e-12))
@@ -293,10 +293,10 @@ def test_half_squared_norm_is_the_negative_log_posterior_up_to_a_constant():
     freq = Frequency(1.0, 3.0, 21, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.1, smooth=0.1)
     model = Pair(
-        u=prf.Random(TruncatedNormal(1.0, 0.5, 0.0, 3.0), value=0.4),
-        v=prf.Random(Normal(2.0, 1.0), value=1.5, scale=1e-3),
+        u=prf.random(TruncatedNormal(1.0, 0.5, 0.0, 3.0), value=0.4),
+        v=prf.random(Normal(2.0, 1.0), value=1.5, scale=1e-3),
     )
-    problem = _map_problem(model, data, freq, noise=prf.Random(Uniform(1e-6, 0.1), value=0.01), discrepancy=_gp())
+    problem = _map_problem(model, data, freq, noise=prf.random(Uniform(1e-6, 0.1), value=0.01), discrepancy=_gp())
 
     def gap(u, v):
         moved = prf.unwrap(prf.update(problem, {"problem.model.u": u, "problem.model.v": v}, space="declared"))
@@ -310,7 +310,7 @@ def test_half_squared_norm_is_the_negative_log_posterior_up_to_a_constant():
 def test_orthogonal_discrepancy_at_a_fixed_reference_has_a_whitened_residual():
     freq = Frequency(1.0, 3.0, 21, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.1, smooth=0.1)
-    model = Pair(u=prf.Random(Normal(1.0, 0.5), value=0.4), v=prf.Random(Normal(2.0, 1.0), value=1.5))
+    model = Pair(u=prf.random(Normal(1.0, 0.5), value=0.4), v=prf.random(Normal(2.0, 1.0), value=1.5))
     mll = MarginalLogLikelihood(
         predictor=Feature("s"), observed=data, likelihood=GaussianLikelihood(1e-2), discrepancy=_gp(),
         use_orthogonal_discrepancy=True, orthogonal_rcond=1e-10,
@@ -329,7 +329,7 @@ def test_orthogonal_discrepancy_at_a_fixed_reference_has_a_whitened_residual():
 def test_stacked_jacobian_gives_the_linearised_posterior_covariance():
     freq = Frequency(1.0, 3.0, 21, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.05, smooth=0.1)
-    start = Pair(u=prf.Random(Normal(0.8, 0.3), value=0.8), v=prf.Random(Normal(2.2, 0.4), value=2.2))
+    start = Pair(u=prf.random(Normal(0.8, 0.3), value=0.8), v=prf.random(Normal(2.2, 0.4), value=2.2))
     problem = _map_problem(start, data, freq, noise=0.0025, discrepancy=_gp())
     fitted = minimize(problem, solver=_quiet_map(ftol=1e-12, xtol=1e-12, gtol=1e-12)).problem
 
@@ -346,10 +346,10 @@ def test_free_white_noise_recovers_the_noise_level_and_the_truth():
     freq = Frequency(1.0, 3.0, 201, "GHz")
     sd = 0.05
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=sd)
-    start = Pair(u=prf.Random(Normal(0.5, 2.0), value=0.5), v=prf.Random(Normal(1.0, 2.0), value=1.0))
+    start = Pair(u=prf.random(Normal(0.5, 2.0), value=0.5), v=prf.random(Normal(1.0, 2.0), value=1.0))
     result = fit_minimize(
         start, data, freq, solver=_quiet_map(), inference="bayesian",
-        noise=prf.Random(Uniform(1e-6, 0.1), value=0.01),
+        noise=prf.random(Uniform(1e-6, 0.1), value=0.01),
     )
 
     assert result.solution.success
@@ -363,13 +363,13 @@ def test_free_white_noise_recovers_the_noise_level_and_the_truth():
 def test_gp_discrepancy_with_free_noise_never_increases_the_objective():
     freq = Frequency(1.0, 3.0, 61, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.02, smooth=0.1)
-    start = Pair(u=prf.Random(Normal(1.0, 0.5), value=0.3), v=prf.Random(Normal(2.0, 0.5), value=1.2))
+    start = Pair(u=prf.random(Normal(1.0, 0.5), value=0.3), v=prf.random(Normal(2.0, 0.5), value=1.2))
     discrepancy = GaussianProcess(
-        Matern52Kernel(prf.Random(LogNormal(0.0, 1.0), value=1.0)) * prf.Random(Uniform(1e-4, 1.0), value=0.1)
+        Matern52Kernel(prf.random(LogNormal(0.0, 1.0), value=1.0)) * prf.random(Uniform(1e-4, 1.0), value=0.1)
     )
     result = fit_minimize(
         start, data, freq, solver=_quiet_map(), inference="bayesian", discrepancy=discrepancy,
-        noise=prf.Random(Uniform(1e-6, 0.1), value=0.01),
+        noise=prf.random(Uniform(1e-6, 0.1), value=0.01),
     )
 
     metrics = result.solution.metrics
@@ -381,8 +381,8 @@ def test_gp_discrepancy_with_free_noise_never_increases_the_objective():
 
 def test_truncated_normal_prior_residual_and_truncation(freq):
     model = Pair(
-        u=prf.Random(TruncatedNormal(1.0, 0.5, 0.5, 1.2), value=0.9),
-        v=prf.Random(Normal(2.0, 0.25), value=2.5, scale=1e-3),
+        u=prf.random(TruncatedNormal(1.0, 0.5, 0.5, 1.2), value=0.9),
+        v=prf.random(Normal(2.0, 0.25), value=2.5, scale=1e-3),
     )
     data = np.asarray(Pair(u=3.0, v=2e-3).s(freq))
     problem = _map_problem(model, data, freq)
@@ -403,7 +403,7 @@ def test_unsupported_map_fits_raise_before_scipy_is_called(monkeypatch, freq):
     monkeypatch.setattr(scipy_solver, "scipy_least_squares", never)
     monkeypatch.setattr(scipy_solver, "scipy_minimize", never)
     data = np.asarray(Pair(u=1.0, v=2.0).s(freq))
-    model = Pair(u=prf.Random(Normal(1.0, 1.0), value=0.5), v=prf.Random(Normal(2.0, 1.0), value=1.5))
+    model = Pair(u=prf.random(Normal(1.0, 1.0), value=0.5), v=prf.random(Normal(2.0, 1.0), value=1.5))
     cases = {
         "callable of the prediction": dict(noise=lambda y: 1e-4 + 0.0 * y),
         "orthogonal": dict(
@@ -420,7 +420,7 @@ def test_unsupported_map_fits_raise_before_scipy_is_called(monkeypatch, freq):
         with pytest.raises(NotImplementedError, match=match):
             minimize(problem, solver=_quiet_map())
 
-    lognormal = Pair(u=prf.Random(LogNormal(0.0, 1.0), value=1.0), v=prf.Random(Normal(2.0, 1.0), value=1.5))
+    lognormal = Pair(u=prf.random(LogNormal(0.0, 1.0), value=1.0), v=prf.random(Normal(2.0, 1.0), value=1.5))
     with pytest.raises(NotImplementedError, match="LogNormal prior"):
         minimize(_map_problem(lognormal, data, freq), solver=_quiet_map())
 
@@ -445,7 +445,7 @@ def test_degenerate_microstrip_map_fit_with_free_noise_recovers_the_truth():
     solver = _quiet_map(ftol=1e-15, xtol=1e-15, gtol=1e-15)
     result = fit_minimize(
         start, data, freq, solver=solver, inference="bayesian", max_iter=2000,
-        noise=prf.Random(Uniform(1e-20, 1e-16), value=1e-18),
+        noise=prf.random(Uniform(1e-20, 1e-16), value=1e-18),
     )
 
     assert result.solution.success
@@ -483,7 +483,7 @@ def test_half_squared_norm_of_joint_prior_residual_is_the_negative_joint_log_pri
     freq = Frequency(1.0, 3.0, 21, "GHz")
     data = _noisy(Pair(u=1.0, v=2.0), freq, sd=0.1, smooth=0.1)
     cls = PositivePair if truncate == "unnormalised" else Pair
-    start = cls(u=prf.Unconstrained(0.4, scale=scale), v=prf.Unconstrained(1.5))
+    start = cls(u=prf.unconstrained(0.4, scale=scale), v=prf.unconstrained(1.5))
     model = prf.prior(
         start, ["v", "u"], dd.MultivariateNormalFullCovariance(_JOINT_MEAN, _JOINT_COVARIANCE),
         space=space, truncate=truncate,
@@ -503,7 +503,7 @@ def test_sequential_fit_with_a_linearised_posterior_prior_matches_scipy_minimize
     freq = Frequency(1.0, 3.0, 41, "GHz")
     first_data = _noisy(PositivePair(u=1.0, v=2.0), freq, sd=0.1, seed=0)
     second_data = _noisy(PositivePair(u=1.0, v=2.0), freq, sd=0.1, seed=1, smooth=0.05)
-    start = PositivePair(u=prf.Random(Normal(0.5, 1.0), value=0.5), v=prf.Random(Normal(2.5, 1.0), value=1.0))
+    start = PositivePair(u=prf.random(Normal(0.5, 1.0), value=0.5), v=prf.random(Normal(2.5, 1.0), value=1.0))
     solver = _quiet_map(ftol=1e-12, xtol=1e-12, gtol=1e-12)
 
     first = minimize(_map_problem(start, first_data, freq), solver=solver).problem
@@ -538,7 +538,7 @@ def test_unnormalised_joint_prior_keeps_iterates_inside_the_validity():
     # The data pull u to -1, past its validity at 0, and the prior's support crosses it.
     data = np.asarray(Pair(u=-1.0, v=2.0).s(freq))
     model = prf.prior(
-        PositivePair(u=prf.Unconstrained(0.5), v=prf.Unconstrained(1.5)), ["u", "v"],
+        PositivePair(u=prf.unconstrained(0.5), v=prf.unconstrained(1.5)), ["u", "v"],
         dd.MultivariateNormalFullCovariance(jnp.array([0.2, 2.0]), _JOINT_COVARIANCE), truncate="unnormalised",
     )
     mll = MarginalLogLikelihood(predictor=predictor, observed=data, likelihood=GaussianLikelihood(1e-2))
@@ -558,7 +558,7 @@ def test_joint_prior_over_raw_space_raises_before_scipy_is_called(monkeypatch, f
     monkeypatch.setattr(scipy_solver, "scipy_least_squares", never)
     data = np.asarray(Pair(u=1.0, v=2.0).s(freq))
     model = prf.prior(
-        Pair(u=prf.Unconstrained(0.5), v=prf.Unconstrained(1.5)), ["u", "v"],
+        Pair(u=prf.unconstrained(0.5), v=prf.unconstrained(1.5)), ["u", "v"],
         dd.MultivariateNormalFullCovariance(_JOINT_MEAN, jnp.eye(2)), space="raw",
     )
     with pytest.raises(NotImplementedError, match="joint prior over raw space.*not yet supported"):

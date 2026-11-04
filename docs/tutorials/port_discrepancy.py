@@ -160,7 +160,7 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
     rng = np.random.default_rng(265)
     sigma = 0.002
     observed = true_s + sigma * (rng.normal(size=true_s.shape) + 1j * rng.normal(size=true_s.shape))
-    initial = fitted_line(line(0.5), log_R=prf.Unconstrained(jnp.log(0.5)))
+    initial = fitted_line(line(0.5), log_R=prf.unconstrained(jnp.log(0.5)))
     initial = prf.prior(initial, 'log_R', Normal(jnp.log(0.5), 0.02))
     full_event = PortEventTransform(initial.s(frequency)).forward(observed)
     # Discard only the antisymmetric block, then encode the symmetric log in S space.
@@ -183,7 +183,7 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
     names, joint = reference.predict_joint(fitted, frequency, transfer_frequency)
     finish('joint prediction', joint.covariance())
     corrected = PortCorrected(fitted, GridPortDiscrepancy(
-        prf.Unconstrained(joint.mean()[1:].reshape(3, 2, n_transfer)),
+        prf.unconstrained(joint.mean()[1:].reshape(3, 2, n_transfer)),
         transfer_frequency, ('11', '22', 's21')))
     corrected = prf.prior(corrected, [*names, 'discrepancy.values'], joint)
     finish('joint prior attachment', prf.log_prior(corrected))
@@ -192,7 +192,7 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
     def terminated(cable, *, load):
         return cable.terminated(Load(gamma=(load - 50) / (load + 50)))
 
-    transfer = terminated(corrected, load=prf.Unconstrained(75.0))
+    transfer = terminated(corrected, load=prf.unconstrained(75.0))
     true_reflection = truth(transfer_frequency).terminated(Load(gamma=(76.0 - 50) / (76.0 + 50))).s(transfer_frequency)[:, 0, 0]
     transfer_observed = true_reflection + sigma * (
         rng.normal(size=n_transfer) + 1j * rng.normal(size=n_transfer))
@@ -268,16 +268,16 @@ def run_constrained_transfer():
     def cable(length):
         return CoaxialLine(
             length=length,
-            d_in=prf.Fixed(1.12e-3),
-            d_out=prf.Fixed(3.2e-3),
-            dielectric=ConstantDielectric(ep_r=prf.Fixed(1.384), tand=prf.Fixed(0.001)),
-            conductor=BulkConductor(sigma=prf.Fixed(1 / 1.6e-8)),
+            d_in=prf.fixed(1.12e-3),
+            d_out=prf.fixed(3.2e-3),
+            dielectric=ConstantDielectric(ep_r=prf.fixed(1.384), tand=prf.fixed(0.001)),
+            conductor=BulkConductor(sigma=prf.fixed(1 / 1.6e-8)),
         )
 
     reference_frequency = prf.Frequency(100.0, 500.0, 12, 'MHz')
     transfer_frequency = prf.Frequency(120.0, 480.0, 6, 'MHz')
-    truth_model = cable(prf.Fixed(0.1))
-    reference_model = cable(prf.Bounded(0.05, 0.15, value=0.095))
+    truth_model = cable(prf.fixed(0.1))
+    reference_model = cable(prf.bounded(0.05, 0.15, value=0.095))
     reference_observed = reciprocal_predictor(truth_model, reference_frequency)
     reference = MarginalLogLikelihood(
         predictor=reciprocal_predictor,
@@ -309,7 +309,7 @@ def run_constrained_transfer():
     corrected = PortCorrected(
         fitted,
         GridPortDiscrepancy(
-            prf.Unconstrained(delta_mean), transfer_frequency, ('11', '22', 's21')
+            prf.unconstrained(delta_mean), transfer_frequency, ('11', '22', 's21')
         ),
     )
     attached = prf.prior(

@@ -6,7 +6,7 @@ import equinox as eqx
 from skrf.media import DefinedGammaZ0
 
 from pmrf.frequency import Frequency
-from pmrf.parameters import Unconstrained
+from pmrf.parameters import unconstrained
 from pmrf.rf import s2y
 
 from pmrf.models import (
@@ -96,7 +96,7 @@ def test_floating_two_port_port_order_agrees_with_circuit(basic_freq):
 def test_floating_two_port_is_differentiable(basic_freq):
     resistance = 37.0
     floating = FloatingTwoPort(
-        floating=Resistor(R=Unconstrained(resistance))
+        floating=Resistor(R=unconstrained(resistance))
     )
 
     gradient = eqx.filter_grad(
@@ -149,10 +149,10 @@ def test_floating_two_port_commutes_with_unequal_line_cascade(z0, basic_freq):
 def test_floating_two_port_cascade_gradient_agrees(basic_freq):
     second = RLGCLine(R=4.0, L=310e-9, G=4e-5, C=120e-12, length=0.11)
     first_float_after = RLGCLine(
-        R=1.0, L=220e-9, G=1e-5, C=90e-12, length=Unconstrained(0.07)
+        R=1.0, L=220e-9, G=1e-5, C=90e-12, length=unconstrained(0.07)
     )
     first_cascade_after = RLGCLine(
-        R=1.0, L=220e-9, G=1e-5, C=90e-12, length=Unconstrained(0.07)
+        R=1.0, L=220e-9, G=1e-5, C=90e-12, length=unconstrained(0.07)
     )
     float_after = FloatingTwoPort(
         floating=Cascade((first_float_after, second))

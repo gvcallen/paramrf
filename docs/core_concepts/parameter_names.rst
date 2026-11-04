@@ -11,7 +11,7 @@ How Names are Formed
 By default, a parameter is named by its attribute path through the model, such as ``cascade[0].R`` or ``substrate.dielectric.ep_r``. Paths change whenever the model is restructured, so models and parameters can be given a ``name`` instead:
 
   * **Named models** act as a namespace. ``Resistor(50.0, name='r')`` gives ``r.R``, wherever the resistor ends up in a larger model. A named model at the root of the tree adds no namespace.
-  * **Named parameters** replace their attribute path below the nearest named model, so ``prf.Unconstrained(1.0, name='C_global')`` is ``C_global``.
+  * **Named parameters** replace their attribute path below the nearest named model, so ``prf.unconstrained(1.0, name='C_global')`` is ``C_global``.
   * **Nested names** are joined with an underscore. An inductor named ``l1`` holding a parameter named ``L_val`` gives ``l1_L_val``.
 
 Name only the parameters for a flat set of names, only the models for namespaces, or mix the two. String dictionary keys that are valid Python identifiers are treated like attributes (``components.cable.length``), and any other key keeps its bracket form. Two parameters resolving to the same name is an error.
@@ -23,7 +23,7 @@ Parameter Spaces
 
 A parameter's value can be expressed in one of three spaces:
 
-  * **Declared** space is the value as written, in the units given by the parameter's scale. ``Capacitor(prf.Unconstrained(2.0, scale=1e-12))`` has a declared value of ``2.0``.
+  * **Declared** space is the value as written, in the units given by the parameter's scale. ``Capacitor(prf.unconstrained(2.0, scale=1e-12))`` has a declared value of ``2.0``.
   * **Physical** space is the scaled SI value, ``2e-12`` here. This is what the model's equations see.
   * **Raw** space is the unbounded value that an optimizer or sampler moves through. For a bounded parameter, its constraint maps the value onto the real line.
 
@@ -65,8 +65,8 @@ A tie can only relate parameters that already exist. Sometimes a relation needs 
         dry = prf.replace(cable, length=cable.length - wet_length)
         return wet ** dry
 
-    coax = wet(coax, wet_length=prf.Random(Uniform(0, 20), scale=1e-3),
-               wet_ep_r=prf.Random(Uniform(1, 80)))
+    coax = wet(coax, wet_length=prf.random(Uniform(0, 20), scale=1e-3),
+               wet_ep_r=prf.random(Uniform(1, 80)))
 
 The result is an ordinary :class:`pmrf.Model`. Its parameters are the base's, under the same names, plus one per keyword (``wet_length`` and ``wet_ep_r``). The cable's geometry is used by both sections but is still one parameter, and a values dictionary saved from a fit of the dry cable applies unchanged. Nothing built inside ``f`` is named, and the derived model takes the base's name, so inside a named container everything is prefixed as usual.
 
@@ -83,6 +83,6 @@ To share a parameter between several parts, derive at the level that owns them. 
             'west_coax': wet(system.west_coax, wet_length=wet_length, wet_ep_r=80.0),
         })
 
-    balun = wet_balun(balun, wet_length=prf.Random(Uniform(0, 20), scale=1e-3))
+    balun = wet_balun(balun, wet_length=prf.random(Uniform(0, 20), scale=1e-3))
 
 Here ``prf.params(balun)`` holds a single ``wet_length``, and changing it changes both cables. The reasoning behind this design is recorded in ADR-0003.

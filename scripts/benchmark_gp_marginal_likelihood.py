@@ -6,7 +6,7 @@ over a few repetitions, after one warm-up call that compiles.
 
 ``eqx.filter_jit`` treats Python-float hyperparameters as static, so a gradient with
 float hyperparameters never differentiates through the kernel. The float gradient
-row is therefore taken with respect to the model only, and the ``Random`` gradient
+row is therefore taken with respect to the model only, and the ``random`` gradient
 row with respect to both the evaluator and the model.
 
 Usage: python scripts/benchmark_gp_marginal_likelihood.py [--npoints N] [--repeats R]
@@ -35,13 +35,13 @@ from pmrf.models import DatasheetLine
 def build(npoints: int, random: bool):
     """Return ``(mll, model, frequency)`` for the two-port GP benchmark.
 
-    With ``random``, every kernel hyperparameter is a ``prf.Random`` centred on its
+    With ``random``, every kernel hyperparameter is a ``prf.random`` centred on its
     float value; otherwise it is that float.
     """
     def h(value, name):
         if not random:
             return value
-        return prf.Random(RelativeTruncatedNormal(value, 0.1), name=name)
+        return prf.random(RelativeTruncatedNormal(value, 0.1), name=name)
 
     k_auto = (
         PeriodicKernel(h(12.0, 'auto_period'), h(1.5, 'auto_periodic_ls'))
@@ -105,9 +105,9 @@ def main():
     rows = [
         (f'Cholesky of K + s^2 I, shape {cov.shape}', cholesky, (cov,)),
         ('value, float hyperparameters', value, (float_mll, model)),
-        ('value, Random hyperparameters', value, (random_mll, model)),
+        ('value, random hyperparameters', value, (random_mll, model)),
         ('value + grad wrt model, float hyperparameters', model_grad, (model, float_mll)),
-        ('value + grad wrt evaluator and model, Random hyperparameters', both_grad, ((random_mll, model),)),
+        ('value + grad wrt evaluator and model, random hyperparameters', both_grad, ((random_mll, model),)),
     ]
 
     print(f'N = {args.npoints}, minimum over {args.repeats} calls after one warm-up')

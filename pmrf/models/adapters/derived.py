@@ -105,8 +105,8 @@ def derived(fn: Callable[..., Model]) -> Callable[..., Derived]:
             dry = prf.replace(cable, length=cable.length - wet_length)
             return wet ** dry
 
-        coax = wet(coax, wet_length=prf.Random(Uniform(0, 20), scale=1e-3),
-                   wet_ep_r=prf.Random(Uniform(1, 80)))
+        coax = wet(coax, wet_length=prf.random(Uniform(0, 20), scale=1e-3),
+                   wet_ep_r=prf.random(Uniform(1, 80)))
         prf.params(coax)   # the cable's names, plus 'wet_length' and 'wet_ep_r'
     """
     from pmrf.parameters import as_param, params

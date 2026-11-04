@@ -64,7 +64,7 @@ def test_minimiser_interface_declares_whether_it_honours_bounds():
 
 
 def test_box_is_the_unit_box_between_two_finite_bounds():
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=0.0), v=prf.Bounded(-2.0, 2.0, value=1.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=0.0), v=prf.bounded(-2.0, 2.0, value=1.0))
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
     assert y0["u"] == 0.0 and y0["v"] == pytest.approx(0.75)
@@ -73,8 +73,8 @@ def test_box_is_the_unit_box_between_two_finite_bounds():
 
 def test_open_edges_are_inset():
     model = Pair(
-        u=prf.Constrained(Interval(0.0, 10.0, closed=False), value=5.0),
-        v=prf.Constrained(Positive(), value=3.0),
+        u=prf.constrained(Interval(0.0, 10.0, closed=False), value=5.0),
+        v=prf.constrained(Positive(), value=3.0),
     )
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
@@ -86,7 +86,7 @@ def test_open_edges_are_inset():
 
 def test_a_normal_prior_gets_an_unbounded_box():
     """The box is built from bounds, not the prior: no CDF box for a normal prior."""
-    model = Pair(u=prf.Random(Normal(1.0, 2.0), value=4.0), v=prf.Random(Uniform(0.0, 50.0), value=10.0))
+    model = Pair(u=prf.random(Normal(1.0, 2.0), value=4.0), v=prf.random(Uniform(0.0, 50.0), value=10.0))
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
     assert y0["u"] == 4.0 and lower["u"] == -jnp.inf and upper["u"] == jnp.inf
@@ -98,7 +98,7 @@ def test_joint_prior_block_gets_the_box_of_its_parameters_bounds():
     """The parameters under a joint prior (ADR-0005) are searched over their own bounds,
     not the prior's whitened space."""
     parts = {
-        "a": Pair(u=prf.Bounded(0.0, 10.0, value=2.0), v=prf.Bounded(0.0, 4.0, value=1.0), name="a"),
+        "a": Pair(u=prf.bounded(0.0, 10.0, value=2.0), v=prf.bounded(0.0, 4.0, value=1.0), name="a"),
     }
     base = dd.Independent(dd.Normal(jnp.zeros(2), jnp.ones(2)))
     model = prf.prior(parts, ("a.u", "a.v"), dd.Transformed(base, db.Shift(jnp.zeros(2))), space="raw")
@@ -116,7 +116,7 @@ def test_joint_prior_block_gets_the_box_of_its_parameters_bounds():
 def test_box_objective_is_the_model_objective_with_a_finite_gradient_on_a_bound():
     """The objective sees physical values, and has a finite, non-zero gradient at a start
     on a closed bound, where the raw value is infinite."""
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=0.0, scale=1e-3), v=prf.Unconstrained(2.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=0.0, scale=1e-3), v=prf.unconstrained(2.0))
     fn = lambda m, args: (m.u - 3e-3) ** 2 * 1e6 + m.v ** 2
     optimize_base.run_minimizer(fn, model, _RecordingBoundedMinimizer())
     y0, bounds, value, grad = _RecordingBoundedMinimizer.seen
@@ -130,7 +130,7 @@ def test_box_objective_is_the_model_objective_with_a_finite_gradient_on_a_bound(
 
 
 def test_box_objective_follows_ties():
-    model = prf.tie(Pair(u=prf.Bounded(0.0, 10.0, value=1.0), v=prf.Bounded(0.0, 10.0, value=1.0)), "v", "u", fn=lambda u: 2 * u)
+    model = prf.tie(Pair(u=prf.bounded(0.0, 10.0, value=1.0), v=prf.bounded(0.0, 10.0, value=1.0)), "v", "u", fn=lambda u: 2 * u)
     view = SolverView(model, "optimize")
     y0, _ = view.box()
 
@@ -143,7 +143,7 @@ def test_box_objective_follows_ties():
 
 @pytest.mark.parametrize("solver", _bounded_solvers(), ids=_BOUNDED_IDS)
 def test_bounded_minimiser_starts_on_a_closed_bound_and_moves(solver):
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=0.0), v=prf.Fixed(0.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=0.0), v=prf.fixed(0.0))
     fitted, _ = optimize_base.run_minimizer(lambda m, args: (m.u - 3.0) ** 2, model, solver, max_iter=200)
 
     assert prf.values(fitted)["u"] == pytest.approx(3.0, rel=1e-4)
@@ -152,7 +152,7 @@ def test_bounded_minimiser_starts_on_a_closed_bound_and_moves(solver):
 @pytest.mark.parametrize("solver", _bounded_solvers(), ids=_BOUNDED_IDS)
 @pytest.mark.parametrize("target, bound", [(-5.0, 0.0), (15.0, 10.0)], ids=["lower", "upper"])
 def test_bounded_minimiser_ends_exactly_on_a_bound(solver, target, bound):
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=4.0), v=prf.Fixed(0.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=4.0), v=prf.fixed(0.0))
     fitted, _ = optimize_base.run_minimizer(lambda m, args: (m.u - target) ** 2, model, solver, max_iter=200)
 
     assert prf.values(fitted)["u"] == bound
@@ -169,7 +169,7 @@ def test_open_edge_is_never_evaluated(solver):
         jax.debug.callback(record, m.u)
         return m.u + m.v
 
-    model = Pair(u=prf.Constrained(Interval(0.0, 10.0, closed=False), value=5.0), v=prf.Constrained(Positive(), value=1.0))
+    model = Pair(u=prf.constrained(Interval(0.0, 10.0, closed=False), value=5.0), v=prf.constrained(Positive(), value=1.0))
     fitted, _ = optimize_base.run_minimizer(fn, model, solver, max_iter=200)
 
     assert seen and min(seen) > 0.0
@@ -190,7 +190,7 @@ def test_scipy_bfgs_moves_in_raw_space_and_never_leaves_the_bounds():
         jax.debug.callback(record, m.u)
         return (m.u - 15.0) ** 2
 
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=0.0), v=prf.Fixed(0.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=0.0), v=prf.fixed(0.0))
     fitted, _ = optimize_base.run_minimizer(fn, model, ScipyMinimize(method="BFGS", show_progress=False), max_iter=200)
 
     # The start on the bound is nudged inside it, as for any raw-space minimiser.

@@ -27,7 +27,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         Circuit as CircuitPmrf, Port, Ground, Resistor, EquivalentLine,
         GlobalMNACircuitSolver,
     )
-    from pmrf.parameters import Bounded
+    from pmrf.parameters import bounded
     from pmrf.objectives import Goal
     from pmrf.optimize import minimize as pmrf_minimize, ScipyMinimize
 
@@ -84,7 +84,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         return CircuitSkrf(conns).network
 
     def build_pmrf_transformer(zns, lens):
-        """zns/lens hold either plain floats (fixed) or pmrf.Bounded instances (free parameters)."""
+        """zns/lens hold either plain floats (fixed) or pmrf.bounded instances (free parameters)."""
         p0, gnd = Port(), Ground()
         lines = [
             EquivalentLine(zn=zns[i], length=lens[i], ep_eff=EP_EFF, A=ATTEN_A, f_ref=F_REF, tand=TAND)
@@ -155,8 +155,8 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         t_skrf = time.perf_counter() - t0
 
         pmrf_model = build_pmrf_transformer(
-            [Bounded(*zn_bounds, value=v) for v in ZN0],
-            [Bounded(*len_bounds, value=v) for v in LEN0],
+            [bounded(*zn_bounds, value=v) for v in ZN0],
+            [bounded(*len_bounds, value=v) for v in LEN0],
         )
         goal = Goal('s11_db', '<', TARGET_DB, loss='mse')
 
