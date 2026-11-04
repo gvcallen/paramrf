@@ -5,7 +5,7 @@ import pytest
 
 import pmrf as prf
 from pmrf.parameters.constraints import Positive
-from pmrf.stats.distributions import Uniform, Normal, LogNormal, TruncatedNormal
+from pmrf.stats.distributions import Uniform, LogUniform, Normal, LogNormal, TruncatedNormal
 from pmrf.models import Resistor
 
 from tests._jit import assert_same_jit_key
@@ -28,6 +28,7 @@ _TRACES = []
 
 @pytest.mark.parametrize("factory, distribution", [
     (lambda **kwargs: prf.uniform(1.0, 3.0, **kwargs), Uniform(1.0, 3.0)),
+    (lambda **kwargs: prf.loguniform(1.0, 3.0, **kwargs), LogUniform(1.0, 3.0)),
     (lambda **kwargs: prf.normal(2.0, 0.5, **kwargs), Normal(2.0, 0.5)),
     (lambda **kwargs: prf.lognormal(0.0, 0.5, **kwargs), LogNormal(0.0, 0.5)),
     (lambda **kwargs: prf.truncated_normal(2.0, 0.5, 1.0, 3.0, **kwargs),
@@ -59,6 +60,29 @@ def test_distribution_parameter_shortcut_infers_value(factory, distribution):
     assert np.allclose(factory().value, prf.random(distribution).value)
 
 
+def test_loguniform_factory_default_and_scaled_parameter():
+    p = prf.loguniform(1.0, 100.0, scale=1e-3, name="length",
+                       metadata={"unit": "mm"})
+    assert p.value == pytest.approx(10.0)
+    assert p.physical_value == pytest.approx(0.01)
+    np.testing.assert_allclose(p.bounds, [1, 100])
+    assert p.name == "length"
+    assert p.metadata == {"unit": "mm"}
+    assert isinstance(prf.unwrap(p.distribution), LogUniform)
+    assert prf.loguniform is prf.parameters.loguniform
+
+
+def test_loguniform_factory_constraint_preserves_log_density():
+    constraint = prf.parameters.constraints.Interval(10.0, 100.0)
+    p = prf.loguniform(1.0, 1000.0, constraint=constraint, value=20.0,
+                       fixed=True, name="gain")
+    prior = prf.unwrap(prf.update(p, fixed=False).distribution)
+    assert isinstance(prior, LogUniform)
+    np.testing.assert_allclose(prior.support, [10, 100])
+    assert prior.prob(20.0) == pytest.approx(1 / (20 * np.log(10)))
+    assert p.fixed and p.name == "gain" and p.value == pytest.approx(20.0)
+
+
 def test_distribution_parameter_shortcut_preserves_validation_errors():
     with pytest.raises(Exception, match="outside"):
         prf.uniform(1.0, 3.0, value=4.0)
@@ -77,7 +101,7 @@ def test_normal_parameter_shortcut_truncates_prior():
 
 def test_parameter_factory_exports_and_prior_distinction():
     for name in ("fixed", "unconstrained", "constrained", "bounded", "random",
-                 "uniform", "normal", "lognormal", "truncated_normal"):
+                 "uniform", "loguniform", "normal", "lognormal", "truncated_normal"):
         assert getattr(prf, name) is getattr(prf.parameters, name)
     for name in ("Fixed", "Unconstrained", "Constrained", "Bounded", "Random"):
         assert not hasattr(prf, name)
