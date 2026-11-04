@@ -16,7 +16,7 @@ from pmrf.objectives.evaluators import MarginalLogLikelihood
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.stats.linearization import Linearization, posterior_covariance, posterior_covariance_factor
 from pmrf.models import Wrapped
-from pmrf.models import PhysicalLine, PiSectionCLC, Resistor
+from pmrf.models import EquivalentLine, PiSectionCLC, Resistor
 from pmrf.models.base import Model
 
 N = 12
@@ -342,7 +342,7 @@ def test_circuit_covariance_matches_high_precision_reference(open_load):
     load = (prf.Random(prf.stats.Uniform(1.0, 1000.0), value=100.0, scale=1e6)
             if open_load else prf.Random(prf.stats.Normal(1.0, 0.05), scale=50.0))
     model = (
-        PhysicalLine(length=gaussian(10.0), zn=gaussian(50.0),
+        EquivalentLine(length=gaussian(10.0), zn=gaussian(50.0),
                      ep_eff=prf.Random(prf.stats.Normal(1.45, 0.07)),
                      A=gaussian(0.1), f_ref=prf.Fixed(1e8), tand=gaussian(1e-4))
         ** PiSectionCLC(C1=uniform(1.0, 1e-12), L=uniform(1.0, 1e-9),

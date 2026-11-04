@@ -23,13 +23,12 @@ from pmrf.models import (
     CoaxialLine,
     DatasheetLine,
     DelayLine,
-    FirstOrderEffectiveLineFormulation,
+    EquivalentLine,
     FloatingLine,
-    GeneralizedLine,
+    GeneralizedEffectiveLineFormulation,
     LowLossLine,
     MicrostripLine,
     PhaseLine,
-    PhysicalLine,
     RLGCLine,
     StriplineLine,
 )
@@ -48,26 +47,38 @@ LINES = {
     "RLGCLine": RLGCLine(R=0.1, L=250e-9, G=1e-6, C=100e-12, length=0.1),
     "RLGCLine (lossless)": RLGCLine(R=0.0, L=250e-9, G=0.0, C=100e-12, length=0.1),
     "LowLossLine": LowLossLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
-    "PhysicalLine": PhysicalLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
-    "PhysicalLine (first-order)": PhysicalLine(
+    "EquivalentLine": EquivalentLine(zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0),
+    "EquivalentLine (generalized)": EquivalentLine(
         zn=50.0, ep_eff=2.2, A=0.01, tand=0.001, length=1.0,
-        formulation=FirstOrderEffectiveLineFormulation(),
-    ),
-    "DatasheetLine": DatasheetLine(zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0),
-    "DatasheetLine (first-order)": DatasheetLine(
-        zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0,
-        formulation=FirstOrderEffectiveLineFormulation(),
+        formulation=GeneralizedEffectiveLineFormulation(),
     ),
     # Every term family and the skin-effect onset. The undamped LC terms resonate above
     # the 0-10 GHz sweep; the damped ones may sit inside it.
-    "GeneralizedLine": GeneralizedLine(
-        zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, length=1.0, R_dc=0.01, f_s=1e6,
-        conductor_terms=[(0.02, 1e6)],
-        dielectric_terms=[(1e-3, 1e8)],
-        inductive_dispersion=[(1e-2, 50e9), (5e-3, 2e9, 0.2)],
-        capacitive_dispersion=[(1e-2, 60e9), (5e-3, 5e9, 0.1)],
+    "EquivalentLine (generalized, every term)": EquivalentLine(
+        zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, length=1.0,
+        formulation=GeneralizedEffectiveLineFormulation(
+            R_dc=0.01, f_s=1e6,
+            conductor_terms=[(0.02, 1e6)],
+            dielectric_terms=[(1e-3, 1e8)],
+            inductive_dispersion=[(1e-2, 50e9), (5e-3, 2e9, 0.2)],
+            capacitive_dispersion=[(1e-2, 60e9), (5e-3, 5e9, 0.1)],
+        ),
     ),
-    "GeneralizedLine (no onset)": GeneralizedLine(zn=50.0, ep_eff=2.1, A=0.05, tand=2e-4, length=1.0),
+    "DatasheetLine": DatasheetLine(zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0),
+    "DatasheetLine (generalized)": DatasheetLine(
+        zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0,
+        formulation=GeneralizedEffectiveLineFormulation(),
+    ),
+    "DatasheetLine (generalized, every term)": DatasheetLine(
+        zn=50.0, vf=0.69, k1=0.2, k2=0.01, length=1.0,
+        formulation=GeneralizedEffectiveLineFormulation(
+            R_dc=0.01, f_s=1e6,
+            conductor_terms=[(0.02, 1e6)],
+            dielectric_terms=[(1e-3, 1e8)],
+            inductive_dispersion=[(1e-2, 50e9), (5e-3, 2e9, 0.2)],
+            capacitive_dispersion=[(1e-2, 60e9), (5e-3, 5e9, 0.1)],
+        ),
+    ),
     "CoaxialLine": CoaxialLine(
         d_in=0.9e-3,
         d_out=2.95e-3,

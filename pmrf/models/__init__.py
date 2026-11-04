@@ -105,15 +105,14 @@ from pmrf.models.components.lines.empirical import (
     LowLossLine as LowLossLine,
     AbstractEffectiveLine as AbstractEffectiveLine,
     EffectiveValues as EffectiveValues,
-    PhysicalLine as PhysicalLine,
+    EquivalentLine as EquivalentLine,
     DatasheetLine as DatasheetLine,
     AbstractEffectiveLineFormulation as AbstractEffectiveLineFormulation,
     NominalEffectiveLineFormulation as NominalEffectiveLineFormulation,
-    FirstOrderEffectiveLineFormulation as FirstOrderEffectiveLineFormulation,
-    GeneralizedLine as GeneralizedLine,
-    RLTerm as RLTerm,
-    RCTerm as RCTerm,
-    LCTerm as LCTerm,
+    GeneralizedEffectiveLineFormulation as GeneralizedEffectiveLineFormulation,
+    GeneralizedRLTerm as GeneralizedRLTerm,
+    GeneralizedRCTerm as GeneralizedRCTerm,
+    GeneralizedLCTerm as GeneralizedLCTerm,
 )
 
 from pmrf.models.components.lines.coaxial import (

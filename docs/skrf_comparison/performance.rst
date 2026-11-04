@@ -24,7 +24,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
     from skrf.circuit import Circuit as CircuitSkrf
     from scipy.optimize import minimize as scipy_minimize, Bounds
     from pmrf.models import (
-        Circuit as CircuitPmrf, Port, Ground, Resistor, PhysicalLine,
+        Circuit as CircuitPmrf, Port, Ground, Resistor, EquivalentLine,
         GlobalMNACircuitSolver,
     )
     from pmrf.parameters import Bounded
@@ -46,7 +46,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
     freq_pmrf = prf.Frequency(start=F_START, stop=F_STOP, npoints=N_POINTS, unit='ghz')
 
     def create_skrf_physical_line(freq, zn, length, ep_eff, A, f_ref, tand, name):
-        """Builds a scikit-rf line matching ParamRF's PhysicalLine exactly, in its
+        """Builds a scikit-rf line matching ParamRF's EquivalentLine exactly, in its
         default nominal formulation."""
         f = freq.f
         sqrt_ep_eff = np.sqrt(ep_eff)
@@ -87,7 +87,7 @@ The script below builds the same circuit in ``scikit-rf`` and ParamRF once, then
         """zns/lens hold either plain floats (fixed) or pmrf.Bounded instances (free parameters)."""
         p0, gnd = Port(), Ground()
         lines = [
-            PhysicalLine(zn=zns[i], length=lens[i], ep_eff=EP_EFF, A=ATTEN_A, f_ref=F_REF, tand=TAND)
+            EquivalentLine(zn=zns[i], length=lens[i], ep_eff=EP_EFF, A=ATTEN_A, f_ref=F_REF, tand=TAND)
             for i in range(N_SECTIONS)
         ]
         load = Resistor(R=ZL)

@@ -12,14 +12,13 @@ from pmrf.models import (
     PhaseLine, 
     RLGCLine, 
     LowLossLine,
-    PhysicalLine, 
+    EquivalentLine, 
     DatasheetLine, 
     NominalEffectiveLineFormulation,
-    FirstOrderEffectiveLineFormulation,
-    GeneralizedLine,
-    RLTerm,
-    RCTerm,
-    LCTerm,
+    GeneralizedEffectiveLineFormulation,
+    GeneralizedRLTerm,
+    GeneralizedRCTerm,
+    GeneralizedLCTerm,
     CoaxialLine, 
     MicrostripLine, 
     StriplineLine,
@@ -78,11 +77,13 @@ def test_constant_rlgc_line(basic_freq):
 
 @pytest.mark.parametrize("line_model", [
     LowLossLine(length=0.1),
-    PhysicalLine(length=0.1),
-    PhysicalLine(length=0.1, formulation=FirstOrderEffectiveLineFormulation()),
+    EquivalentLine(length=0.1),
+    EquivalentLine(length=0.1, formulation=GeneralizedEffectiveLineFormulation()),
     DatasheetLine(length=0.1),
-    DatasheetLine(length=0.1, formulation=FirstOrderEffectiveLineFormulation()),
-    GeneralizedLine(length=0.1),
+    DatasheetLine(length=0.1, formulation=GeneralizedEffectiveLineFormulation()),
+    EquivalentLine(length=0.1, formulation=GeneralizedEffectiveLineFormulation(
+        f_s=1e6, dielectric_terms=[(1e-3, 1e8)], capacitive_dispersion=[(1e-2, 5e9, 0.1)],
+    )),
     CoaxialLine(length=0.1),
     MicrostripLine(length=0.1)
 ])
@@ -96,12 +97,12 @@ def test_physical_line_execution(line_model, basic_freq):
     assert not jnp.any(jnp.isnan(s))
 
 
-def test_physical_line_phase_delay(basic_freq):
-    """Test that PhysicalLine calculates the correct phase delay based on permittivity."""
+def test_equivalent_line_phase_delay(basic_freq):
+    """Test that EquivalentLine calculates the correct phase delay based on permittivity."""
     # 15 mm line in a dielectric with Er = 4.0
     length = 0.015
     ep_eff = 4.0
-    line = PhysicalLine(zn=50.0, length=length, ep_eff=ep_eff, A=0.0, tand=0.0)
+    line = EquivalentLine(zn=50.0, length=length, ep_eff=ep_eff, A=0.0, tand=0.0)
     
     s = line.s(basic_freq)
     
@@ -131,7 +132,7 @@ def test_datasheet_line_attenuation(basic_freq):
     assert jnp.allclose(actual_db, expected_db, rtol=0, atol=2e-4)
 
 
-@pytest.mark.parametrize("line_type", [DatasheetLine, PhysicalLine])
+@pytest.mark.parametrize("line_type", [DatasheetLine, EquivalentLine])
 @pytest.mark.parametrize("length", [1.0, 10.0])
 def test_empirical_line_matches_half_space_coax(line_type, length):
     """The first-order line is a half-space coax with a Djordjevic-Sarkar dielectric.
@@ -146,7 +147,7 @@ def test_empirical_line_matches_half_space_coax(line_type, length):
     zn = np.sqrt(mu_0 / epsilon_0) * np.log(b / a) / (2 * np.pi * np.sqrt(ep_eff))
     k1 = (2000 / np.log(10)) * np.sqrt(np.pi * 1e6 * mu_0 / sigma) * (1 / a + 1 / b) / (4 * np.pi * zn)
     k2 = (2000 / np.log(10)) * np.pi * 1e6 * np.sqrt(ep_eff) * tand / c
-    formulation = FirstOrderEffectiveLineFormulation(f_low=f_low, f_high=f_high)
+    formulation = GeneralizedEffectiveLineFormulation(f_low=f_low, f_high=f_high)
 
     with jax.enable_x64():
         freq = Frequency(start=10, stop=500, npoints=491, unit='MHz')
@@ -157,7 +158,7 @@ def test_empirical_line_matches_half_space_coax(line_type, length):
             )
         else:
             A = k1 * np.sqrt(f_ref / 1e6) / 100
-            line = PhysicalLine(
+            line = EquivalentLine(
                 length=length, zn=zn, ep_eff=ep_eff, A=A, tand=tand,
                 f_ref=f_ref, formulation=formulation,
             )
@@ -216,7 +217,7 @@ def test_effective_lines_match_skrf_defined_a_ep_tand_z0():
     Its gamma is always the low-loss one. Its Zc is `z0` when that is an array, which
     makes it LowLossLine, and the nominal RLGC `sqrt(Z'/Y')` when `z0` is a scalar, which
     pairs a nominal Zc with a low-loss gamma: a mixed model that ParamRF does not keep.
-    So Zc for a scalar `z0` is checked against the nominal PhysicalLine alone.
+    So Zc for a scalar `z0` is checked against the nominal EquivalentLine alone.
     """
     from skrf.media import DefinedAEpTandZ0
 
@@ -231,7 +232,7 @@ def test_effective_lines_match_skrf_defined_a_ep_tand_z0():
             freq.to_skrf(), A=A, f_A=f_ref, ep_r=ep_eff, tanD=tand, z0=zn,
         ).z0_characteristic
         zc, gammaL = LowLossLine(length=1.0, **_EFFECTIVE).zc_and_gammaL(freq)
-        nominal_zc = PhysicalLine(length=1.0, **_EFFECTIVE).zc(freq)
+        nominal_zc = EquivalentLine(length=1.0, **_EFFECTIVE).zc(freq)
 
     # Both evaluate the same closed forms in float64: a few ulps apart.
     np.testing.assert_allclose(np.asarray(gammaL), skrf_low_loss.gamma, rtol=1e-14)
@@ -243,7 +244,7 @@ def test_nominal_line_reduces_to_low_loss_quadratically():
     """The nominal gamma departs from the low-loss one at second order in the losses."""
     def relative_difference(scale):
         values = dict(_EFFECTIVE, A=_EFFECTIVE["A"] * scale, tand=_EFFECTIVE["tand"] * scale)
-        nominal = PhysicalLine(length=1.0, **values).gammaL(freq)
+        nominal = EquivalentLine(length=1.0, **values).gammaL(freq)
         low_loss = LowLossLine(length=1.0, **values).gammaL(freq)
         return np.max(np.abs(np.asarray(nominal - low_loss)) / np.abs(np.asarray(low_loss)))
 
@@ -258,18 +259,18 @@ def test_nominal_line_reduces_to_low_loss_quadratically():
 
 
 @pytest.mark.parametrize("make", [
-    lambda: PhysicalLine(length=1.0, **_EFFECTIVE),
+    lambda: EquivalentLine(length=1.0, **_EFFECTIVE),
     lambda: DatasheetLine(length=1.0, zn=50.0, vf=0.69, k1=0.2, k2=0.01),
-], ids=["PhysicalLine", "DatasheetLine"])
-def test_first_order_admittance_is_djordjevic_sarkar(make):
+], ids=["EquivalentLine", "DatasheetLine"])
+def test_generalized_admittance_is_djordjevic_sarkar(make):
     with jax.enable_x64():
         freq = _effective_freq()
         line = make()
         values = unwrap(line).effective_values()
-        first_order = eqx.tree_at(
-            lambda m: m.formulation, line, FirstOrderEffectiveLineFormulation(**_DS_BOUNDS)
+        generalized = eqx.tree_at(
+            lambda m: m.formulation, line, GeneralizedEffectiveLineFormulation(**_DS_BOUNDS)
         )
-        Y = np.asarray(first_order.immittance(freq).Y)
+        Y = np.asarray(generalized.immittance(freq).Y)
         Y_nominal = np.asarray(line.immittance(freq).Y)
 
         dielectric = DjordjevicSarkarDielectric(
@@ -285,28 +286,36 @@ def test_first_order_admittance_is_djordjevic_sarkar(make):
 
 
 @pytest.mark.parametrize("formulation", [
-    NominalEffectiveLineFormulation(), FirstOrderEffectiveLineFormulation(**_DS_BOUNDS),
-], ids=["nominal", "first-order"])
-def test_datasheet_line_maps_onto_physical_line(formulation):
+    NominalEffectiveLineFormulation(),
+    GeneralizedEffectiveLineFormulation(**_DS_BOUNDS),
+    GeneralizedEffectiveLineFormulation(
+        **_DS_BOUNDS, R_dc=0.01, f_s=1e5,
+        conductor_terms=[(0.02, 1e6)],
+        dielectric_terms=[(1e-3, 1e7)],
+        inductive_dispersion=[(1e-2, 300e9), (5e-3, 2e9, 0.2)],
+        capacitive_dispersion=[(1e-2, 400e9), (5e-3, 5e9, 0.1)],
+    ),
+], ids=["nominal", "generalized", "generalized, every term"])
+def test_datasheet_line_maps_onto_equivalent_line(formulation):
     zn, vf, k1, k2, f_ref = 50.0, 0.69, 0.2, 0.01, 1e9
     with jax.enable_x64():
         freq = _effective_freq()
         datasheet = DatasheetLine(
             length=1.0, zn=zn, vf=vf, k1=k1, k2=k2, f_ref=f_ref, formulation=formulation,
         )
-        physical = PhysicalLine(
+        equivalent = EquivalentLine(
             length=1.0, zn=zn, ep_eff=1 / vf**2, A=k1 * np.sqrt(f_ref / 1e6) / 100,
             tand=k2 * vf * c * np.log(10) / (2 * np.pi * 1e9), f_ref=f_ref,
             formulation=formulation,
         )
-        expected = physical.immittance(freq)
+        expected = equivalent.immittance(freq)
         actual = datasheet.immittance(freq)
 
         np.testing.assert_allclose(np.asarray(actual.Z), np.asarray(expected.Z), rtol=1e-13)
         np.testing.assert_allclose(np.asarray(actual.Y), np.asarray(expected.Y), rtol=1e-13)
 
 
-@pytest.mark.parametrize("line_type", [PhysicalLine, DatasheetLine])
+@pytest.mark.parametrize("line_type", [EquivalentLine, DatasheetLine])
 def test_effective_lines_default_to_nominal_at_1_ghz(line_type):
     line = line_type(length=1.0)
     assert type(line.formulation) is NominalEffectiveLineFormulation
@@ -314,18 +323,16 @@ def test_effective_lines_default_to_nominal_at_1_ghz(line_type):
 
 
 # -----------------------------------------------------------------------------
-# GeneralizedLine (#324): the first-order line plus RL, RC and LC terms. The same
-# effective values on the same 1 MHz-1 GHz axis.
+# GeneralizedEffectiveLineFormulation (#324, #333): the first-order causal line plus
+# RL, RC and LC refinement terms. The same effective values on the same 1 MHz-1 GHz axis.
 # -----------------------------------------------------------------------------
 
-def _first_order(**kwargs):
-    return PhysicalLine(
-        length=1.0, formulation=FirstOrderEffectiveLineFormulation(**_DS_BOUNDS), **kwargs,
+def _generalized(tand=_EFFECTIVE["tand"], **kwargs):
+    """EquivalentLine with the generalized formulation; `kwargs` go to the formulation."""
+    return EquivalentLine(
+        length=1.0, **{**_EFFECTIVE, "tand": tand},
+        formulation=GeneralizedEffectiveLineFormulation(**_DS_BOUNDS, **kwargs),
     )
-
-
-def _generalized(**kwargs):
-    return GeneralizedLine(length=1.0, **_DS_BOUNDS, **{**_EFFECTIVE, **kwargs})
 
 
 def _nominal_rlc(freq, zn=_EFFECTIVE["zn"], ep_eff=_EFFECTIVE["ep_eff"], A=_EFFECTIVE["A"],
@@ -336,18 +343,95 @@ def _nominal_rlc(freq, zn=_EFFECTIVE["zn"], ep_eff=_EFFECTIVE["ep_eff"], A=_EFFE
     return w, R, zn * np.sqrt(ep_eff) / c, np.sqrt(ep_eff) / (zn * c)
 
 
-def test_generalized_line_reduces_to_first_order():
+def _ds_ep_r(freq, ep_eff=_EFFECTIVE["ep_eff"], tand=_EFFECTIVE["tand"], f_ref=_EFFECTIVE["f_ref"]):
+    """The base medium's Djordjevic-Sarkar permittivity."""
+    dielectric = DjordjevicSarkarDielectric(ep_r=ep_eff, tand=tand, f_ref=f_ref, **_DS_BOUNDS)
+    return np.asarray(dielectric.properties(freq).ep_r)
+
+
+def test_generalized_formulation_default_is_first_order():
+    """With its defaults, Z' = (1 + j) R'_n + j w L'_n and Y' = j w C'_n ep_DS / ep_eff."""
     with jax.enable_x64():
         freq = _effective_freq()
-        expected = _first_order(**_EFFECTIVE).immittance(freq)
-        actual = _generalized().immittance(freq)
+        immittance = _generalized().immittance(freq)
+        ep = _ds_ep_r(freq)
+    w, R, L, C = _nominal_rlc(freq)
 
-    # Built from the same operations: equal to the last ulp.
-    np.testing.assert_allclose(np.asarray(actual.Z), np.asarray(expected.Z), rtol=1e-15, atol=0)
-    np.testing.assert_allclose(np.asarray(actual.Y), np.asarray(expected.Y), rtol=1e-15, atol=0)
+    # The same closed forms in numpy and JAX: a few ulps apart.
+    np.testing.assert_allclose(np.asarray(immittance.Z), (1 + 1j) * R + 1j * w * L, rtol=1e-14)
+    np.testing.assert_allclose(
+        np.asarray(immittance.Y), 1j * w * C * ep / _EFFECTIVE["ep_eff"], rtol=1e-14,
+    )
 
 
-def test_generalized_line_onset_error_falls_as_root_f_s():
+def test_generalized_formulation_with_every_term_matches_closed_form():
+    """R_dc, the onset, and one term of each kind, LC terms damped and undamped."""
+    R_dc, f_s = 0.012, 2e5
+    A_i, f_rl = 0.02, 1e6
+    tand_i, f_rc = 1e-3, 1e7
+    lc_l = [(1e-2, 300e9, 0.0), (5e-3, 2e9, 0.2)]
+    lc_c = [(1e-2, 400e9, 0.0), (5e-3, 5e9, 0.1)]
+    with jax.enable_x64():
+        freq = _effective_freq()
+        immittance = _generalized(
+            R_dc=R_dc, f_s=f_s,
+            conductor_terms=[(A_i, f_rl)],
+            dielectric_terms=[(tand_i, f_rc)],
+            inductive_dispersion=lc_l,
+            capacitive_dispersion=lc_c,
+        ).immittance(freq)
+        ep = _ds_ep_r(freq)
+    w, R, L, C = _nominal_rlc(freq)
+    zn, ep_eff = _EFFECTIVE["zn"], _EFFECTIVE["ep_eff"]
+
+    def resonance(a, f, zeta):
+        x = w / (2 * np.pi * f)
+        return a / (1 - x**2 + 2j * zeta * x)
+
+    Z_int = (
+        R_dc
+        + 2 / np.pi * (1 + 1j) * R * np.arctan(np.sqrt(1j * w / (2 * np.pi * f_s)))
+        + 2 * zn * np.log(10) / 20 * A_i * 1j * w / (2 * np.pi * f_rl + 1j * w)
+    )
+    Z = 1j * w * L + Z_int + sum(1j * w * L * resonance(*t) for t in lc_l)
+    Y = (
+        1j * w * C * ep / ep_eff
+        + 1j * w * C * 2 * tand_i / (1 + 1j * w / (2 * np.pi * f_rc))
+        + sum(1j * w * C * resonance(*t) for t in lc_c)
+    )
+    # The same closed forms in numpy and JAX, summed in a different order: observed 4e-16.
+    np.testing.assert_allclose(np.asarray(immittance.Z), Z, rtol=1e-13)
+    np.testing.assert_allclose(np.asarray(immittance.Y), Y, rtol=1e-13)
+
+
+def test_generalized_terms_return_their_own_contribution():
+    """Each term computes its own contribution from the effective values and omega."""
+    with jax.enable_x64():
+        freq = _effective_freq()
+        line = _generalized()
+        values = unwrap(line).effective_values()
+        w = freq.w
+        rl = GeneralizedRLTerm(A=0.02, f=1e6).impedance(values, w)
+        rc = GeneralizedRCTerm(tand=1e-3, f=1e7).admittance(values, w)
+        lc = GeneralizedLCTerm(a=5e-3, f=2e9, zeta=0.2)
+        lc_z, lc_y = lc.impedance(values, w), lc.admittance(values, w)
+    w, _, L, C = _nominal_rlc(freq)
+    zn = _EFFECTIVE["zn"]
+    x = w / (2 * np.pi * 2e9)
+    delta = 5e-3 / (1 - x**2 + 2j * 0.2 * x)
+
+    np.testing.assert_allclose(
+        np.asarray(rl), 2 * zn * np.log(10) / 20 * 0.02 * 1j * w / (2 * np.pi * 1e6 + 1j * w),
+        rtol=1e-14,
+    )
+    np.testing.assert_allclose(
+        np.asarray(rc), 1j * w * C * 2e-3 / (1 + 1j * w / (2 * np.pi * 1e7)), rtol=1e-14,
+    )
+    np.testing.assert_allclose(np.asarray(lc_z), 1j * w * L * delta, rtol=1e-14)
+    np.testing.assert_allclose(np.asarray(lc_y), 1j * w * C * delta, rtol=1e-14)
+
+
+def test_generalized_formulation_onset_error_falls_as_root_f_s():
     """With a tiny f_s the onset is (1 + j) R'_n up to (2/pi) sqrt(f_s / f).
 
     arctan(z) = pi/2 - 1/z + O(z^-3), and (1 + j) / sqrt(j) = sqrt(2), so the leading
@@ -356,7 +440,7 @@ def test_generalized_line_onset_error_falls_as_root_f_s():
     f_s = 1e-6
     with jax.enable_x64():
         freq = _effective_freq()
-        reference = np.real(np.asarray(_first_order(**_EFFECTIVE).immittance(freq).Z))
+        reference = np.real(np.asarray(_generalized().immittance(freq).Z))
         onset = np.real(np.asarray(_generalized(f_s=f_s).immittance(freq).Z))
     _, R, _, _ = _nominal_rlc(freq)
 
@@ -365,7 +449,7 @@ def test_generalized_line_onset_error_falls_as_root_f_s():
     np.testing.assert_allclose(relative_error, 2 / np.pi * np.sqrt(f_s / np.asarray(freq.f)), rtol=1e-8)
 
 
-def test_generalized_line_onset_matches_quadrature():
+def test_generalized_formulation_onset_matches_quadrature():
     """The arctan term is the closed form of the truncated RL distribution."""
     from scipy.integrate import quad
 
@@ -388,7 +472,7 @@ def test_generalized_line_onset_matches_quadrature():
         np.testing.assert_allclose(Zk - 1j * wk * L, expected, rtol=1e-10)
 
 
-def test_generalized_line_rc_term():
+def test_generalized_formulation_rc_term():
     tand_i, f_i = 1e-3, 10e6
     with jax.enable_x64():
         freq = _effective_freq()
@@ -401,7 +485,7 @@ def test_generalized_line_rc_term():
     np.testing.assert_allclose(np.asarray(line.Y - base.Y), expected, rtol=1e-10)
 
 
-def test_generalized_line_rc_term_peak_and_static_capacitance():
+def test_generalized_formulation_rc_term_peak_and_static_capacitance():
     """On a lossless base the Debye pole is the whole loss: a peak tand_i at f_i.
 
     With strength 2 ep_eff tand_i, eps'' peaks at ep_eff tand_i and eps' there is
@@ -427,7 +511,7 @@ def test_generalized_line_rc_term_peak_and_static_capacitance():
 
 
 @pytest.mark.parametrize("family", ["inductive_dispersion", "capacitive_dispersion"])
-def test_generalized_line_lc_term(family):
+def test_generalized_formulation_lc_term(family):
     a, f_i = 1e-2, 5e9
     with jax.enable_x64():
         freq = _effective_freq()
@@ -447,13 +531,13 @@ def test_generalized_line_lc_term(family):
 
 
 @pytest.mark.parametrize("family", ["inductive_dispersion", "capacitive_dispersion"])
-def test_generalized_line_undamped_lc_term_in_band_raises(family):
+def test_generalized_formulation_undamped_lc_term_in_band_raises(family):
     line = _generalized(**{family: [(1e-2, 500e6)]})
     with pytest.raises(Exception, match="must resonate outside the evaluated band"):
         line.s(_effective_freq())
 
 
-def test_generalized_line_rl_term_is_parallel_rl():
+def test_generalized_formulation_rl_term_is_parallel_rl():
     A_i, f_i = 0.02, 1e6
     with jax.enable_x64():
         freq = _effective_freq()
@@ -470,32 +554,30 @@ def test_generalized_line_rl_term_is_parallel_rl():
     np.testing.assert_allclose(np.real(dZ[-1]), R_i, rtol=2e-6)
 
 
-def test_generalized_line_terms_coerce_from_tuples():
-    line = GeneralizedLine(
-        length=1.0,
+def test_generalized_formulation_terms_coerce_from_tuples():
+    formulation = GeneralizedEffectiveLineFormulation(
         conductor_terms=[(0.01, 1e6)],
         dielectric_terms=[(1e-4, 1e7)],
         inductive_dispersion=[(1e-3, 5e9)],
-        capacitive_dispersion=[(1e-3, 5e9, 0.1), LCTerm(a=1e-3, f=6e9)],
+        capacitive_dispersion=[(1e-3, 5e9, 0.1), GeneralizedLCTerm(a=1e-3, f=6e9)],
     )
-    assert line.conductor_terms == (RLTerm(A=0.01, f=1e6),)
-    assert line.dielectric_terms == (RCTerm(tand=1e-4, f=1e7),)
-    assert line.inductive_dispersion == (LCTerm(a=1e-3, f=5e9),)
-    assert line.capacitive_dispersion == (LCTerm(a=1e-3, f=5e9, zeta=0.1), LCTerm(a=1e-3, f=6e9))
+    assert formulation.conductor_terms == (GeneralizedRLTerm(A=0.01, f=1e6),)
+    assert formulation.dielectric_terms == (GeneralizedRCTerm(tand=1e-4, f=1e7),)
+    assert formulation.inductive_dispersion == (GeneralizedLCTerm(a=1e-3, f=5e9),)
+    assert formulation.capacitive_dispersion == (
+        GeneralizedLCTerm(a=1e-3, f=5e9, zeta=0.1), GeneralizedLCTerm(a=1e-3, f=6e9),
+    )
 
 
-def test_generalized_line_default_is_first_order_physical_line():
-    with jax.enable_x64():
-        freq = _effective_freq()
-        line = GeneralizedLine(length=1.0)
-        expected = PhysicalLine(length=1.0, formulation=FirstOrderEffectiveLineFormulation())
-        np.testing.assert_array_equal(np.asarray(line.s(freq)), np.asarray(expected.s(freq)))
-    # Always causal: there is no formulation to choose.
-    assert not hasattr(line, "formulation")
-    assert line.f_s is None
+def test_generalized_formulation_defaults_have_no_refinement():
+    formulation = GeneralizedEffectiveLineFormulation()
+    assert formulation.f_s is None
+    assert formulation.R_dc.value == 0.0
+    assert formulation.conductor_terms == formulation.dielectric_terms == ()
+    assert formulation.inductive_dispersion == formulation.capacitive_dispersion == ()
 
 
-def test_generalized_line_is_passive():
+def test_generalized_formulation_is_passive():
     """Every term family populated, the undamped poles above the axis."""
     with jax.enable_x64():
         freq = Frequency.from_f(np.logspace(0, 11, 2001), unit='Hz')
@@ -1384,16 +1466,19 @@ _ZERO_VALID_LINE = {
     "RLGCLine.G": (lambda x: RLGCLine(G=x, length=0.1), lambda line: line.G),
     "LowLossLine.A": (lambda x: LowLossLine(A=x, length=0.1), lambda line: line.A),
     "LowLossLine.tand": (lambda x: LowLossLine(tand=x, length=0.1), lambda line: line.tand),
-    "PhysicalLine.A": (lambda x: PhysicalLine(A=x, length=0.1), lambda line: line.A),
-    "PhysicalLine.tand": (lambda x: PhysicalLine(tand=x, length=0.1), lambda line: line.tand),
+    "EquivalentLine.A": (lambda x: EquivalentLine(A=x, length=0.1), lambda line: line.A),
+    "EquivalentLine.tand": (lambda x: EquivalentLine(tand=x, length=0.1), lambda line: line.tand),
     "DatasheetLine.k1": (lambda x: DatasheetLine(k1=x, length=0.1), lambda line: line.k1),
     "DatasheetLine.k2": (lambda x: DatasheetLine(k2=x, length=0.1), lambda line: line.k2),
-    "GeneralizedLine.R_dc": (lambda x: GeneralizedLine(R_dc=x, length=0.1), lambda line: line.R_dc),
+    "GeneralizedEffectiveLineFormulation.R_dc": (
+        lambda x: EquivalentLine(formulation=GeneralizedEffectiveLineFormulation(R_dc=x), length=0.1),
+        lambda line: line.formulation.R_dc,
+    ),
 }
 
 
 def test_coefficient_lines_construct_with_defaults(basic_freq):
-    for line in (RLGCLine(length=0.1), LowLossLine(length=0.1), PhysicalLine(length=0.1), DatasheetLine(length=0.1)):
+    for line in (RLGCLine(length=0.1), LowLossLine(length=0.1), EquivalentLine(length=0.1), DatasheetLine(length=0.1)):
         assert jnp.all(jnp.isfinite(line.s(basic_freq)))
 
 
@@ -1421,21 +1506,21 @@ def test_negative_line_loss_is_rejected(make, where):
     lambda: RLGCLine(length=0.0),
     lambda: LowLossLine(zn=0.0, length=0.1),
     lambda: LowLossLine(f_ref=0.0, length=0.1),
-    lambda: PhysicalLine(zn=0.0, length=0.1),
-    lambda: PhysicalLine(f_ref=0.0, length=0.1),
+    lambda: EquivalentLine(zn=0.0, length=0.1),
+    lambda: EquivalentLine(f_ref=0.0, length=0.1),
     lambda: DatasheetLine(zn=0.0, length=0.1),
     lambda: DatasheetLine(vf=0.0, length=0.1),
     lambda: DatasheetLine(f_ref=0.0, length=0.1),
-    lambda: FirstOrderEffectiveLineFormulation(f_low=0.0),
-    lambda: FirstOrderEffectiveLineFormulation(f_high=0.0),
-    lambda: GeneralizedLine(f_s=0.0, length=0.1),
+    lambda: GeneralizedEffectiveLineFormulation(f_low=0.0),
+    lambda: GeneralizedEffectiveLineFormulation(f_high=0.0),
+    lambda: GeneralizedEffectiveLineFormulation(f_s=0.0),
 ], ids=[
     "RLGCLine.L", "RLGCLine.C", "RLGCLine.length",
     "LowLossLine.zn", "LowLossLine.f_ref",
-    "PhysicalLine.zn", "PhysicalLine.f_ref",
+    "EquivalentLine.zn", "EquivalentLine.f_ref",
     "DatasheetLine.zn", "DatasheetLine.vf", "DatasheetLine.f_ref",
-    "FirstOrderEffectiveLineFormulation.f_low", "FirstOrderEffectiveLineFormulation.f_high",
-    "GeneralizedLine.f_s",
+    "GeneralizedEffectiveLineFormulation.f_low", "GeneralizedEffectiveLineFormulation.f_high",
+    "GeneralizedEffectiveLineFormulation.f_s",
 ])
 def test_line_parameters_that_cannot_be_zero_reject_it(make):
     with pytest.raises(Exception, match="is not in Positive"):

@@ -40,13 +40,13 @@ import equinox as eqx
 #     .. code-block:: python
 
 #         import pmrf as prf
-#         from pmrf.models import PhysicalLine, ProfiledLine
+#         from pmrf.models import EquivalentLine, ProfiledLine
 
 #         def linear_taper(t, start_val, end_val):
 #             return start_val + (end_val - start_val) * t
 
 #         tapered_line = ProfiledLine(
-#             PhysicalLine,
+#             EquivalentLine,
 #             linear_taper, 
 #             length=0.1,
 #             zn={'start_val': 50.0, 'end_val': 100.0},
