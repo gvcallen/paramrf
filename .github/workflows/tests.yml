@@ -24,7 +24,8 @@ concurrency:
 jobs:
   test:
     name: test (shard ${{ matrix.shard }}/${{ strategy.job-total }})
-    runs-on: ubuntu-latest
+    # ubuntu-26.04 ships OpenMPI 5, whose mpifort fails to start while building pypolychord.
+    runs-on: ubuntu-24.04
     # A shard should take 10–20 min; a hung sampler must not hold the runner for hours.
     timeout-minutes: 45
     strategy:
