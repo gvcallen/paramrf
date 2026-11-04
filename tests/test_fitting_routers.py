@@ -5,7 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from pmrf.models import Model
-from pmrf.parameters import Bounded, Fixed, Param
+from pmrf.parameters import bounded, fixed, Param
 from pmrf.frequency import Frequency
 from pmrf.network_collection import NetworkCollection
 from pmrf.fitting.routers import fit_sequential
@@ -19,7 +19,7 @@ class SubModel(Model):
 class CompositeModel(Model):
     sub1: SubModel
     sub2: SubModel
-    global_fixed: Param = Fixed(10.0)
+    global_fixed: Param = fixed(10.0)
 
 @pytest.fixture
 def freq():
@@ -30,8 +30,8 @@ def starting_model():
     # Solvers move through raw values, and a value on a bound has no raw
     # counterpart the solver can move away from, so start inside the bounds.
     return CompositeModel(
-        sub1=SubModel(val=Bounded(0.0, 10.0, value=1.0)),
-        sub2=SubModel(val=Bounded(0.0, 10.0, value=1.0))
+        sub1=SubModel(val=bounded(0.0, 10.0, value=1.0)),
+        sub2=SubModel(val=bounded(0.0, 10.0, value=1.0))
     )
 
 @pytest.fixture

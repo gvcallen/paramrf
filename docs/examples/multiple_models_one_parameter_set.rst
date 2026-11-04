@@ -44,9 +44,9 @@ All optimization and fitting routines accept a JAX "PyTree". Ultimately, this is
        "C": 3e-12,
    }
    initial = {
-       "R": prf.Bounded(1.0, 20.0, value=10.0),
-       "L": prf.Bounded(5.0, 20.0, value=10.0, scale=1e-9),
-       "C": prf.Bounded(1.0, 6.0, value=2.5, scale=1e-12),
+       "R": prf.bounded(1.0, 20.0, value=10.0),
+       "L": prf.bounded(5.0, 20.0, value=10.0, scale=1e-9),
+       "C": prf.bounded(1.0, 6.0, value=2.5, scale=1e-12),
    }
 
    target = predictor(truth, frequency)

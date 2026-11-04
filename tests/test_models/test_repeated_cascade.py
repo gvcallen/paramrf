@@ -153,7 +153,7 @@ def test_unrepeated_parameters_are_shared_and_stay_free(widths, freq):
     """A parameter not named in the mapping is one parameter for all repeats."""
     base = MicrostripLine(
         w=4e-3,
-        h=prf.Bounded(1e-3, 3e-3, value=1.6e-3),
+        h=prf.bounded(1e-3, 3e-3, value=1.6e-3),
         dielectric=ConstantDielectric(ep_r=4.3, tand=0.02),
         conductor=BulkConductor(sigma=1 / 1.72e-8),
         length=TOTAL_LENGTH / N_SECTIONS,
@@ -210,7 +210,7 @@ def test_scalar_value_raises(member):
 
 def test_odd_port_member_raises(widths):
     with pytest.raises(ValueError, match="2N-port"):
-        RepeatedCascade(Resistor(R=prf.Bounded(1.0, 100.0, value=50.0)).terminated(),
+        RepeatedCascade(Resistor(R=prf.bounded(1.0, 100.0, value=50.0)).terminated(),
                         {'R': widths})
 
 

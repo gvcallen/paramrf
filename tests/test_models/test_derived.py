@@ -40,8 +40,8 @@ def wet_pair(system, wet_length):
 
 def _cable(**kwargs):
     return CoaxialLine(
-        length=prf.Random(Uniform(1.0, 3.0), value=2.0),
-        d_in=prf.Random(Uniform(1.0, 1.3), value=1.12, scale=1e-3),
+        length=prf.random(Uniform(1.0, 3.0), value=2.0),
+        d_in=prf.random(Uniform(1.0, 1.3), value=1.12, scale=1e-3),
         **kwargs,
     )
 
@@ -49,8 +49,8 @@ def _cable(**kwargs):
 def _wet(cable=None, w=0.4, ep_r=4.0):
     return wet(
         cable if cable is not None else _cable(),
-        wet_length=prf.Random(Uniform(0.0, 1.0), value=w),
-        wet_ep_r=prf.Random(Uniform(1.0, 80.0), value=ep_r),
+        wet_length=prf.random(Uniform(0.0, 1.0), value=w),
+        wet_ep_r=prf.random(Uniform(1.0, 80.0), value=ep_r),
     )
 
 
@@ -65,9 +65,9 @@ def _raw_safe_wet():
 
 
 def _by_hand(cable, w, ep_r):
-    wet_part = prf.update(cable, 'length', prf.Fixed(w))
-    wet_part = prf.update(wet_part, 'dielectric.ep_r', prf.Fixed(ep_r))
-    dry_part = prf.update(cable, 'length', prf.Fixed(cable.length.value - w))
+    wet_part = prf.update(cable, 'length', prf.fixed(w))
+    wet_part = prf.update(wet_part, 'dielectric.ep_r', prf.fixed(ep_r))
+    dry_part = prf.update(cable, 'length', prf.fixed(cable.length.value - w))
     return wet_part ** dry_part
 
 
@@ -132,7 +132,7 @@ def test_non_model_return_raises():
         return x
 
     with pytest.raises(TypeError, match="must return a pmrf.Model"):
-        bad(_cable(), x=prf.Unconstrained(1.0)).s(FREQ)
+        bad(_cable(), x=prf.unconstrained(1.0)).s(FREQ)
 
 
 def test_every_parameter_exists_once():
@@ -169,8 +169,8 @@ def test_fixed_behaves_as_on_any_model():
 @pytest.mark.parametrize('space', ['raw', 'declared', 'physical'])
 def test_log_prior_is_the_base_plus_the_new_parameters(space):
     cable = _cable()
-    w = prf.Random(Uniform(0.0, 1.0), value=0.4)
-    ep_r = prf.Random(Uniform(1.0, 80.0), value=4.0)
+    w = prf.random(Uniform(0.0, 1.0), value=0.4)
+    ep_r = prf.random(Uniform(1.0, 80.0), value=4.0)
     model = wet(cable, wet_length=w, wet_ep_r=ep_r)
     expected = prf.log_prior(cable, space=space) + prf.log_prior((w, ep_r), space=space)
     np.testing.assert_allclose(prf.log_prior(model, space=space), expected)
@@ -191,7 +191,7 @@ def test_joint_prior_on_the_base_still_scores():
     model = _wet(base)
     assert 'length' in prf.params(base) and 'length' in prf.params(model)
     expected = prf.log_prior(base) + prf.log_prior(
-        (prf.Random(Uniform(0.0, 1.0), value=0.4), prf.Random(Uniform(1.0, 80.0), value=4.0))
+        (prf.random(Uniform(0.0, 1.0), value=0.4), prf.random(Uniform(1.0, 80.0), value=4.0))
     )
     np.testing.assert_allclose(prf.log_prior(model), expected)
     np.testing.assert_allclose(model.s(FREQ), _by_hand(cable, 0.4, 4.0).s(FREQ), rtol=1e-12, atol=1e-14)
@@ -200,7 +200,7 @@ def test_joint_prior_on_the_base_still_scores():
 def test_nesting_shares_one_parameter():
     east = CoaxialLine(length=2.0, name='east')
     west = CoaxialLine(length=3.0, name='west')
-    system = wet_pair(east ** west, wet_length=prf.Unconstrained(0.5))
+    system = wet_pair(east ** west, wet_length=prf.unconstrained(0.5))
     assert list(prf.params(system)).count('wet_length') == 1
     assert 'east.length' in prf.params(system) and 'west.length' in prf.params(system)
 
@@ -233,14 +233,14 @@ def test_fit_smoke():
     start = prf.update(_wet(w=0.3), '*', fixed=True)
     # A bounded minimiser evaluates closed bounds, and the wet part's line cannot take
     # a length of 0, so the range is open there (ADR-0007).
-    start = prf.update(start, 'wet_length', prf.Constrained(Interval(0.0, 1.0, closed=(False, True)), value=0.3))
+    start = prf.update(start, 'wet_length', prf.constrained(Interval(0.0, 1.0, closed=(False, True)), value=0.3))
     result = fit_minimize(start, np.asarray(truth.s(FREQ)), frequency=FREQ)
     assert isinstance(result.model, type(start))
     np.testing.assert_allclose(prf.values(result.model)['wet_length'], 0.5, atol=1e-3)
 
 
 def test_tie_across_derived_and_plain_models():
-    system = Cascade([_wet(_cable(name='coax')), Resistor(prf.Unconstrained(10.0), name='r')])
+    system = Cascade([_wet(_cable(name='coax')), Resistor(prf.unconstrained(10.0), name='r')])
     tied = prf.tie(system, 'r.R', 'coax.wet_ep_r', fn=lambda x: 5 * x)
     assert 'r.R' not in prf.params(tied)
     expected = _by_hand(_cable(), 0.4, 4.0) ** Resistor(20.0)
@@ -250,6 +250,6 @@ def test_tie_across_derived_and_plain_models():
 def test_structural_update_on_a_base_sub_model_and_free_values():
     from pmrf.materials import ConstantDielectric
 
-    model = prf.update(_wet(), 'dielectric', ConstantDielectric(ep_r=prf.Fixed(1.0)))
+    model = prf.update(_wet(), 'dielectric', ConstantDielectric(ep_r=prf.fixed(1.0)))
     assert 'dielectric.ep_r' not in prf.values(model, free_only=True)
     assert {'wet_length', 'wet_ep_r'} <= set(prf.values(model, space='raw', free_only=True))

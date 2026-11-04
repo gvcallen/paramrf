@@ -146,14 +146,14 @@ def test_catalogued_material_round_trips(material, tmp_path):
 
 def test_cascade_with_free_line_parameters_round_trips(tmp_path):
     line = prm.MicrostripLine(
-        w=prf.Random(Uniform(3e-3, 5e-3), value=4e-3),
+        w=prf.random(Uniform(3e-3, 5e-3), value=4e-3),
         h=1.5e-3,
         t=35e-6,
-        dielectric=ConstantDielectric(ep_r=prf.Random(Uniform(4.0, 4.6), value=4.3), tand=0.02),
+        dielectric=ConstantDielectric(ep_r=prf.random(Uniform(4.0, 4.6), value=4.3), tand=0.02),
         length=0.13,
     )
     cascade = (
-        prm.Inductor(L=prf.Random(Uniform(1e-9, 1e-8), value=5e-9))
+        prm.Inductor(L=prf.random(Uniform(1e-9, 1e-8), value=5e-9))
         ** line
         ** prm.ShuntCapacitor(C=1e-12)
     )

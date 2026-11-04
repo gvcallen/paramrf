@@ -401,8 +401,8 @@ def test_marginal_log_likelihood_routes_shared_auto_cross():
 
 
 def _hyperparameter_kernel(random: bool):
-    """A product-and-sum kernel whose hyperparameters are floats or `prf.Random`."""
-    h = lambda v: prf.Random(RelativeTruncatedNormal(v, 0.1)) if random else v
+    """A product-and-sum kernel whose hyperparameters are floats or `prf.random`."""
+    h = lambda v: prf.random(RelativeTruncatedNormal(v, 0.1)) if random else v
     return (
         PeriodicKernel(h(1.2), h(1.5)) * Matern52Kernel(h(3.0)) * h(2e-1)
         + Matern52Kernel(h(0.4)) * h(3e-1)

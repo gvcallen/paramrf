@@ -5,7 +5,7 @@ from pmrf.models import Resistor, Inductor, Capacitor, Cascade
 
 def test_explicit_parameter_name():
     """Test that directly naming a parameter overrides the JAX path."""
-    val = prf.Unconstrained(2.0, name="custom_param")
+    val = prf.unconstrained(2.0, name="custom_param")
     res = Resistor(val)
     params = prf.values(res)
     
@@ -45,21 +45,21 @@ def test_name_collision_raises_error():
 
 def test_update_string_target():
     """Test that structural update accepts a string parameter name."""
-    r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
+    r = Resistor(prf.unconstrained(50.0, name="custom_R"))
     
     assert prf.values(r)["custom_R"] == 50.0
     
-    new_r = prf.update(r, "custom_R", prf.Unconstrained(100.0, name="custom_R"))
+    new_r = prf.update(r, "custom_R", prf.unconstrained(100.0, name="custom_R"))
     assert prf.values(new_r)["custom_R"] == 100.0
 
 def test_at_multiple_string_targets():
     """Test that structural update accepts an iterable of string parameter names."""
-    rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
+    rc = Resistor(prf.unconstrained(50.0, name="custom_R")) ** Capacitor(prf.unconstrained(10.0, name="custom_C"))
     
     vals = prf.values(rc, ("custom_R", "custom_C"))
     assert (vals["custom_R"], vals["custom_C"]) == (50.0, 10.0)
     
-    new_rc = prf.update(rc, ["custom_R", "custom_C"], fn=lambda p: prf.Unconstrained(p.value * 2, name=p.name))
+    new_rc = prf.update(rc, ["custom_R", "custom_C"], fn=lambda p: prf.unconstrained(p.value * 2, name=p.name))
     assert prf.values(new_rc) == {"custom_R": 100.0, "custom_C": 20.0}
 
 def test_tied_string_targets():
@@ -67,7 +67,7 @@ def test_tied_string_targets():
     from pmrf.models import Wrapped
     from pmrf.modules import Tied
     
-    rc = Resistor(prf.Unconstrained(50.0, name="custom_R")) ** Capacitor(prf.Unconstrained(10.0, name="custom_C"))
+    rc = Resistor(prf.unconstrained(50.0, name="custom_R")) ** Capacitor(prf.unconstrained(10.0, name="custom_C"))
     
     # Tie custom_R to custom_C using strings
     tied_rc = prf.tie(rc, target="custom_R", source="custom_C", fn=lambda c: c * 5.0)
@@ -78,7 +78,7 @@ def test_tied_string_targets():
 
 def test_target_resolution_errors():
     """Test that invalid target formats or non-existent names raise appropriate errors."""
-    r = Resistor(prf.Unconstrained(50.0, name="custom_R"))
+    r = Resistor(prf.unconstrained(50.0, name="custom_R"))
     
     # Test non-existent string name
     with pytest.raises(ValueError, match="Unknown parameter or sub-model name"):
@@ -93,7 +93,7 @@ def test_target_resolution_errors():
 
 def test_at_nested_namespace():
     """Test that structural update resolves names using nested model namespaces."""
-    r = Resistor(prf.Unconstrained(50.0, name="res_val"), name="myR")
+    r = Resistor(prf.unconstrained(50.0, name="res_val"), name="myR")
     cas1 = Cascade([r], name="myCas")
     
     # Go a level deeper: cas2 acts as the root, so cas1's name ("myCas") 
@@ -106,7 +106,7 @@ def test_at_nested_namespace():
     assert prf.values(cas2)[expected_namespace_name] == 50.0
     
     # Verify the value can be updated using the fully namespaced string
-    new_cas2 = prf.update(cas2, expected_namespace_name, prf.Unconstrained(100.0, name="res_val"))
+    new_cas2 = prf.update(cas2, expected_namespace_name, prf.unconstrained(100.0, name="res_val"))
     assert prf.values(new_cas2)[expected_namespace_name] == 100.0
 
 
@@ -115,8 +115,8 @@ def test_tied_nested_namespace():
     from pmrf.models import Wrapped
     from pmrf.modules import Tied
     
-    r = Resistor(prf.Unconstrained(50.0, name="res_val"), name="myR")
-    c = Capacitor(prf.Unconstrained(10.0, name="cap_val"), name="myC")
+    r = Resistor(prf.unconstrained(50.0, name="res_val"), name="myR")
+    c = Capacitor(prf.unconstrained(10.0, name="cap_val"), name="myC")
     cas1 = Cascade([r, c], name="myCas")
     
     # Go a level deeper so "myCas" acts as a namespace prefix for its children
@@ -151,15 +151,15 @@ class _System(prf.Module):
 
 def _cable(name="cable"):
     return DatasheetLine(
-        zn=prf.Random(Uniform(45, 55), value=50.0), vf=prf.Fixed(0.7),
-        k1=prf.Random(Uniform(1.0, 3.0), value=2.4),
-        k2=prf.Random(Uniform(1.0, 10.0), value=3.5, scale=1e-3),
-        length=prf.Random(Uniform(120, 130), value=127.0, scale=1e-3), name=name,
+        zn=prf.random(Uniform(45, 55), value=50.0), vf=prf.fixed(0.7),
+        k1=prf.random(Uniform(1.0, 3.0), value=2.4),
+        k2=prf.random(Uniform(1.0, 10.0), value=3.5, scale=1e-3),
+        length=prf.random(Uniform(120, 130), value=127.0, scale=1e-3), name=name,
     )
 
 
 def _system():
-    load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
+    load = Resistor(R=prf.random(Uniform(45.0, 55.0), value=50.0), name="load")
     return _System(components={"cable": _cable(), "load": load})
 
 
@@ -202,7 +202,7 @@ def test_frozen_subtree_arrays_are_not_named():
         data: object
         gain: prf.Param
 
-    holder = Holder(data=prf.freeze(jnp.ones(3)), gain=prf.Unconstrained(2.0))
+    holder = Holder(data=prf.freeze(jnp.ones(3)), gain=prf.unconstrained(2.0))
     assert set(prf.params(holder)) == {"gain"}
 
 
@@ -248,7 +248,7 @@ def test_dict_identifier_keys_are_dotted():
     assert set(prf.params(d)) == {"params.R", "params['not valid']"}
     _assert_names_resolve(d)
 
-    root = {"R": prf.Unconstrained(1.0)}
+    root = {"R": prf.unconstrained(1.0)}
     assert set(prf.params(root)) == {"R"}
 
 
@@ -273,17 +273,17 @@ def test_names_resolve_through_wrappers():
     frozen_tied = prf.update(tied, "*", fn=prf.freeze)
     _assert_names_resolve(frozen_tied, prf.params(tied))
 
-    rc = Resistor(prf.Unconstrained(50.0), name="r") ** Capacitor(prf.Unconstrained(1e-12), name="c")
+    rc = Resistor(prf.unconstrained(50.0), name="r") ** Capacitor(prf.unconstrained(1e-12), name="c")
     wrapped = prf.tie(rc, "r.R", "c.C", lambda c: c * 5e13)
     assert set(prf.params(wrapped)) == {"c.C"}
     _assert_names_resolve(wrapped)
-    assert np.allclose(prf.update(wrapped, "c.C", prf.Unconstrained(2e-12)).build().cascade[0].R, 100.0)
+    assert np.allclose(prf.update(wrapped, "c.C", prf.unconstrained(2e-12)).build().cascade[0].R, 100.0)
 
 
 def _two_resistor_circuit():
     from pmrf.models import Port, Circuit
-    r1 = Resistor(R=prf.Unconstrained(50.0), name="r1")
-    r2 = Resistor(R=prf.Unconstrained(75.0), name="r2")
+    r1 = Resistor(R=prf.unconstrained(50.0), name="r1")
+    r2 = Resistor(R=prf.unconstrained(75.0), name="r2")
     p0, p1 = Port(), Port()
     return Circuit([[(p0, 0), (r1, 0)], [(r1, 1), (r2, 0)], [(r2, 1), (p1, 0)]])
 

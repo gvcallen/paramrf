@@ -5,7 +5,7 @@ import pytest
 
 import pmrf as prf
 from pmrf.parameters.constraints import Positive
-from pmrf.stats.distributions import Uniform
+from pmrf.stats.distributions import Uniform, Normal, LogNormal, TruncatedNormal
 from pmrf.models import Resistor
 
 from tests._jit import assert_same_jit_key
@@ -26,6 +26,79 @@ class RC(prf.Model):
 _TRACES = []
 
 
+@pytest.mark.parametrize("factory, distribution", [
+    (lambda **kwargs: prf.uniform(1.0, 3.0, **kwargs), Uniform(1.0, 3.0)),
+    (lambda **kwargs: prf.normal(2.0, 0.5, **kwargs), Normal(2.0, 0.5)),
+    (lambda **kwargs: prf.lognormal(0.0, 0.5, **kwargs), LogNormal(0.0, 0.5)),
+    (lambda **kwargs: prf.truncated_normal(2.0, 0.5, 1.0, 3.0, **kwargs),
+     TruncatedNormal(2.0, 0.5, 1.0, 3.0)),
+])
+def test_distribution_parameter_shortcuts_match_random(factory, distribution):
+    options = dict(value=2.0, fixed=True, name="p", scale=1e-12,
+                   metadata={"source": "test"})
+    shortcut = factory(**options)
+    reference = prf.random(distribution, **options)
+    assert np.allclose(shortcut.value, reference.value)
+    assert shortcut.bounds is reference.bounds is None or np.allclose(shortcut.bounds, reference.bounds)
+    assert np.allclose(shortcut.physical_value, reference.physical_value)
+    assert shortcut.fixed == reference.fixed
+    assert shortcut.name == reference.name
+    assert shortcut.metadata == reference.metadata
+    assert np.allclose(prf.unwrap(prf.update(shortcut, fixed=False).distribution).log_prob(2.0),
+                       prf.unwrap(prf.update(reference, fixed=False).distribution).log_prob(2.0))
+
+
+@pytest.mark.parametrize("factory, distribution", [
+    (lambda: prf.uniform(1.0, 3.0), Uniform(1.0, 3.0)),
+    (lambda: prf.normal(2.0, 0.5), Normal(2.0, 0.5)),
+    (lambda: prf.lognormal(0.0, 0.5), LogNormal(0.0, 0.5)),
+    (lambda: prf.truncated_normal(2.0, 0.5, 1.0, 3.0),
+     TruncatedNormal(2.0, 0.5, 1.0, 3.0)),
+])
+def test_distribution_parameter_shortcut_infers_value(factory, distribution):
+    assert np.allclose(factory().value, prf.random(distribution).value)
+
+
+def test_distribution_parameter_shortcut_preserves_validation_errors():
+    with pytest.raises(Exception, match="outside"):
+        prf.uniform(1.0, 3.0, value=4.0)
+    with pytest.raises(Exception, match="outside"):
+        prf.normal(2.0, 0.5, constraint=prf.parameters.constraints.Interval(1.0, 3.0), value=4.0)
+
+
+def test_normal_parameter_shortcut_truncates_prior():
+    constraint = prf.parameters.constraints.Interval(1.0, 3.0)
+    actual = prf.normal(2.0, 0.5, constraint=constraint, value=2.0)
+    expected = prf.random(Normal(2.0, 0.5), constraint=constraint, value=2.0)
+    assert np.allclose(actual.bounds, expected.bounds)
+    assert np.allclose(prf.unwrap(actual.distribution).log_prob(2.0),
+                       prf.unwrap(expected.distribution).log_prob(2.0))
+
+
+def test_parameter_factory_exports_and_prior_distinction():
+    for name in ("fixed", "unconstrained", "constrained", "bounded", "random",
+                 "uniform", "normal", "lognormal", "truncated_normal"):
+        assert getattr(prf, name) is getattr(prf.parameters, name)
+    for name in ("Fixed", "Unconstrained", "Constrained", "Bounded", "Random"):
+        assert not hasattr(prf, name)
+        assert not hasattr(prf.parameters, name)
+    assert prf.bounded(1.0, 3.0).distribution is None
+    assert prf.uniform(1.0, 3.0).distribution is not None
+
+
+def test_distribution_parameter_shortcuts_use_sigma_for_spread_and_scale_for_units():
+    for actual, reference in (
+        (prf.normal(loc=2.0, sigma=0.5, scale=1e-12),
+         prf.random(Normal(2.0, 0.5), scale=1e-12)),
+        (prf.lognormal(loc=0.0, sigma=0.5, scale=1e-12),
+         prf.random(LogNormal(0.0, 0.5), scale=1e-12)),
+        (prf.truncated_normal(loc=2.0, sigma=0.5, low=1.0, high=3.0, scale=1e-12),
+         prf.random(TruncatedNormal(2.0, 0.5, 1.0, 3.0), scale=1e-12)),
+    ):
+        assert np.allclose(actual.value, reference.value)
+        assert np.allclose(actual.physical_value, reference.physical_value)
+
+
 class BoundedPF(prf.Model):
     C: prf.Param = prf.param(constraint=Positive(), scale=1e-12)
 
@@ -36,7 +109,7 @@ class BoundedPF(prf.Model):
 # Value spaces
 
 def test_param_value_spaces():
-    p = prf.Constrained(Positive(), 2.0, scale=1e-12)
+    p = prf.constrained(Positive(), 2.0, scale=1e-12)
     assert np.allclose(p.value, 2.0)
     assert np.allclose(p.physical_value, 2e-12)
     assert np.allclose(p.raw_to_declared_bijector.forward(p.raw_value), 2.0)
@@ -45,7 +118,7 @@ def test_param_value_spaces():
 
 
 def test_param_variable_field():
-    p = prf.Unconstrained(2.0)
+    p = prf.unconstrained(2.0)
     assert hasattr(p, "variable") and not isinstance(p.variable, jax.Array)
     q = prf.Param(variable=p.variable, scale=1e-3)
     assert np.allclose(q.value, 2.0)
@@ -61,19 +134,19 @@ def test_unwrap_is_physical():
 # Scale is units
 
 def test_field_scale_is_inherited():
-    rc = RC(R=1.0, C=prf.Unconstrained(2.0))
+    rc = RC(R=1.0, C=prf.unconstrained(2.0))
     assert np.allclose(rc.C.value, 2.0)
     assert np.allclose(rc.C.physical_value, 2e-12)
 
 
 def test_explicit_scale_overrides_field():
-    rc = RC(R=1.0, C=prf.Unconstrained(2.0, scale=1e-9))
+    rc = RC(R=1.0, C=prf.unconstrained(2.0, scale=1e-9))
     assert np.allclose(rc.C.value, 2.0)
     assert np.allclose(rc.C.physical_value, 2e-9)
 
 
 def test_bounds_are_declared_space():
-    m = BoundedPF(C=prf.Bounded(1.0, 3.0, value=2.0))
+    m = BoundedPF(C=prf.bounded(1.0, 3.0, value=2.0))
     assert np.allclose(m.C.physical_value, 2e-12)
     assert np.allclose(m.C.bounds, (1.0, 3.0))
     assert np.allclose(prf.replace(m.C, value=2.5).physical_value, 2.5e-12)
@@ -84,7 +157,7 @@ def test_bounds_are_declared_space():
 def test_distribution_is_declared_space():
     from pmrf.parameters import node_distribution
 
-    m = BoundedPF(C=prf.Random(Uniform(1.0, 3.0), value=2.0))
+    m = BoundedPF(C=prf.random(Uniform(1.0, 3.0), value=2.0))
     assert np.allclose(prf.unwrap(m.C.distribution).mean(), 2.0)
     prior = node_distribution(m.C)
     assert np.isfinite(prior.log_prob(m.C.physical_value))
@@ -102,7 +175,7 @@ def test_values_and_update_are_declared():
 
 
 def test_replace_value_keeps_everything_else():
-    p = prf.Random(Uniform(45.0, 55.0), value=50.0, name="R", scale=2.0, metadata={"a": 1})
+    p = prf.random(Uniform(45.0, 55.0), value=50.0, name="R", scale=2.0, metadata={"a": 1})
     q = prf.replace(p, value=51.0)
 
     assert np.allclose(q.value, 51.0)
@@ -114,13 +187,13 @@ def test_replace_value_keeps_everything_else():
 
 
 def test_replace_value_on_tree():
-    load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
+    load = Resistor(R=prf.random(Uniform(45.0, 55.0), value=50.0), name="load")
     updated = prf.update(load, "R", fn=lambda p: prf.replace(p, value=51.0))
     assert np.allclose(prf.values(updated)["R"], 51.0)
 
 
 def test_replace_value_keeps_fixed_prior():
-    p = prf.Random(Uniform(45.0, 55.0), value=50.0, fixed=True)
+    p = prf.random(Uniform(45.0, 55.0), value=50.0, fixed=True)
     q = prf.replace(p, value=51.0)
     assert q.fixed
     assert np.allclose(q.value, 51.0)
@@ -129,13 +202,13 @@ def test_replace_value_keeps_fixed_prior():
 
 
 def test_replace_value_out_of_bounds_raises():
-    p = prf.Bounded(0.0, 1.0, value=0.5)
+    p = prf.bounded(0.0, 1.0, value=0.5)
     with pytest.raises(Exception, match="outside the constraint"):
         prf.replace(p, value=2.0)
 
 
 def test_replace_value_is_identity():
-    p = prf.Random(Uniform(45.0, 55.0), value=50.0, scale=1e-3)
+    p = prf.random(Uniform(45.0, 55.0), value=50.0, scale=1e-3)
     q = prf.replace(p, value=p.value)
     assert np.allclose(q.value, 50.0)
     assert np.allclose(q.physical_value, 50e-3)
@@ -144,7 +217,7 @@ def test_replace_value_is_identity():
 def test_update_out_of_bounds_raises_under_jit():
     import equinox as eqx
 
-    load = Resistor(R=prf.Random(Uniform(45.0, 55.0), value=50.0), name="load")
+    load = Resistor(R=prf.random(Uniform(45.0, 55.0), value=50.0), name="load")
 
     @eqx.filter_jit
     def set_value(model, v):
@@ -156,7 +229,7 @@ def test_update_out_of_bounds_raises_under_jit():
 
 
 def test_update_nan_poisons_only_the_invalid_parameter_leaf():
-    model = RC(R=prf.Constrained(Positive(), 2.0), C=3.0)
+    model = RC(R=prf.constrained(Positive(), 2.0), C=3.0)
 
     moved = prf.update(model, {"R": -1.0, "C": 4.0}, on_invalid="nan")
 
@@ -167,20 +240,20 @@ def test_update_nan_poisons_only_the_invalid_parameter_leaf():
 
 
 def test_update_nan_handles_open_edges_and_nonfinite_values():
-    positive = prf.Constrained(Positive(), 1.0)
-    bounded = prf.Bounded(0.0, 1.0, value=0.5)
+    positive = prf.constrained(Positive(), 1.0)
+    bounded = prf.bounded(0.0, 1.0, value=0.5)
 
     assert np.isnan(prf.update(positive, value=0.0, on_invalid="nan").value)
     assert prf.update(bounded, value=0.0, on_invalid="nan").value == 0.0
     assert prf.update(bounded, value=1.0, on_invalid="nan").value == 1.0
     assert np.isnan(prf.update(bounded, value=2.0, on_invalid="nan").value)
-    assert np.isnan(prf.update(prf.Unconstrained(1.0), value=jnp.inf, on_invalid="nan").value)
+    assert np.isnan(prf.update(prf.unconstrained(1.0), value=jnp.inf, on_invalid="nan").value)
     with pytest.raises(Exception, match="nonfinite"):
-        prf.update(prf.Unconstrained(1.0), value=jnp.inf)
+        prf.update(prf.unconstrained(1.0), value=jnp.inf)
 
 
 def test_update_nan_supports_selector_and_raw_value_updates():
-    model = RC(R=prf.Constrained(Positive(), 2.0), C=3.0)
+    model = RC(R=prf.constrained(Positive(), 2.0), C=3.0)
     selected = prf.update(model, "R", value=0.0, on_invalid="nan")
     raw = prf.update(model.R, value=jnp.inf, space="raw", on_invalid="nan")
 
@@ -199,7 +272,7 @@ def test_raw_updates_check_values_after_the_stored_dtype_cast():
 
 
 def test_update_nan_preserves_array_leaf_shape_and_vmap_trials_are_independent():
-    p = prf.Constrained(Positive(), jnp.array([1.0, 2.0]))
+    p = prf.constrained(Positive(), jnp.array([1.0, 2.0]))
 
     def trial(value):
         return prf.update(p, value=value, on_invalid="nan").value
@@ -213,7 +286,7 @@ def test_update_nan_preserves_array_leaf_shape_and_vmap_trials_are_independent()
 def test_update_nan_works_under_filter_jit():
     import equinox as eqx
 
-    p = prf.Constrained(Positive(), 1.0)
+    p = prf.constrained(Positive(), 1.0)
     update = eqx.filter_jit(lambda value: prf.update(p, value=value, on_invalid="nan").value)
 
     assert update(2.0) == 2.0
@@ -221,7 +294,7 @@ def test_update_nan_works_under_filter_jit():
 
 
 def test_update_nan_keeps_valid_results_and_gradients_unchanged():
-    p = prf.Constrained(Positive(), 1.0)
+    p = prf.constrained(Positive(), 1.0)
     strict = prf.update(p, value=2.0)
     tolerant = prf.update(p, value=2.0, on_invalid="nan")
     model = RC(R=p, C=3.0)
@@ -235,7 +308,7 @@ def test_update_nan_keeps_valid_results_and_gradients_unchanged():
 
 
 def test_update_nan_rejects_other_modes_and_preserves_dtype():
-    p = prf.Constrained(Positive(), 2.0)
+    p = prf.constrained(Positive(), 2.0)
     valid = prf.update(p, value=3, on_invalid="nan")
     invalid = prf.update(p, value=-1, on_invalid="nan")
     assert valid.value.dtype == p.value.dtype
@@ -254,7 +327,7 @@ def test_param_constructor_out_of_bounds_raises_under_jit():
 
     @eqx.filter_jit
     def build(v):
-        return prf.Bounded(0.0, 1.0, value=v).value
+        return prf.bounded(0.0, 1.0, value=v).value
 
     with pytest.raises(Exception, match="outside the constraint"):
         build(2.0)
@@ -263,12 +336,12 @@ def test_param_constructor_out_of_bounds_raises_under_jit():
 # Value changes keep the jit cache key
 
 _PARAMS = [
-    prf.Unconstrained(2.0),
-    prf.Unconstrained(jnp.asarray([1.0, 2.0])),
-    prf.Constrained(Positive(), 2.0, scale=1e-12),
-    prf.Bounded(0.0, 5.0, value=2.0),
-    prf.Random(Uniform(0.0, 5.0), value=2.0, fixed=True),
-    prf.Fixed(2.0),
+    prf.unconstrained(2.0),
+    prf.unconstrained(jnp.asarray([1.0, 2.0])),
+    prf.constrained(Positive(), 2.0, scale=1e-12),
+    prf.bounded(0.0, 5.0, value=2.0),
+    prf.random(Uniform(0.0, 5.0), value=2.0, fixed=True),
+    prf.fixed(2.0),
 ]
 _NEW_VALUES = [3.0, np.float64(3.0), jnp.asarray(3.0), jnp.asarray(3, dtype=jnp.int32)]
 
@@ -282,7 +355,7 @@ def test_replace_keeps_jit_key(p, v):
 
 @pytest.mark.parametrize("v", _NEW_VALUES)
 def test_update_keeps_jit_key(v):
-    rc = RC(R=1.0, C=prf.Bounded(0.0, 5.0, value=2.0))
+    rc = RC(R=1.0, C=prf.bounded(0.0, 5.0, value=2.0))
     assert_same_jit_key(rc, prf.update(rc, {"R": v, "C": v}))
 
 

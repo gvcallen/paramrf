@@ -38,9 +38,9 @@ FREQ = prf.Frequency(1.0, 10.0, 21, "GHz")
 
 def _start():
     return RLC(
-        R=prf.Bounded(0.0, 100.0, value=50.0),
-        C=prf.Random(Uniform(1.0, 3.0), value=2.0),
-        L=prf.Fixed(0.5),
+        R=prf.bounded(0.0, 100.0, value=50.0),
+        C=prf.random(Uniform(1.0, 3.0), value=2.0),
+        L=prf.fixed(0.5),
         name="rlc",
     )
 
@@ -130,7 +130,7 @@ class Pair(prf.Model):
 def _on_bounds():
     """Both parameters start on their lower bound: one through a sigmoid, one through a
     uniform prior's whitening."""
-    return Pair(u=prf.Bounded(0.0, 10.0, value=0.0), v=prf.Random(Uniform(0.0, 50.0), value=0.0))
+    return Pair(u=prf.bounded(0.0, 10.0, value=0.0), v=prf.random(Uniform(0.0, 50.0), value=0.0))
 
 
 def _declared(model, raw):
@@ -151,7 +151,7 @@ def test_minimizer_nudges_a_start_on_a_closed_bound():
 
 
 def test_minimizer_nudges_a_start_on_an_upper_bound_downward():
-    model = Pair(u=prf.Bounded(0.0, 10.0, value=10.0), v=prf.Bounded(0.0, 10.0, value=4.0))
+    model = Pair(u=prf.bounded(0.0, 10.0, value=10.0), v=prf.bounded(0.0, 10.0, value=4.0))
     optimize_base.run_minimizer(lambda m, args: m.u + m.v, model, _RecordingMinimizer())
     y0, _ = _RecordingMinimizer.seen
 
@@ -183,9 +183,9 @@ def test_start_on_a_bound_keeps_its_declared_value_in_the_model():
 @pytest.mark.parametrize(
     "param, box_width",
     [
-        (prf.Bounded(0.0, 10.0, value=0.0), 10.0),
-        (prf.Constrained(GreaterThan(0.0), value=0.0), 1.0),
-        (prf.Random(Normal(1.0, 1.0), constraint=Interval(0.0, 5.0), value=0.0), 5.0),
+        (prf.bounded(0.0, 10.0, value=0.0), 10.0),
+        (prf.constrained(GreaterThan(0.0), value=0.0), 1.0),
+        (prf.random(Normal(1.0, 1.0), constraint=Interval(0.0, 5.0), value=0.0), 5.0),
     ],
     ids=["sigmoid", "softplus", "prior-whitened"],
 )
@@ -193,7 +193,7 @@ def test_nudged_start_has_a_usable_gradient(param, box_width):
     """The nudge is in box space, so it is the same distance for every bijector, and the
     objective has a finite, non-zero gradient in raw space there. Without two finite
     bounds the box is declared space."""
-    model = Pair(u=param, v=prf.Fixed(0.0))
+    model = Pair(u=param, v=prf.fixed(0.0))
     view = SolverView(model, "optimize")
 
     assert _declared(model, view.y0)["u"] == pytest.approx(1e-6 * box_width, rel=1e-6)
@@ -205,7 +205,7 @@ def test_nudged_start_has_a_usable_gradient(param, box_width):
 @pytest.mark.parametrize("start", [1e-12, 1e-7, 1e-5, 2.0, 30.0, 130.0])
 def test_open_positive_box_preserves_lognormal_start_and_uses_dtype_inset(dtype, start):
     value = jnp.asarray(start, dtype=dtype)
-    model = Resistor(R=prf.Random(LogNormal(jnp.log(value), 1.0), value=value))
+    model = Resistor(R=prf.random(LogNormal(jnp.log(value), 1.0), value=value))
     original = model.R.value
 
     y0, (lower, upper) = SolverView(model, "optimize").box()
@@ -221,7 +221,7 @@ def test_open_positive_box_preserves_lognormal_start_and_uses_dtype_inset(dtype,
 
 def test_bounded_minimizer_receives_tiny_lognormal_start_and_finite_gradient():
     start = jnp.asarray(1e-7, dtype=jnp.float64)
-    model = Resistor(R=prf.Random(LogNormal(jnp.log(start), 1.0), value=start))
+    model = Resistor(R=prf.random(LogNormal(jnp.log(start), 1.0), value=start))
 
     optimize_base.run_minimizer(lambda m, _: m.R, model, _RecordingBoxMinimizer())
 
@@ -236,7 +236,7 @@ def test_bounded_minimizer_receives_tiny_lognormal_start_and_finite_gradient():
 
 def test_open_negative_upper_edge_uses_original_start_scale():
     start = jnp.asarray(-1e-7, dtype=jnp.float64)
-    model = Pair(u=prf.Constrained(LessThan(0.0, closed=False), value=start), v=prf.Fixed(0.0))
+    model = Pair(u=prf.constrained(LessThan(0.0, closed=False), value=start), v=prf.fixed(0.0))
     original = model.u.value
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
@@ -248,8 +248,8 @@ def test_open_negative_upper_edge_uses_original_start_scale():
 
 def test_two_open_edges_and_one_closed_edge_keep_elementwise_box_semantics():
     model = Pair(
-        u=prf.Constrained(Interval(-2.0, 4.0, closed=(False, False)), value=0.0),
-        v=prf.Constrained(Interval(-2.0, 4.0, closed=(True, False)), value=-2.0),
+        u=prf.constrained(Interval(-2.0, 4.0, closed=(False, False)), value=0.0),
+        v=prf.constrained(Interval(-2.0, 4.0, closed=(True, False)), value=-2.0),
     )
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
@@ -261,7 +261,7 @@ def test_two_open_edges_and_one_closed_edge_keep_elementwise_box_semantics():
 def test_positive_nearest_representable_start_is_not_excluded_by_inset():
     edge = jnp.asarray(1.0, dtype=jnp.float64)
     start = jnp.nextafter(edge, jnp.asarray(jnp.inf))
-    model = Resistor(R=prf.Constrained(GreaterThan(edge, closed=False), value=start))
+    model = Resistor(R=prf.constrained(GreaterThan(edge, closed=False), value=start))
     original = model.R.value
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
@@ -273,7 +273,7 @@ def test_positive_nearest_representable_start_is_not_excluded_by_inset():
 def test_open_box_edges_are_elementwise_for_array_lognormal_parameters():
     start = jnp.asarray([1e-12, 2.0], dtype=jnp.float64)
     distribution = LogNormal(jnp.log(start), jnp.ones_like(start))
-    model = Resistor(R=prf.Random(distribution, value=start))
+    model = Resistor(R=prf.random(distribution, value=start))
     original = model.R.value
     y0, (lower, upper) = SolverView(model, "optimize").box()
 
@@ -383,9 +383,9 @@ class _StubHypercubeSampler(infer_base.AbstractHypercubeSampler):
 
 def _all_priors():
     return RLC(
-        R=prf.Random(Uniform(0.0, 100.0), value=50.0),
-        C=prf.Random(Uniform(1.0, 3.0), value=2.0),
-        L=prf.Fixed(0.5),
+        R=prf.random(Uniform(0.0, 100.0), value=50.0),
+        C=prf.random(Uniform(1.0, 3.0), value=2.0),
+        L=prf.fixed(0.5),
     )
 
 
@@ -408,9 +408,9 @@ def test_hypercube_sampler_accepts_a_start_on_a_bound():
     # An Interval constraint's bijector has no clipping epsilon, so a value exactly on
     # a bound really is infinite in raw space.
     model = RLC(
-        R=prf.Random(Uniform(0.0, 100.0), constraint=Interval(0.0, 100.0), value=0.0),
-        C=prf.Random(Uniform(1.0, 3.0), value=2.0),
-        L=prf.Fixed(0.5),
+        R=prf.random(Uniform(0.0, 100.0), constraint=Interval(0.0, 100.0), value=0.0),
+        C=prf.random(Uniform(1.0, 3.0), value=2.0),
+        L=prf.fixed(0.5),
     )
     assert not np.isfinite(prf.values(model, free_only=True, space="raw")["R"])
 
@@ -448,7 +448,7 @@ def _joint_prior():
     read its parameter through `build()`."""
     import parax.distributions as dist
 
-    inner = Resistor(R=prf.Bounded(40.0, 60.0, value=50.0), name="load")
+    inner = Resistor(R=prf.bounded(40.0, 60.0, value=50.0), name="load")
     return prf.prior(inner, ["R"], dist.MultivariateNormalDiag(jnp.array([0.2]), jnp.array([0.5])), space="raw")
 
 

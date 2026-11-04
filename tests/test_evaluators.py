@@ -491,8 +491,8 @@ def test_orthogonal_projection_preserves_batches_and_rejects_static_model(
 def test_orthogonal_basis_uses_only_free_parameters():
     x = jnp.linspace(-1.0, 1.0, 7)
     model = FreeFixedModel(
-        free_coefficient=prf.Unconstrained(2.0),
-        fixed_coefficient=prf.Fixed(3.0),
+        free_coefficient=prf.unconstrained(2.0),
+        fixed_coefficient=prf.fixed(3.0),
     )
     basis = _orthogonal_projection(lambda candidate: candidate.event(x), model, rcond=1e-10)
     assert tuple(prf.params(model, free_only=True)) == ("free_coefficient",)
@@ -638,9 +638,9 @@ def test_orthogonal_reference_with_free_evaluator_parameters(
     scaled_model, basic_freq, free_noise, free_lengthscale
 ):
     observed = Feature('s11_mag')(scaled_model, basic_freq)
-    noise = prf.Random(Uniform(0.01, 0.2), value=0.1) if free_noise else 0.1
+    noise = prf.random(Uniform(0.01, 0.2), value=0.1) if free_noise else 0.1
     lengthscale = (
-        prf.Random(Uniform(0.1, 2.0), value=0.7)
+        prf.random(Uniform(0.1, 2.0), value=0.7)
         if free_lengthscale else 0.7
     )
     mll = MarginalLogLikelihood(
@@ -675,7 +675,7 @@ def test_orthogonal_reference_recompute_and_serialization(scaled_model, basic_fr
     observed = Feature('s11_mag')(scaled_model, basic_freq)
     mll = MarginalLogLikelihood(
         predictor=_serializable_s11_mag, observed=observed,
-        likelihood=GaussianLikelihood(prf.Random(Uniform(0.01, 0.2), value=0.1)),
+        likelihood=GaussianLikelihood(prf.random(Uniform(0.01, 0.2), value=0.1)),
         discrepancy=GaussianProcess(RBFKernel(0.7), jitter=1e-10),
         use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
     )
@@ -707,7 +707,7 @@ def test_gibbs_orthogonal_reference_with_free_kernel(scaled_model, basic_freq):
         predictor=Feature('s11_mag'), observed=observed,
         loss=lambda target, prediction: jnp.mean((target - prediction) ** 2),
         discrepancy=GaussianProcess(
-            RBFKernel(prf.Random(Uniform(0.1, 2.0), value=0.7)), jitter=1e-10,
+            RBFKernel(prf.random(Uniform(0.1, 2.0), value=0.7)), jitter=1e-10,
         ),
         use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
     )
@@ -798,7 +798,7 @@ def _cholesky_matrix_count(fn, *args):
 
 
 def _gp_kernel(case, random=False):
-    h = lambda v: prf.Random(RelativeTruncatedNormal(v, 0.1)) if random else v
+    h = lambda v: prf.random(RelativeTruncatedNormal(v, 0.1)) if random else v
     auto = lambda: Matern52Kernel(h(2.0)) * h(1e-2)
     cross = lambda: Matern52Kernel(h(1.0)) * h(3e-3)
     if case == 'unbatched':
@@ -829,7 +829,7 @@ _NOISES = {
 }
 
 _RANDOM_NOISES = {
-    name: (lambda name=name: prf.Random(RelativeTruncatedNormal(_NOISES[name](), 0.1)))
+    name: (lambda name=name: prf.random(RelativeTruncatedNormal(_NOISES[name](), 0.1)))
     for name in _NOISES
 }
 
@@ -1045,16 +1045,16 @@ def test_discrepancy_prediction_converts_new_frequency_unit(gp_freq, new_freq):
 def test_discrepancy_prediction_from_fit_result(gp_freq, new_freq):
     """The evaluator recovered from `prf.fit` predicts with its optimized hyperparameters."""
     kernel = SharedIndependentKernel(AutoCrossKernel(
-        Matern52Kernel(prf.Bounded(0.5, 5.0, value=2.0)) * prf.Bounded(1e-4, 1.0, value=1e-2),
-        Matern52Kernel(prf.Bounded(0.5, 5.0, value=1.0)) * prf.Bounded(1e-4, 1.0, value=3e-3),
+        Matern52Kernel(prf.bounded(0.5, 5.0, value=2.0)) * prf.bounded(1e-4, 1.0, value=1e-2),
+        Matern52Kernel(prf.bounded(0.5, 5.0, value=1.0)) * prf.bounded(1e-4, 1.0, value=3e-3),
         num_outputs=2,
     ))
-    model = _SlopedTwoPort(gain=prf.Bounded(0.5, 1.5, value=1.0), delay=prf.Fixed(0.3))
+    model = _SlopedTwoPort(gain=prf.bounded(0.5, 1.5, value=1.0), delay=prf.fixed(0.3))
     result = prf.fitting.fit(
         model,
         _observed_two_port(gp_freq),
         frequency=gp_freq,
-        likelihood=GaussianLikelihood(prf.Bounded(1e-6, 1e-1, value=1e-3)),
+        likelihood=GaussianLikelihood(prf.bounded(1e-6, 1e-1, value=1e-3)),
         discrepancy=GaussianProcess(kernel=kernel, jitter=1e-8),
     )
     (term,) = result.solution.objective

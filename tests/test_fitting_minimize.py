@@ -9,7 +9,7 @@ from pmrf.frequency import Frequency
 from pmrf.models import CoaxialLine, Model, RLGCLine
 from pmrf.materials import BulkConductor, ConstantDielectric
 from pmrf.fitting import fit_minimize
-from pmrf.parameters import Fixed, Bounded, Param, Random, update, values
+from pmrf.parameters import fixed, bounded, Param, random, update, values
 from pmrf.objectives.losses import MSELoss, RMSELoss
 from pmrf.optimize import ScipyMinimize
 from pmrf.optimize.solvers import scipy as scipy_solver
@@ -50,12 +50,12 @@ def starting_model():
     The model we will actually optimize. 
     """
     return CoaxialLine(
-        d_in=Fixed(1.12e-3),
-        d_out=Fixed(3.2e-3),
-        dielectric=ConstantDielectric(ep_r=Fixed(1.384), tand=Fixed(0.001)),
-        conductor=BulkConductor(sigma=Fixed(1 / 1.6e-8)),
+        d_in=fixed(1.12e-3),
+        d_out=fixed(3.2e-3),
+        dielectric=ConstantDielectric(ep_r=fixed(1.384), tand=fixed(0.001)),
+        conductor=BulkConductor(sigma=fixed(1 / 1.6e-8)),
         # Start at 9.5 cm to stay within a fraction of a wavelength of 10 cm
-        length=Bounded(0.05, 0.15, value=0.095)
+        length=bounded(0.05, 0.15, value=0.095)
     )
 
 def test_fit_skrf_synthetic_data(starting_model, target_network):
@@ -120,17 +120,17 @@ def _alternating(npoints, spread):
 
 def test_orthogonal_gp_map_fit_with_free_noise_and_lengthscale():
     frequency = Frequency(1.0, 5.0, 7, 'GHz')
-    model = ConstantModel(val=Random(Normal(1.0, 0.5), value=1.1))
+    model = ConstantModel(val=random(Normal(1.0, 0.5), value=1.1))
     observed = np.asarray(1.0 + 0.01 * jnp.sin(frequency.f_scaled))
     predictor = lambda candidate, freq: jnp.full((freq.npoints,), candidate.val)
     discrepancy = GaussianProcess(
-        Matern52Kernel(Random(Uniform(0.1, 10.0), value=2.0)) * 1e-4,
+        Matern52Kernel(random(Uniform(0.1, 10.0), value=2.0)) * 1e-4,
         jitter=1e-10,
     )
 
     mll = MarginalLogLikelihood(
         predictor=predictor, observed=observed,
-        likelihood=GaussianLikelihood(Random(Uniform(1e-6, 0.1), value=0.05)),
+        likelihood=GaussianLikelihood(random(Uniform(1e-6, 0.1), value=0.05)),
         discrepancy=discrepancy,
         use_orthogonal_discrepancy=True, orthogonal_rcond=1e-8,
     ).with_orthogonal_reference(model, frequency)
@@ -155,7 +155,7 @@ def test_orthogonal_gp_map_fit_with_free_noise_and_lengthscale():
 
 
 def test_orthogonal_discrepancy_requires_discrepancy(fit_freq):
-    model = ConstantModel(val=Bounded(0.0, 2.0, value=1.0))
+    model = ConstantModel(val=bounded(0.0, 2.0, value=1.0))
     with pytest.raises(ValueError, match='requires a discrepancy model'):
         fit_minimize(
             model, np.ones(fit_freq.npoints), frequency=fit_freq,
@@ -168,7 +168,7 @@ def test_mse_and_rmse_reach_the_same_single_output_optimum(fit_freq):
     # Residuals are non-zero at the optimum, so the RMSE has no kink there.
     target = (2.0 + _alternating(fit_freq.npoints, 0.5))[:, None]
     features = lambda m, f: _constant_outputs(m, f, 1)
-    model = ConstantModel(val=Bounded(0.0, 5.0, value=1.0))
+    model = ConstantModel(val=bounded(0.0, 5.0, value=1.0))
 
     mse = fit_minimize(model, target, frequency=fit_freq, features=features, loss=MSELoss())
     rmse = fit_minimize(model, target, frequency=fit_freq, features=features, loss=RMSELoss())
@@ -188,7 +188,7 @@ def test_default_loss_pools_residuals_across_outputs(fit_freq):
         1.0 + _alternating(fit_freq.npoints, s1),
     ], axis=-1)
     features = lambda m, f: _constant_outputs(m, f, 2)
-    model = ConstantModel(val=Bounded(-1.0, 2.0, value=0.8))
+    model = ConstantModel(val=bounded(-1.0, 2.0, value=0.8))
 
     # Locate both optima on a grid: the alternating spread is not zero-mean over an
     # odd number of points, which shifts them slightly from the closed forms above.
@@ -206,7 +206,7 @@ def test_default_loss_pools_residuals_across_outputs(fit_freq):
 
 
 def test_bayesian_fit_propagates_nonfinite_objective():
-    model = ConstantModel(val=Random(Normal(0.0, 1.0), value=1.0))
+    model = ConstantModel(val=random(Normal(0.0, 1.0), value=1.0))
     frequency = Frequency(10.0, 20.0, 3, "MHz")
     data = jnp.zeros((3,))
     with pytest.raises(FloatingPointError, match=r"trust-constr objective evaluation 1.*nonfinite loss"):
@@ -224,11 +224,11 @@ def test_bayesian_fit_propagates_nonfinite_objective():
 def test_bounded_trust_constr_fits_lognormal_gp_hyperparameters_from_tiny_starts(monkeypatch):
     frequency = Frequency(10.0, 500.0, 20, "MHz")
     line = RLGCLine(
-        length=Fixed(10.0),
-        R=Fixed(0.5),
-        L=Fixed(250e-9),
-        C=Fixed(100e-12),
-        G=Fixed(1e-6),
+        length=fixed(10.0),
+        R=fixed(0.5),
+        L=fixed(250e-9),
+        C=fixed(100e-12),
+        G=fixed(1e-6),
     )
     predictor = lambda model, freq: jnp.real(model.s(freq)[:, 0, 1])
     observed = predictor(line, frequency) + 1e-3 * jnp.sin(frequency.f_scaled / 80.0)
@@ -255,9 +255,9 @@ def test_bounded_trust_constr_fits_lognormal_gp_hyperparameters_from_tiny_starts
     for variance_start, variance_loc in ((1e-5, 1e-5), (1e-7, 1e-7)):
         discrepancy = GaussianProcess(
             Matern52Kernel(
-                Random(LogNormal(jnp.log(30.0), 1.0), value=30.0)
+                random(LogNormal(jnp.log(30.0), 1.0), value=30.0)
             )
-            * Random(LogNormal(jnp.log(variance_loc), 1.0), value=variance_start),
+            * random(LogNormal(jnp.log(variance_loc), 1.0), value=variance_start),
             jitter=1e-12,
         )
         result = fit_minimize(

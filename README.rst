@@ -55,9 +55,9 @@ The code below demonstrate how to define and optimize an RLC model to satisfy a 
   import pmrf as prf
   from pmrf.models import Resistor, Inductor, Capacitor
   
-  R = prf.Unconstrained(50.0, name='R')
-  L = prf.Bounded(0.0, 100.0, scale=1e-9, name='L')
-  C = prf.Bounded(0.0, 100.0, scale=1e-12, name='C')
+  R = prf.unconstrained(50.0, name='R')
+  L = prf.bounded(0.0, 100.0, scale=1e-9, name='L')
+  C = prf.bounded(0.0, 100.0, scale=1e-12, name='C')
   
   model = Resistor(R) ** Inductor(L) ** Capacitor(C)
   goal = prf.objectives.Goal('s11_db', '<', -20)

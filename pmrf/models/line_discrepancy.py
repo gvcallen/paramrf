@@ -14,7 +14,7 @@ from pmrf.models.base import Model
 from pmrf.models.components.lines.base import AbstractUniformLine
 from pmrf.models.port_discrepancy import _values_on_grid
 from pmrf.modules.base import Module
-from pmrf.parameters import Param, Random, param
+from pmrf.parameters import Param, random, param
 from pmrf.stats.distributions import Normal
 from pmrf.utils import field, freeze, unwrap, unwrap_self
 
@@ -224,7 +224,7 @@ class BasisLineDiscrepancy(AbstractLineDiscrepancy):
         if len(candidates) == 0:
             raise ValueError('No rank meets the prior-variance tolerance on the reference grid.')
         rank = int(candidates[0]) + 1
-        coefficients = Random(Normal(0.0, 1.0), value=jnp.zeros((2, 2, rank)))
+        coefficients = random(Normal(0.0, 1.0), value=jnp.zeros((2, 2, rank)))
         return cls(coefficients, (low, high), jnp.asarray(np.sqrt(spectrum[:rank])))
 
     def basis(self, frequency: Frequency) -> Array:

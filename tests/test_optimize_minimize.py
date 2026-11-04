@@ -8,7 +8,7 @@ from scipy.optimize import Bounds
 import pmrf as prf
 from pmrf.models import Model
 from pmrf.frequency import Frequency
-from pmrf.parameters import Bounded
+from pmrf.parameters import bounded
 from pmrf.optimize.minimize import minimize
 from pmrf.optimize.solvers.scipy import ScipyMinimize
 from pmrf.optimize.solvers import scipy as scipy_solver
@@ -54,7 +54,7 @@ def test_minimize_scipy_unbounded(model, basic_freq):
 def test_minimize_scipy_bounded(basic_freq):
     """Test that parameter boundaries are successfully intercepted and enforced."""
     # Initialize parameter at 1.0, trying to reach 5.0, but capped at 3.0
-    bounded_param = Bounded(0.0, 3.0, value=1.0)
+    bounded_param = bounded(0.0, 3.0, value=1.0)
     bounded_model = DummyOptModel(val=bounded_param)
     
     def obj_fn(m, f):
@@ -280,7 +280,7 @@ def test_public_minimize_propagates_nonfinite_objective(monkeypatch):
 
 @pytest.mark.parametrize("start", [0.0, 0.4], ids=["closed-boundary", "interior"])
 def test_trust_constr_never_evaluates_objective_outside_closed_box(monkeypatch, start):
-    model = DummyOptModel(val=Bounded(0.0, 1.0, value=start))
+    model = DummyOptModel(val=bounded(0.0, 1.0, value=start))
     evaluations = []
     scipy_minimize = scipy_solver.scipy_minimize
 

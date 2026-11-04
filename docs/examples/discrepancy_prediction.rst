@@ -35,11 +35,11 @@ We add a slow ripple and measurement noise to the line's S11, then fit the diele
    s11 = np.asarray(coax(1.40).s(freq)[:, 0, 0]) + ripple + noise
 
    gp = GaussianProcess(
-       Matern52Kernel(prf.Bounded(10.0, 200.0, value=50.0)) * prf.Bounded(1e-5, 1e-3, value=1e-4)
+       Matern52Kernel(prf.bounded(10.0, 200.0, value=50.0)) * prf.bounded(1e-5, 1e-3, value=1e-4)
    )
    result = fit(
-       coax(prf.Bounded(1.38, 1.42, value=1.39)), s11, frequency=freq, features='s11',
-       likelihood=GaussianLikelihood(prf.Bounded(1e-7, 1e-4, value=1e-6)),
+       coax(prf.bounded(1.38, 1.42, value=1.39)), s11, frequency=freq, features='s11',
+       likelihood=GaussianLikelihood(prf.bounded(1e-7, 1e-4, value=1e-6)),
        discrepancy=gp,
    )
 

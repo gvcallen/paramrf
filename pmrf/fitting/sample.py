@@ -20,7 +20,7 @@ from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.infer import sample, AbstractSampler
 from pmrf.fitting.result import FitResult
 from pmrf.fitting.targets import resolve_datasets, union_frequency
-from pmrf.parameters import Param, Random
+from pmrf.parameters import Param, random
 from pmrf.stats.distributions import Uniform
 
 PyTreeT = TypeVar('PyTreeT', bound=PyTree)
@@ -113,7 +113,7 @@ def fit_sample(
     # Resolve the likelihood or loss model
     if loss is None and likelihood is None:
         if noise is None:
-            noise = Random(Uniform(0.0, 0.1))
+            noise = random(Uniform(0.0, 0.1))
         likelihood = GaussianLikelihood(noise=noise)
 
     loglikelihood = []

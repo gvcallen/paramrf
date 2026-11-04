@@ -27,14 +27,14 @@ def frequency():
 
 def line(length, sigma, *, free_sigma=False):
     """A lossy coax whose conductor is 10% too resistive when modelled."""
-    sigma_parameter = (prf.Random(Normal(float(sigma), 1.0), value=sigma)
-                       if free_sigma else prf.Fixed(sigma))
+    sigma_parameter = (prf.random(Normal(float(sigma), 1.0), value=sigma)
+                       if free_sigma else prf.fixed(sigma))
     return CoaxialLine(
-        length=prf.Fixed(length), d_in=prf.Fixed(1.12e-3),
-        d_out=prf.Fixed(3.2e-3),
-        dielectric=ConstantDielectric(ep_r=prf.Fixed(1.5), tand=prf.Fixed(0.0),
-                                      sigma=prf.Fixed(0.0), mu_r=prf.Fixed(1.0)),
-        conductor=BulkConductor(sigma=sigma_parameter, mu_r=prf.Fixed(1.0)),
+        length=prf.fixed(length), d_in=prf.fixed(1.12e-3),
+        d_out=prf.fixed(3.2e-3),
+        dielectric=ConstantDielectric(ep_r=prf.fixed(1.5), tand=prf.fixed(0.0),
+                                      sigma=prf.fixed(0.0), mu_r=prf.fixed(1.0)),
+        conductor=BulkConductor(sigma=sigma_parameter, mu_r=prf.fixed(1.0)),
         formulation=TescheCoaxialFormulation(),
     )
 

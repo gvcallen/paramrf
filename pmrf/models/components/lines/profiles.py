@@ -47,7 +47,7 @@ class AbstractProfile(Module):
     with no profile-specific machinery::
 
         ExponentialProfile(start=2e-3, end=8e-3)
-        ExponentialProfile(start=prf.Bounded(2e-3, lower=1e-3, upper=5e-3), end=8e-3)
+        ExponentialProfile(start=prf.bounded(2e-3, lower=1e-3, upper=5e-3), end=8e-3)
 
     **Orientation**
 

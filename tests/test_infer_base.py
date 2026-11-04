@@ -7,7 +7,7 @@ import numpy as np
 import equinox as eqx
 import parax.distributions as dd
 
-from pmrf.parameters import Random, Fixed, Constrained, prior
+from pmrf.parameters import random, fixed, constrained, prior
 from pmrf.parameters.constraints import Positive
 from pmrf.stats.distributions import Normal, Uniform
 from pmrf.infer import base
@@ -21,9 +21,9 @@ from pmrf.infer import base
 def dummy_model():
     """A standard dictionary model with random Parax variables."""
     return {
-        "x": Random(Normal(0.0, 5.0), value=jnp.array(0.0)), 
-        "y": Random(Uniform(0.0, 5.0), value=jnp.array(2.5)) ,
-        "z": Fixed(1.0),
+        "x": random(Normal(0.0, 5.0), value=jnp.array(0.0)),
+        "y": random(Uniform(0.0, 5.0), value=jnp.array(2.5)) ,
+        "z": fixed(1.0),
     }
 
 def dummy_ll(model, args=None):
@@ -76,7 +76,7 @@ class _RecordingHypercubeSampler(base.AbstractHypercubeSampler):
     "sampler_type", [_RecordingJointSampler, _RecordingSplitSampler, _RecordingHypercubeSampler]
 )
 def test_unnormalised_joint_prior_rejects_every_sampler_before_run(sampler_type):
-    model = {"a": Constrained(Positive(), 50.0), "b": Constrained(Positive(), 49.0)}
+    model = {"a": constrained(Positive(), 50.0), "b": constrained(Positive(), 49.0)}
     distribution = dd.MultivariateNormalDiag(jnp.array([50.0, 49.0]), jnp.array([2.0, 2.0]))
     model = prior(model, ["a", "b"], distribution, truncate="unnormalised")
     calls = []
@@ -134,9 +134,9 @@ def test_split_sampler_nss(dummy_model):
     
     # NSS Requires a batch of initial points (live points)
     init_samples = {
-        "x": Random(Normal(0.0, 5.0), value=jax.random.normal(jax.random.key(1), (10,))),
-        "y": Random(Uniform(0.0, 5.0), value=jax.random.uniform(jax.random.key(2), (10,)) * 4.9 + 0.1),
-        "z": Fixed(1.0),
+        "x": random(Normal(0.0, 5.0), value=jax.random.normal(jax.random.key(1), (10,))),
+        "y": random(Uniform(0.0, 5.0), value=jax.random.uniform(jax.random.key(2), (10,)) * 4.9 + 0.1),
+        "z": fixed(1.0),
     }
     
     solver = NSS(num_delete=5, num_inner_steps=2, evidence_convergence=0.5, show_progress=False)

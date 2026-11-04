@@ -121,7 +121,7 @@ def test_unconstrained_gradients_are_finite_at_dc():
     dc = Frequency.from_f(jnp.array([0.0, 1e9]))
 
     def loss(sigma):
-        conductor = BulkConductor(sigma=prf.Unconstrained(sigma))
+        conductor = BulkConductor(sigma=prf.unconstrained(sigma))
         return jnp.sum(jnp.real(conductor.properties(dc).zs))
 
     assert jnp.isfinite(jax.grad(loss)(1 / 1.68e-8))

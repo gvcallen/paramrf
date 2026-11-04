@@ -326,7 +326,7 @@ def run_sampler(
             raise ValueError(
                 "A hypercube sampler needs a prior on every free parameter, but "
                 f"these have none: {', '.join(repr(name) for name in missing)}. Give them a "
-                "prior with `prf.Random` or `prf.prior`, or fix them with "
+                "prior with `prf.random` or `prf.prior`, or fix them with "
                 "`prf.update(model, names, fixed=True)`."
             )
         # Priors are authored in declared space, so the cube maps to declared values.

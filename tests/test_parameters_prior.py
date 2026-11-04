@@ -42,10 +42,10 @@ def test_prior_is_top_level():
 
 
 def test_prior_on_unconstrained_is_random():
-    m = RC(R=prf.Unconstrained(40.0), C=prf.Unconstrained(2.0))
+    m = RC(R=prf.unconstrained(40.0), C=prf.unconstrained(2.0))
     prior = Normal(50.0, 5.0)
     attached = prf.prior(m, "R", prior)
-    built = RC(R=prf.Random(prior, value=40.0), C=prf.Unconstrained(2.0))
+    built = RC(R=prf.random(prior, value=40.0), C=prf.unconstrained(2.0))
     _assert_same_prior(attached, built)
     assert attached.R.bounds is None or np.all(np.isinf(np.asarray(attached.R.bounds)))
 
@@ -57,20 +57,20 @@ def _unbounded(param):
 def test_prior_replaces_the_range():
     """A range is prior information, so the prior replaces it. Truncation to a field's
     validity is covered in `test_parameters_validity.py`."""
-    m = RC(R=prf.Bounded(0.0, 100.0, value=40.0), C=prf.Bounded(1.0, 3.0, value=2.0, scale=1e-12))
+    m = RC(R=prf.bounded(0.0, 100.0, value=40.0), C=prf.bounded(1.0, 3.0, value=2.0, scale=1e-12))
     prior = Normal(50.0, 30.0)
     attached = prf.prior(m, "R", prior)
-    built = RC(R=prf.Random(prior, value=40.0), C=m.C)
+    built = RC(R=prf.random(prior, value=40.0), C=m.C)
     _assert_same_prior(attached, built)
     assert _unbounded(attached.R)
     assert np.allclose(attached.C.bounds, (1.0, 3.0))
 
 
 def test_prior_replaces_an_existing_prior():
-    m = RC(R=prf.Random(Uniform(0.0, 100.0), value=40.0), C=prf.Unconstrained(2.0))
+    m = RC(R=prf.random(Uniform(0.0, 100.0), value=40.0), C=prf.unconstrained(2.0))
     prior = Normal(50.0, 30.0)
     attached = prf.prior(m, "R", prior)
-    built = RC(R=prf.Random(prior, value=40.0), C=prf.Unconstrained(2.0))
+    built = RC(R=prf.random(prior, value=40.0), C=prf.unconstrained(2.0))
     _assert_same_prior(attached, built)
     assert isinstance(prx.as_unwrapped(attached.R.distribution), dist.Normal)
     assert _unbounded(attached.R)
@@ -79,23 +79,23 @@ def test_prior_replaces_an_existing_prior():
 def test_prior_already_within_bounds_is_not_truncated():
     """A prior whose support lies inside the bounds needs no truncation, so it is kept
     as given, even when it cannot be truncated."""
-    m = RC(R=prf.Constrained(prf.parameters.constraints.Positive(), 40.0), C=prf.Unconstrained(2.0))
+    m = RC(R=prf.constrained(prf.parameters.constraints.Positive(), 40.0), C=prf.unconstrained(2.0))
     prior = dist.Gamma(4.0, 0.1)
     attached = prf.prior(m, "R", prior)
     assert isinstance(prx.as_unwrapped(attached.R.distribution), dist.Gamma)
-    _assert_same_prior(attached, RC(R=prf.Random(prior, value=40.0), C=prf.Unconstrained(2.0)))
+    _assert_same_prior(attached, RC(R=prf.random(prior, value=40.0), C=prf.unconstrained(2.0)))
 
 
 def test_prior_by_glob_gives_each_its_own():
-    a = Resistor(R=prf.Unconstrained(40.0), name="cable_a")
-    b = Resistor(R=prf.Bounded(0.0, 100.0, value=60.0), name="cable_b")
-    load = Resistor(R=prf.Unconstrained(50.0), name="load")
+    a = Resistor(R=prf.unconstrained(40.0), name="cable_a")
+    b = Resistor(R=prf.bounded(0.0, 100.0, value=60.0), name="cable_b")
+    load = Resistor(R=prf.unconstrained(50.0), name="load")
     m = a ** b ** load
     prior = Normal(50.0, 30.0)
     attached = prf.prior(m, "cable_*", prior)
     built = (
-        Resistor(R=prf.Random(prior, value=40.0), name="cable_a")
-        ** Resistor(R=prf.Random(prior, value=60.0), name="cable_b")
+        Resistor(R=prf.random(prior, value=40.0), name="cable_a")
+        ** Resistor(R=prf.random(prior, value=60.0), name="cable_b")
         ** load
     )
     _assert_same_prior(attached, built)
@@ -103,7 +103,7 @@ def test_prior_by_glob_gives_each_its_own():
 
 
 def test_prior_keeps_name_scale_metadata_and_fixed_state():
-    m = RC(R=prf.Fixed(40.0), C=prf.Unconstrained(2.0, metadata={"k": 1}))
+    m = RC(R=prf.fixed(40.0), C=prf.unconstrained(2.0, metadata={"k": 1}))
     attached = prf.prior(m, ["R", "C"], Normal(2.0, 1.0))
     assert attached.R.fixed and not attached.C.fixed
     assert attached.C.scale == 1e-12 and attached.C.metadata == {"k": 1}
@@ -112,9 +112,9 @@ def test_prior_keeps_name_scale_metadata_and_fixed_state():
 
 
 def test_prior_in_physical_space():
-    m = RC(R=prf.Fixed(1.0), C=prf.Bounded(1.0, 3.0, value=2.0))
+    m = RC(R=prf.fixed(1.0), C=prf.bounded(1.0, 3.0, value=2.0))
     attached = prf.prior(m, "C", Normal(2e-12, 0.5e-12), space="physical")
-    built = RC(R=prf.Fixed(1.0), C=prf.Random(Normal(2.0, 0.5), value=2.0))
+    built = RC(R=prf.fixed(1.0), C=prf.random(Normal(2.0, 0.5), value=2.0))
     for space in SPACES:
         assert np.allclose(prf.log_prior(attached, space=space), prf.log_prior(built, space=space)), space
     assert np.allclose(prf.values(attached)["C"], 2.0)
@@ -122,7 +122,7 @@ def test_prior_in_physical_space():
 
 
 def test_prior_in_raw_space_is_over_the_raw_space_before_attaching():
-    m = RC(R=prf.Fixed(1.0), C=prf.Random(Uniform(1.0, 3.0), value=2.5))
+    m = RC(R=prf.fixed(1.0), C=prf.random(Uniform(1.0, 3.0), value=2.5))
     old = m.C.raw_to_declared_bijector
     z = m.C.raw_value
     prior = Normal(0.3, 0.7)
@@ -146,7 +146,7 @@ def test_prior_bad_space_raises():
 def test_prior_joint_event_size_attaches_a_joint_prior():
     """Joint priors are covered in `test_parameters_joint_prior.py`."""
     joint = dist.MultivariateNormalDiag(jnp.zeros(2), jnp.ones(2))
-    model = prf.prior(RC(R=prf.Unconstrained(1.0), C=prf.Unconstrained(2.0)), ["R", "C"], joint)
+    model = prf.prior(RC(R=prf.unconstrained(1.0), C=prf.unconstrained(2.0)), ["R", "C"], joint)
     assert isinstance(model.wrapped, prf.modules.Probabilistic)
     assert model.wrapped.names == ("R", "C")
 
@@ -175,7 +175,7 @@ def _loglikelihood(model, args=None):
 
 
 def _dict_with_attached_priors():
-    m = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
+    m = {"R": prf.bounded(0.0, 100.0, value=50.0), "C": prf.unconstrained(2.0)}
     m = prf.prior(m, "R", truncate(Normal(50.0, 30.0), 0.0, 100.0))  # it replaces the range
     return prf.prior(m, "C", Normal(2.0, 1.0))
 
@@ -201,7 +201,7 @@ def test_polychord_on_attached_priors(tmp_path):
 def test_hypercube_sampler_on_a_prior_over_raw_space():
     """A prior over raw space reaches declared space through the raw-to-declared map, so
     the cube goes through the base's inverse CDF and then that map."""
-    before = {"R": prf.Bounded(0.0, 100.0, value=50.0), "C": prf.Unconstrained(2.0)}
+    before = {"R": prf.bounded(0.0, 100.0, value=50.0), "C": prf.unconstrained(2.0)}
     m = prf.prior(prf.prior(before, "R", Normal(0.5, 2.0), space="raw"), "C", Normal(2.0, 1.0))
     _, results = infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))
     to_declared = prf.params(before)["R"].raw_to_declared_bijector
@@ -209,7 +209,7 @@ def test_hypercube_sampler_on_a_prior_over_raw_space():
 
 
 def test_hypercube_sampler_on_a_prior_over_physical_space_of_a_scaled_parameter():
-    m = {"R": prf.Unconstrained(50.0), "C": prf.Unconstrained(2.0, scale=1e-12)}
+    m = {"R": prf.unconstrained(50.0), "C": prf.unconstrained(2.0, scale=1e-12)}
     m = prf.prior(prf.prior(m, "C", Normal(2e-12, 1e-13), space="physical"), "R", Normal(50.0, 1.0))
     _, results = infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))
     assert np.allclose(results.samples["C"], [2.0, Normal(2.0, 0.1).icdf(0.25)], atol=1e-4)
@@ -218,7 +218,7 @@ def test_hypercube_sampler_on_a_prior_over_physical_space_of_a_scaled_parameter(
 def test_hypercube_sampler_names_a_mapped_prior_whose_base_has_no_inverse_cdf():
     # The Gamma prior lives in raw space, so start above the raw-space zero
     # corresponding to the midpoint of this bounded parameter.
-    m = {"R": prf.Bounded(0.0, 100.0, value=60.0), "C": prf.Unconstrained(2.0)}
+    m = {"R": prf.bounded(0.0, 100.0, value=60.0), "C": prf.unconstrained(2.0)}
     m = prf.prior(prf.prior(m, "R", dist.Gamma(2.0, 1.0), space="raw"), "C", Normal(2.0, 1.0))
     with pytest.raises(ValueError, match=r"'R'.*space='raw' or space='physical'.*Gamma"):
         infer_base.run_sampler(_loglikelihood, m, _StubHypercubeSampler(), jax.random.key(0))
