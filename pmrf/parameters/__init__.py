@@ -24,7 +24,7 @@ from parax.annotation import AbstractAnnotated
 from pmrf.stats.bijectors import AbstractBijector, Chain, ScalarAffine
 from pmrf.parameters.constraints import AbstractConstraint, Interval
 from pmrf.stats.distributions import (
-    AbstractDistribution, LogNormal, Normal, Transformed, TruncatedNormal,
+    AbstractDistribution, LogNormal, LogUniform, Normal, Transformed, TruncatedNormal,
     Uniform, truncate,
 )
 from pmrf.utils import error_if, field
@@ -970,6 +970,46 @@ def uniform(
         The random parameter.
     """
     return random(Uniform(lower, upper), constraint=constraint, value=value,
+                  fixed=fixed, name=name, scale=scale, metadata=metadata)
+
+
+def loguniform(
+    lower: ArrayLike, upper: ArrayLike, *,
+    constraint: Optional[AbstractConstraint] = None,
+    value: Optional[ArrayLike] = None,
+    fixed: bool = False,
+    name: Optional[str] = None,
+    scale: Optional[float] = None,
+    metadata: Optional[Any] = None,
+) -> Param:
+    """Create a random parameter with a log-uniform prior in declared space.
+
+    Parameters
+    ----------
+    lower, upper : ArrayLike
+        Positive prior bounds in declared space.
+    constraint : AbstractConstraint, optional
+        An additional range to truncate the prior to.
+    value : ArrayLike, optional
+        Initial declared value; defaults to the geometric mean of the bounds.
+    fixed : bool, optional
+        Whether the parameter is fixed.
+    name : str, optional
+        Parameter name.
+    scale : float, optional
+        Units multiplier from declared to physical space.
+    metadata : Any, optional
+        Arbitrary metadata.
+
+    Returns
+    -------
+    pmrf.Param
+        The random parameter.
+    """
+    distribution = LogUniform(lower, upper)
+    if value is None:
+        value = distribution.median()
+    return random(distribution, constraint=constraint, value=value,
                   fixed=fixed, name=name, scale=scale, metadata=metadata)
 
 
@@ -2615,6 +2655,9 @@ def _truncated_to(distribution: AbstractDistribution, bounds: tuple[Array, Array
     be truncated."""
     if bounds is None or bool(jnp.all(jnp.isinf(jnp.asarray(bounds)))) or _within_bounds(distribution, bounds):
         return distribution
+    if isinstance(distribution, LogUniform):
+        return LogUniform(jnp.maximum(distribution.low, bounds[0]),
+                          jnp.minimum(distribution.high, bounds[1]))
     try:
         return truncate(distribution, *bounds)
     except ValueError:
