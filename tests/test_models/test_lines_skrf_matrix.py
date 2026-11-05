@@ -185,11 +185,11 @@ _COAX_MODELS = {
 
 
 def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche",
-               rho_shield=None, shield_thickness=None):
+               rho_shield=None, t=None):
     """A ParamRF/scikit-rf builder pair for one coaxial geometry.
 
     ``rho_shield`` gives the shield a metal of its own, and
-    ``shield_thickness`` a finite wall; leaving either out keeps scikit-rf on
+    ``t`` a finite wall; leaving either out keeps scikit-rf on
     its own defaults, so the existing cases are unaffected.
     """
     sigma = _sigma_of_rho(rho)
@@ -199,12 +199,12 @@ def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche",
     def line(length):
         return CoaxialLine(
             d_in=d_in, d_out=d_out, dielectric=dielectric,
-            conductor=BulkConductor(sigma=sigma), length=length,
+            inner_conductor=BulkConductor(sigma=sigma), length=length,
             formulation=formulation,
             outer_conductor=(
                 None if sigma_shield is None else BulkConductor(sigma=sigma_shield)
             ),
-            shield_thickness=shield_thickness,
+            t=t,
         )
 
     def media(freq, z0_port=None):
@@ -217,7 +217,7 @@ def _coax_pair(d_in, d_out, dielectric, rho, ep_r_of_f, model="tesche",
             )
         return Coaxial(
             freq, Dint=d_in, Dout=d_out, model=model, z0_port=z0_port,
-            sigma=sigma, tout=shield_thickness,
+            sigma=sigma, tout=t,
             dielectric={"ep_r": ep_r_of_f(np.asarray(freq.f))},
             **conductors,
         )
@@ -350,7 +350,7 @@ COAX_CASES += [
         **_coax_pair(0.9e-3, 2.95e-3, ConstantDielectric(ep_r=2.25, tand=1e-3),
                     RHO_COPPER, lambda f: _coax_ep_r(2.25, 1e-3, f=f),
                     model="schelkunoff", rho_shield=RHO_STEEL,
-                    shield_thickness=25e-6),
+                    t=25e-6),
         length=0.5, z0=50.0,
         tol=_SCHELKUNOFF_EXACT,
     ),
@@ -361,7 +361,7 @@ COAX_CASES += [
                 "below it, so the tube's transition is swept end to end.",
         **_coax_pair(0.9e-3, 2.95e-3, ConstantDielectric(ep_r=2.25, tand=1e-3),
                     RHO_COPPER, lambda f: _coax_ep_r(2.25, 1e-3, f=f),
-                    model="schelkunoff", shield_thickness=0.5e-3),
+                    model="schelkunoff", t=0.5e-3),
         length=0.5, z0=50.0,
         tol=_SCHELKUNOFF_EXACT,
     ),

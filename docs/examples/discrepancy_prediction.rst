@@ -24,7 +24,7 @@ We add a slow ripple and measurement noise to the line's S11, then fit the diele
        return CoaxialLine(
            d_in=1.05e-3, d_out=3.2e-3,
            dielectric=ConstantDielectric(ep_r=ep_r, tand=1e-3),
-           conductor=BulkConductor(sigma=1 / 1.7e-8),
+           inner_conductor=BulkConductor(sigma=1 / 1.7e-8),
            length=10.0,
        )
 

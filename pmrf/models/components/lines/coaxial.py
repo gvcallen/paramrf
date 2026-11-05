@@ -1,5 +1,6 @@
 """Coaxial transmission-line models and formulations."""
 from abc import abstractmethod
+from dataclasses import MISSING
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -16,7 +17,7 @@ from pmrf.utils import field
 class AbstractCoaxialFormulation(eqx.Module):
     """Abstract base class for a closed-form coaxial formulation."""
     @abstractmethod
-    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None = None, shield_thickness=None) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, inner_conductor: ConductorProperties, outer_conductor: ConductorProperties | None = None, t=None) -> ImmittanceResult:
         r"""
         Calculate the per-unit-length immittance.
 
@@ -30,11 +31,11 @@ class AbstractCoaxialFormulation(eqx.Module):
             Outer conductor inner diameter in meters.
         dielectric : DielectricProperties
             Evaluated relative permittivity and permeability.
-        conductor : ConductorProperties
+        inner_conductor : ConductorProperties
             Evaluated inner-conductor properties.
         outer_conductor : ConductorProperties | None, default=None
-            Evaluated shield properties, or ``None`` to reuse ``conductor``.
-        shield_thickness : ArrayLike | None, default=None
+            Evaluated shield properties, or ``None`` to reuse ``inner_conductor``.
+        t : ArrayLike | None, default=None
             Shield wall thickness, or ``None`` for an infinitely thick shield.
 
         Returns
@@ -45,7 +46,7 @@ class AbstractCoaxialFormulation(eqx.Module):
         raise NotImplementedError
 
 
-def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor: ConductorProperties | None, shield_thickness, inner_impedance: AbstractSurfaceImpedance, shield_impedance: AbstractSurfaceImpedance) -> ImmittanceResult:
+def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, inner_conductor: ConductorProperties, outer_conductor: ConductorProperties | None, t, inner_impedance: AbstractSurfaceImpedance, shield_impedance: AbstractSurfaceImpedance) -> ImmittanceResult:
     """Calculate coaxial immittance for the supplied surface impedances."""
     eps = epsilon_0 * dielectric.ep_r
     mu = mu_0 * dielectric.mu_r
@@ -57,12 +58,12 @@ def _coaxial_immittance(freq: Frequency, *, d_in, d_out, dielectric: DielectricP
 
     L_ext = jnp.ones(freq.npoints) * mu / (2 * jnp.pi) * ln_b_over_a
 
-    Z_int = inner_impedance.impedance(omega, conductor, a=a) / (2 * jnp.pi * a)
+    Z_int = inner_impedance.impedance(omega, inner_conductor, a=a) / (2 * jnp.pi * a)
     # An unmodelled wall is an infinitely thick one, which every tube
     # formulation takes analytically -- so the shield is one call whatever
     # formulation it is, with no branch on its type or on whether a wall was given.
-    shield_conductor = conductor if outer_conductor is None else outer_conductor
-    wall = jnp.inf if shield_thickness is None else shield_thickness
+    shield_conductor = inner_conductor if outer_conductor is None else outer_conductor
+    wall = jnp.inf if t is None else t
     shield_zs = shield_impedance.impedance(omega, shield_conductor, a=b, t=wall)
     Z_int = Z_int + shield_zs / (2 * jnp.pi * b)
 
@@ -118,11 +119,11 @@ class TescheCoaxialFormulation(AbstractCoaxialFormulation):
     #: radius and its wall thickness, infinite when none is given
     shield_impedance: AbstractSurfaceImpedance = TescheTubeSurfaceImpedance()
 
-    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, inner_conductor: ConductorProperties, outer_conductor=None, t=None) -> ImmittanceResult:
         return _coaxial_immittance(
             freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
-            conductor=conductor, outer_conductor=outer_conductor,
-            shield_thickness=shield_thickness, inner_impedance=self.inner_impedance,
+            inner_conductor=inner_conductor, outer_conductor=outer_conductor,
+            t=t, inner_impedance=self.inner_impedance,
             shield_impedance=self.shield_impedance,
         )
 
@@ -145,7 +146,7 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     \gamma = \sqrt{j\omega\mu\sigma}.$$
 
     The shield uses Schelkunoff's tube solution, referred to its inner
-    surface. An unspecified ``shield_thickness`` gives
+    surface. An unspecified ``t`` gives
     $Z_{outer}=\zeta_c K_0(\gamma b)/(2\pi bK_1(\gamma b))$. Both formulations
     are configurable fields.
 
@@ -167,11 +168,11 @@ class SchelkunoffCoaxialFormulation(AbstractCoaxialFormulation):
     #: radius and its wall thickness, infinite when none is given
     shield_impedance: AbstractSurfaceImpedance = SchelkunoffTubeSurfaceImpedance()
 
-    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, conductor: ConductorProperties, outer_conductor=None, shield_thickness=None) -> ImmittanceResult:
+    def immittance(self, freq: Frequency, *, d_in, d_out, dielectric: DielectricProperties, inner_conductor: ConductorProperties, outer_conductor=None, t=None) -> ImmittanceResult:
         return _coaxial_immittance(
             freq, d_in=d_in, d_out=d_out, dielectric=dielectric,
-            conductor=conductor, outer_conductor=outer_conductor,
-            shield_thickness=shield_thickness, inner_impedance=self.inner_impedance,
+            inner_conductor=inner_conductor, outer_conductor=outer_conductor,
+            t=t, inner_impedance=self.inner_impedance,
             shield_impedance=self.shield_impedance,
         )
 
@@ -196,7 +197,7 @@ class CoaxialLine(AbstractImmittanceLine):
             d_in=0.9e-3,
             d_out=2.95e-3,
             dielectric=ConstantDielectric(ep_r=1.5, tand=0.0004),
-            conductor=BulkConductor(sigma=5.8e7),
+            inner_conductor=BulkConductor(sigma=5.8e7),
             length=0.5
         )
 
@@ -214,13 +215,16 @@ class CoaxialLine(AbstractImmittanceLine):
         permeability. A scalar permittivity or an ``(ep_r, tand)`` tuple is
         coerced into a :class:`~pmrf.materials.ConstantDielectric`; a magnetic
         filling sets that material's ``mu_r``.
-    conductor : AbstractConductor, default=BulkConductor()
+    inner_conductor : AbstractConductor, default=BulkConductor()
         The inner conductor material. A scalar conductivity in
         S/m is coerced into a :class:`~pmrf.materials.BulkConductor`.
     outer_conductor : AbstractConductor | None, default=None
-        The shield material. ``None`` means the same material as ``conductor``.
-    shield_thickness : Param | None, default=None
+        The shield material. ``None`` means the same material as ``inner_conductor``.
+    t : Param | None, default=None
         Shield wall thickness in meters. ``None`` means an infinitely thick shield.
+    conductor : AbstractConductor, optional
+        Constructor-only alias for ``inner_conductor``. Supplying both raises
+        ``ValueError``.
     formulation : AbstractCoaxialFormulation, default=SchelkunoffCoaxialFormulation()
         The closed-form physics used to compute the immittance.
     """
@@ -236,7 +240,7 @@ class CoaxialLine(AbstractImmittanceLine):
     )
     
     #: The inner conductor material
-    conductor: AbstractConductor = field(
+    inner_conductor: AbstractConductor = field(
         default_factory=BulkConductor, converter=as_conductor
     )
 
@@ -247,7 +251,7 @@ class CoaxialLine(AbstractImmittanceLine):
     )
 
     #: The optional shield wall thickness in meters
-    shield_thickness: Param | None = field(
+    t: Param | None = field(
         default=None,
         converter=lambda x: as_param(x, constraint=Positive()) if x is not None else None,
     )
@@ -255,18 +259,39 @@ class CoaxialLine(AbstractImmittanceLine):
     #: The underlying physics formulation
     formulation: AbstractCoaxialFormulation = field(default_factory=SchelkunoffCoaxialFormulation)
 
+    def __init__(
+        self, length, d_in=1.12e-3, d_out=3.2e-3,
+        dielectric=MISSING, inner_conductor=MISSING, outer_conductor=None,
+        t=None, formulation=MISSING, *, conductor=MISSING, name=None, metadata=None,
+    ):
+        if inner_conductor is not MISSING and conductor is not MISSING:
+            raise ValueError("pass either inner_conductor= or conductor=, not both")
+        if inner_conductor is MISSING:
+            inner_conductor = BulkConductor() if conductor is MISSING else conductor
+
+        self.length = length
+        self.d_in = d_in
+        self.d_out = d_out
+        self.dielectric = ConstantDielectric() if dielectric is MISSING else dielectric
+        self.inner_conductor = inner_conductor
+        self.outer_conductor = outer_conductor
+        self.t = t
+        self.formulation = (
+            SchelkunoffCoaxialFormulation() if formulation is MISSING else formulation
+        )
+        self.name = name
+        self.metadata = metadata
+
     def immittance(self, freq: Frequency) -> ImmittanceResult:
         return self.formulation.immittance(
             freq,
             d_in=self.d_in,
             d_out=self.d_out,
             dielectric=self.dielectric.properties(freq),
-            conductor=self.conductor.properties(freq),
+            inner_conductor=self.inner_conductor.properties(freq),
             outer_conductor=(
                 None if self.outer_conductor is None
                 else self.outer_conductor.properties(freq)
             ),
-            shield_thickness=(
-                None if self.shield_thickness is None else self.shield_thickness
-            ),
+            t=self.t,
         )
