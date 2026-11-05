@@ -271,7 +271,7 @@ def run_constrained_transfer():
             d_in=prf.fixed(1.12e-3),
             d_out=prf.fixed(3.2e-3),
             dielectric=ConstantDielectric(ep_r=prf.fixed(1.384), tand=prf.fixed(0.001)),
-            conductor=BulkConductor(sigma=prf.fixed(1 / 1.6e-8)),
+            inner_conductor=BulkConductor(sigma=prf.fixed(1 / 1.6e-8)),
         )
 
     reference_frequency = prf.Frequency(100.0, 500.0, 12, 'MHz')

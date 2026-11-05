@@ -811,8 +811,34 @@ def test_material_coercion():
     line = CoaxialLine(dielectric=(2.25, 0.001), conductor=5.8e7, length=0.1)
 
     assert isinstance(line.dielectric, ConstantDielectric)
-    assert isinstance(line.conductor, BulkConductor)
+    assert isinstance(line.inner_conductor, BulkConductor)
     assert jnp.allclose(line.dielectric.ep_r.value, 2.25)
+
+
+@pytest.mark.parametrize("keyword", ["inner_conductor", "conductor"])
+def test_coaxial_inner_conductor_names(keyword):
+    import pmrf as prf
+
+    line = CoaxialLine(**{keyword: 5.8e7}, length=0.1)
+    assert isinstance(line.inner_conductor, BulkConductor)
+    assert "inner_conductor.sigma" in prf.params(line)
+    assert "conductor.sigma" not in prf.params(line)
+    assert not hasattr(line, "conductor")
+
+
+def test_coaxial_rejects_both_inner_conductor_spellings():
+    with pytest.raises(ValueError, match="inner_conductor.*conductor"):
+        CoaxialLine(inner_conductor=5.8e7, conductor=3.5e7, length=0.1)
+
+
+def test_coaxial_t_is_positive_parameter():
+    import pmrf as prf
+
+    line = CoaxialLine(length=0.1, t=12.5e-6)
+    assert "t" in prf.params(line)
+    assert jnp.allclose(line.t.value, 12.5e-6)
+    with pytest.raises(eqx.EquinoxRuntimeError, match="outside the constraint"):
+        CoaxialLine(length=0.1, t=0)
 
 
 def test_coaxial_formulation_takes_plain_arrays(basic_freq):
@@ -825,7 +851,7 @@ def test_coaxial_formulation_takes_plain_arrays(basic_freq):
         dielectric=DielectricProperties(
             np.full(npoints, 2.25 - 0.00225j), np.ones(npoints), np.zeros(npoints)
         ),
-        conductor=ConductorProperties(
+        inner_conductor=ConductorProperties(
             np.full(npoints, 0.01 + 0.01j),
             np.full(npoints, 1 / 1.72e-8),
             np.ones(npoints),
@@ -839,8 +865,9 @@ def test_coaxial_defaults_reuse_inner_material_and_infinite_wall(basic_freq):
     """Unspecified shield options preserve the simple coaxial construction."""
     line = CoaxialLine(length=0.1)
     explicit = CoaxialLine(
-        length=0.1, outer_conductor=line.conductor, shield_thickness=None
+        length=0.1, outer_conductor=line.inner_conductor, t=None
     )
+    assert line.t is None
     assert jnp.allclose(line.immittance(basic_freq).Z, explicit.immittance(basic_freq).Z)
 
 
@@ -852,7 +879,7 @@ def test_coaxial_supports_dissimilar_finite_shield(basic_freq):
         conductor=inner, outer_conductor=outer, length=0.1
     )
     finite = CoaxialLine(
-        conductor=inner, outer_conductor=outer, shield_thickness=12.5e-6,
+        inner_conductor=inner, outer_conductor=outer, t=12.5e-6,
         length=0.1,
     )
     assert jnp.all(finite.immittance(basic_freq).R > 0)

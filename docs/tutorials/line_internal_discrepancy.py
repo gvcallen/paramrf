@@ -34,7 +34,7 @@ def line(length, sigma, *, free_sigma=False):
         d_out=prf.fixed(3.2e-3),
         dielectric=ConstantDielectric(ep_r=prf.fixed(1.5), tand=prf.fixed(0.0),
                                       sigma=prf.fixed(0.0), mu_r=prf.fixed(1.0)),
-        conductor=BulkConductor(sigma=sigma_parameter, mu_r=prf.fixed(1.0)),
+        inner_conductor=BulkConductor(sigma=sigma_parameter, mu_r=prf.fixed(1.0)),
         formulation=TescheCoaxialFormulation(),
     )
 

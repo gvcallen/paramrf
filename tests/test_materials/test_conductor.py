@@ -159,12 +159,12 @@ def test_as_conductor_rejects_zero():
 def test_smooth_roughness_is_in_the_domain(freq):
     """A smooth surface is on the closed bound of `rms` (ADR-0007)."""
     assert jnp.allclose(HammerstadRoughness().rms, 0.0)
-    line = prf.models.CoaxialLine(length=0.1, conductor=RoughConductor(roughness=0.0))
+    line = prf.models.CoaxialLine(length=0.1, inner_conductor=RoughConductor(roughness=0.0))
     assert jnp.all(jnp.isfinite(line.s(freq)))
 
     # Differentiate the model, not the parameter's raw map, which is -inf at 0.
     def power(rms):
-        rough = eqx.tree_at(lambda m: m.conductor.roughness.rms, line, rms)
+        rough = eqx.tree_at(lambda m: m.inner_conductor.roughness.rms, line, rms)
         return jnp.sum(jnp.abs(rough.s(freq)) ** 2)
 
     assert jnp.isfinite(jax.grad(power)(0.0))
