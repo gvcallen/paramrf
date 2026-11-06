@@ -69,8 +69,10 @@ def minimize(
         If a least-squares minimiser is used with a term that has no whitened
         residual. It is raised before the solver runs.
     FloatingPointError
-        If SciPy evaluates a nonfinite objective, requested gradient or attempted
-        optimizer vector. The diagnostic identifies the method and evaluation number.
+        If :class:`pmrf.optimize.ScipyMinimize` meets a nonfinite objective or
+        requested gradient at the start point, a nonfinite attempted optimizer
+        vector, or a nonfinite final value, or backs off from nonfinite trial points
+        and ends no better than its start. See its `nonfinite` option.
     """
     # Create the combined problem
     if isinstance(objective, AbstractProblem):

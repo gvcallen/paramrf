@@ -2,7 +2,7 @@
 SciPy optimization wrappers.
 """
 
-from typing import Callable, Any
+from typing import Callable, Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -62,15 +62,31 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     feasible bounds; `metrics.box_origin` and `metrics.box_scale` map its coordinates
     back to box space.
 
-    Nonfinite objectives, requested gradients or attempted coordinates raise
-    :class:`FloatingPointError` with the method and evaluation number before SciPy can
-    return a failed start point. Finite nonconvergence keeps SciPy's usual result.
+    A trial point whose loss, or any requested gradient entry, is nonfinite, such as a
+    circuit that becomes singular at extreme parameter values, is handed to SciPy as
+    ``+inf`` (with a zero gradient), so its line search or simplex backs off from it.
+    Not every method backtracks: L-BFGS-B stops at its last finite iterate instead. A
+    fit that backed off and ended no better than its start raises
+    :class:`FloatingPointError` rather than returning that start as a success, as does
+    a nonfinite final value. A nonfinite value at the start point, or a nonfinite
+    attempted parameter vector, raises with the method and evaluation number. With
+    `nonfinite='raise'`, every nonfinite evaluation raises, which helps find where an
+    objective breaks. Finite nonconvergence keeps SciPy's usual result.
     """
     method: str | None = eqx.field(static=True, default=None)
     tol: float | None = eqx.field(static=True, default=None)
     options: dict = eqx.field(static=True, default_factory=dict)
     show_progress: bool = eqx.field(static=True, default=True)
     use_grad: bool | None = eqx.field(static=True, default=None)
+
+    #: What a nonfinite loss or gradient after the start point does: ``'backoff'``
+    #: hands SciPy ``+inf`` so it steps back, and ``'raise'`` raises
+    #: :class:`FloatingPointError` on that evaluation.
+    nonfinite: Literal['backoff', 'raise'] = eqx.field(static=True, default='backoff')
+
+    def __check_init__(self):
+        if self.nonfinite not in ('backoff', 'raise'):
+            raise ValueError(f"`nonfinite` must be 'backoff' or 'raise', got {self.nonfinite!r}.")
 
     @property
     def honours_bounds(self) -> bool:
@@ -149,6 +165,8 @@ class ScipyMinimize(AbstractBoundedMinimizer):
 
         current_loss = [np.inf]
         eval_count = [0]
+        start_loss = [np.inf]
+        backed_off = [0]
 
         labels = _coordinate_labels(y0)
 
@@ -167,37 +185,53 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                 )
             return original_coordinates(x_np)
 
-        def checked_loss(loss):
-            loss_float = float(np.asarray(loss))
-            if not np.isfinite(loss_float):
-                raise FloatingPointError(
-                    f"SciPy {method or 'default'} objective evaluation {eval_count[0]} "
-                    "produced a nonfinite loss; free parameters in context: "
-                    f"{_label_list(labels, range(len(labels)))}."
-                )
-            return loss_float
+        def nonfinite_loss_error(evaluation):
+            return FloatingPointError(
+                f"SciPy {method or 'default'} objective evaluation {evaluation} "
+                "produced a nonfinite loss; free parameters in context: "
+                f"{_label_list(labels, range(len(labels)))}."
+            )
+
+        def backs_off():
+            # SciPy's first evaluation is the start point, which it cannot back off from.
+            if self.nonfinite == 'backoff' and eval_count[0] > 1:
+                backed_off[0] += 1
+                return True
+            return False
+
+        def record(loss_float):
+            if eval_count[0] == 1:
+                start_loss[0] = loss_float
+            current_loss[0] = loss_float
 
         def objective_with_grad(x_np):
             box_x = checked_input(x_np)
             loss, grad = val_and_grad_fn(jnp.asarray(box_x))
-            loss_float = checked_loss(loss)
+            loss_float = float(np.asarray(loss))
             grad_np = np.asarray(grad, dtype=np.float64)
             if use_affine:
                 grad_np = grad_np * box_scale
             bad_grad = np.flatnonzero(~np.isfinite(grad_np))
-            if len(bad_grad):
+            if not np.isfinite(loss_float) or len(bad_grad):
+                if backs_off():
+                    return np.inf, np.zeros_like(grad_np)
+                if not np.isfinite(loss_float):
+                    raise nonfinite_loss_error(eval_count[0])
                 raise FloatingPointError(
                     f"SciPy {method or 'default'} objective evaluation {eval_count[0]} "
                     f"produced a nonfinite gradient for {_label_list(labels, bad_grad)}."
                 )
-            current_loss[0] = loss_float
+            record(loss_float)
             return loss_float, grad_np
 
         def objective_no_grad(x_np):
             box_x = checked_input(x_np)
-            loss = val_only_fn(jnp.asarray(box_x))
-            loss_float = checked_loss(loss)
-            current_loss[0] = loss_float
+            loss_float = float(np.asarray(val_only_fn(jnp.asarray(box_x))))
+            if not np.isfinite(loss_float):
+                if backs_off():
+                    return np.inf
+                raise nonfinite_loss_error(eval_count[0])
+            record(loss_float)
             return loss_float
 
         obj_func = objective_with_grad if use_grad else objective_no_grad
@@ -228,6 +262,23 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         finally:
             if pbar is not None:
                 pbar.close()
+
+        final_loss = getattr(res, 'fun', None)
+        if final_loss is not None:
+            final_loss = float(np.asarray(final_loss))
+            context = f"free parameters in context: {_label_list(labels, range(len(labels)))}."
+            if not np.isfinite(final_loss):
+                raise FloatingPointError(
+                    f"SciPy {method or 'default'} terminated after {eval_count[0]} objective "
+                    f"evaluations with a nonfinite final loss; {context}"
+                )
+            # Some methods, such as L-BFGS-B, stop rather than backtrack from `+inf`, and
+            # report success at the start point.
+            if backed_off[0] and not final_loss < start_loss[0]:
+                raise FloatingPointError(
+                    f"SciPy {method or 'default'} backed off from {backed_off[0]} nonfinite "
+                    f"objective evaluations and ended no better than its start; {context}"
+                )
 
         result_x = np.asarray(res.x, dtype=np.float64)
         box_x = box_origin + box_scale * result_x if use_affine else result_x
