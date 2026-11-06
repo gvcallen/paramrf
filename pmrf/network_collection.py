@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import skrf as rf
 
+from pmrf.frequency import Frequency
+
 class NetworkCollection:
     """
     A container for a collection of scikit-rf Networks.
@@ -427,26 +429,28 @@ class NetworkCollection:
         f_scaled = np.linspace(f_start, f_stop, npoints) / scaler
         return rf.Frequency.from_f(f_scaled, unit=unit)
 
-    def _resolve_frequency(self, freq_or_mode: Union[rf.Frequency, np.ndarray, str], 
+    def _resolve_frequency(self, freq_or_mode: Union[Frequency, rf.Frequency, np.ndarray, str], 
                            npoints: Optional[int] = None) -> rf.Frequency:
         """Helper to resolve user input into a skrf.Frequency object."""
         if isinstance(freq_or_mode, str):
             return self.common_frequency(mode=freq_or_mode, npoints=npoints)
+        elif isinstance(freq_or_mode, Frequency):
+            return freq_or_mode.to_skrf()
         elif isinstance(freq_or_mode, rf.Frequency):
             return freq_or_mode
         else:
             return rf.Frequency.from_f(freq_or_mode, unit='Hz')
 
-    def interpolate(self, freq_or_mode: Union[rf.Frequency, np.ndarray, str] = "intersection", 
+    def interpolate(self, freq_or_mode: Union[Frequency, rf.Frequency, np.ndarray, str] = "intersection", 
                     npoints: Optional[int] = None, **kwargs) -> "NetworkCollection":
         """
         Return a new NetworkCollection where all networks are interpolated to a common frequency.
 
         Parameters
         ----------
-        freq_or_mode : skrf.Frequency, np.ndarray, or str
+        freq_or_mode : pmrf.Frequency, skrf.Frequency, np.ndarray, or str
             If 'intersection' or 'union', calculates the common vector.
-            If a vector/Frequency object, uses that explicitly.
+            If a Frequency object (keeping its unit) or a vector in Hz, uses that explicitly.
         npoints : int, optional
             Number of points (if using mode string).
         kwargs : 
@@ -461,16 +465,16 @@ class NetworkCollection:
         new_coll.interpolate_self(freq_obj, **kwargs)
         return new_coll
 
-    def interpolate_self(self, freq_or_mode: Union[rf.Frequency, np.ndarray, str] = "intersection", 
+    def interpolate_self(self, freq_or_mode: Union[Frequency, rf.Frequency, np.ndarray, str] = "intersection", 
                          npoints: Optional[int] = None, **kwargs) -> None:
         """
         Interpolate all networks in the collection in-place to a common frequency.
 
         Parameters
         ----------
-        freq_or_mode : skrf.Frequency, np.ndarray, or str
+        freq_or_mode : pmrf.Frequency, skrf.Frequency, np.ndarray, or str
             If 'intersection' or 'union', calculates the common vector.
-            If a vector/Frequency object, uses that explicitly.
+            If a Frequency object (keeping its unit) or a vector in Hz, uses that explicitly.
         npoints : int, optional
             Number of points (if using mode string).
         kwargs : 
