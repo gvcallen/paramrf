@@ -267,7 +267,7 @@ def test_scipy_minimizer_raises_when_only_the_start_is_finite(method):
     start = _Scalar(x=prf.unconstrained(2.5))
     objective = lambda m: jnp.where(m.x == 2.5, (m.x - 2.0) ** 2, jnp.nan)
     with pytest.raises(FloatingPointError, match=rf"SciPy {method} backed off.*no better than its start"):
-        minimize(objective, start, solver=ScipyMinimize(method=method, show_progress=False), max_iter=200)
+        minimize(objective, start, solver=ScipyMinimize(method=method, show_progress=False))
 
 
 def test_scipy_minimizer_raises_on_nonfinite_final_loss(monkeypatch):
