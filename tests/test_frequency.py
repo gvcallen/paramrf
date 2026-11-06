@@ -1,10 +1,29 @@
 # tests/test_core/test_frequency.py
+import signal
+from contextlib import contextmanager
+
+import numpy as np
 import pytest
 import jax
 import jax.numpy as jnp
 import equinox as eqx
 
 from pmrf.frequency import Frequency
+
+
+@contextmanager
+def deadline(seconds):
+    """Fails the test instead of hanging if the block runs longer than `seconds`."""
+    def expire(signum, frame):
+        raise TimeoutError(f"did not return within {seconds} s")
+
+    previous = signal.signal(signal.SIGALRM, expire)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
 
 # ---------------------------------------------------------
 # Fixtures
@@ -81,6 +100,80 @@ def test_getitem_int_and_slice(basic_freq):
     assert sliced_freq.npoints == 5
     assert jnp.allclose(sliced_freq.f, basic_freq.f[0:5])
 
+@pytest.mark.parametrize("index", [0, 9, -1, -10, np.int64(3), np.int32(-2)])
+def test_getitem_in_range_int(basic_freq, index):
+    """In-range integers, including negative and NumPy ones, select one point."""
+    single = basic_freq[index]
+    assert single.npoints == 1
+    assert single.f[0] == basic_freq.f[int(index)]
+
+
+@pytest.mark.parametrize("index", [10, -11, 10**6, np.int64(10), np.int32(-11)])
+def test_getitem_out_of_range_int_raises(basic_freq, index):
+    """Integers outside [-npoints, npoints) raise like any Python sequence."""
+    with pytest.raises(IndexError):
+        basic_freq[index]
+
+
+def test_getitem_int_on_empty_raises():
+    """An empty axis has no valid integer index."""
+    with pytest.raises(IndexError):
+        Frequency()[0]
+
+
+def test_getitem_slice_past_end_clips(basic_freq):
+    """Slices clip at the axis ends rather than raising."""
+    assert basic_freq[5:100].npoints == 5
+    assert basic_freq[20:].npoints == 0
+
+
+def test_getitem_string(basic_freq):
+    """String keys select a band or the nearest point."""
+    band = basic_freq['2-4ghz']
+    assert jnp.allclose(band.f, jnp.array([2e9, 3e9, 4e9]))
+    nearest = basic_freq['3.2']
+    assert nearest.npoints == 1
+    assert nearest.f[0] == 3e9
+
+
+def test_getitem_traced_int_under_jit(basic_freq):
+    """A traced index is not bounds-checked and still selects a point."""
+    @jax.jit
+    def pick(freq, i):
+        return freq[i].f
+
+    assert pick(basic_freq, 3)[0] == basic_freq.f[3]
+
+# ---------------------------------------------------------
+# NumPy Coercion
+# ---------------------------------------------------------
+
+def test_asarray_returns_hz():
+    """NumPy coercion returns the frequency vector in Hz."""
+    freq = Frequency(50, 200, 151, 'MHz')
+    with deadline(10):
+        arr = np.asarray(freq)
+    assert arr.shape == (151,)
+    assert arr.dtype.kind == 'f'
+    np.testing.assert_array_equal(arr, np.asarray(freq.f))
+
+
+def test_asarray_dtype(basic_freq):
+    """A requested dtype is honoured."""
+    with deadline(10):
+        arr = np.asarray(basic_freq, dtype=np.float32)
+    assert arr.dtype == np.float32
+
+
+def test_asarray_traced_raises(basic_freq):
+    """Coercing a traced `Frequency` raises JAX's tracer-conversion error."""
+    @jax.jit
+    def coerce(freq):
+        return np.asarray(freq)
+
+    with deadline(10), pytest.raises(jax.errors.TracerArrayConversionError):
+        coerce(basic_freq)
+
 # ---------------------------------------------------------
 # Arithmetic Operators
 # ---------------------------------------------------------
@@ -125,6 +218,19 @@ def test_jax_jit_compatibility(basic_freq):
     w_out = compute_w(basic_freq)
     assert w_out.shape == (10,)
 
+
+def test_pytree_has_single_f_leaf(basic_freq):
+    """The only array leaf is `f`; `unit` stays static."""
+    leaves, treedef = jax.tree_util.tree_flatten(basic_freq)
+    assert len(leaves) == 1 and leaves[0] is basic_freq.f
+    assert jax.tree_util.tree_unflatten(treedef, leaves).unit == 'GHz'
+
+
+def test_vmap_over_frequency_axis(basic_freq):
+    """`vmap` maps over the points of `f`."""
+    out = jax.vmap(lambda freq: freq.w)(basic_freq)
+    assert jnp.allclose(out, basic_freq.w)
+
 # ---------------------------------------------------------
 # scikit-rf Interoperability (Conditional)
 # ---------------------------------------------------------
@@ -146,3 +252,12 @@ def test_skrf_interop():
     back_to_skrf = pmrf_freq.to_skrf()
     assert isinstance(back_to_skrf, skrf.Frequency)
     assert back_to_skrf.unit.lower() == 'ghz'
+
+
+def test_skrf_from_f_accepts_frequency():
+    """scikit-rf builds its own axis from a `Frequency` without hanging."""
+    skrf = pytest.importorskip("skrf")
+    freq = Frequency(50, 200, 151, 'MHz')
+    with deadline(10):
+        skrf_freq = skrf.Frequency.from_f(freq, unit='Hz')
+    np.testing.assert_allclose(skrf_freq.f, np.asarray(freq.f))
