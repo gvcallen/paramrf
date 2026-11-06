@@ -1,6 +1,7 @@
 # tests/test_models/test_cascade.py
 """
-Scattering `Cascade` and `RepeatedCascade` at singular junctions.
+Scattering `Cascade` and `RepeatedCascade` at singular junctions, and the
+flattening of nested cascades.
 
 Floating multi-conductor networks leave a common mode at each junction that the
 scattering reduction must not invert. The S reference for floating chains is a
@@ -15,6 +16,7 @@ On floating chains, JAX gradients are checked against central finite
 differences of the same model. `Circuit` stays the reference, for S and
 gradient, on a grounded chain, where its solve is well conditioned.
 """
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import mpmath
@@ -335,3 +337,86 @@ def test_resonance_beside_normal_channel_gradient(peak):
     # The peak is about 1 Hz wide at 1.3 GHz, so the step must be tiny and the
     # difference is limited by rounding in S.
     assert g_cascade == pytest.approx(central_difference(cascade, 0.15, 1e-13), rel=1e-4)
+
+
+# ---------------------------------------------------------
+# Flattening nested cascades
+# ---------------------------------------------------------
+
+def sections(n=6):
+    """Alternating lines and series capacitors, all 2-ports."""
+    return tuple(
+        RLGCLine(R=1.0 + k, L=250e-9, G=1e-5, C=100e-12, length=0.02 * (k + 1))
+        if k % 2 == 0 else Capacitor(1e-12 * k)
+        for k in range(n)
+    )
+
+
+def nested(models, **kwargs):
+    """`models[0] ** models[1] ** ...`: `**` is right-associative."""
+    *head, chain = models
+    for model in reversed(head):
+        chain = Cascade([model, chain], **kwargs)
+    return chain
+
+
+def count_scans(jaxpr):
+    """The `scan`s in `jaxpr`, including those in sub-jaxprs."""
+    count = 0
+    for eqn in jaxpr.eqns:
+        count += eqn.primitive.name == 'scan'
+        for param in eqn.params.values():
+            for sub in param if isinstance(param, (tuple, list)) else (param,):
+                if isinstance(sub, jax.extend.core.ClosedJaxpr):
+                    count += count_scans(sub.jaxpr)
+                elif isinstance(sub, jax.extend.core.Jaxpr):
+                    count += count_scans(sub)
+    return count
+
+
+def test_power_operator_nests_right():
+    models = sections()
+    chain = models[0] ** models[1] ** models[2] ** models[3] ** models[4] ** models[5]
+    assert eqx.tree_equal(chain, nested(models))
+
+
+def test_flattened_unwraps_every_level():
+    models = sections()
+    flat = nested(models).flattened()
+    assert len(flat.cascade) == len(models)
+    assert all(a is b for a, b in zip(flat.cascade, models))
+
+
+@pytest.mark.parametrize('identity', [{'name': 'inner'}, {'metadata': {'source': 'test'}}])
+def test_flattened_keeps_named_cascade_whole(identity):
+    a, b, c, d, e, f = sections()
+    inner = Cascade([c, Cascade([d, e])], **identity)
+    flat = Cascade([a, Cascade([b, inner]), f]).flattened()
+    assert len(flat.cascade) == 4
+    assert all(m is n for m, n in zip(flat.cascade, (a, b, inner, f)))
+
+
+#: Bound on max |S_as_written - S_flat| for `nested(..., flatten=False)`,
+#: per method. The nesting reduces in another order: measured 1.1e-15 for 's'
+#: and 5.8e-15 for 'a'. Each bound is about 100 times its case.
+AS_WRITTEN_S_TOL = {'s': 1e-13, 'a': 6e-13}
+
+
+@pytest.mark.parametrize('method', ['s', 'a'])
+def test_nested_cascade_matches_flat(method):
+    models = sections()
+    s_flat = Cascade(models, method=method).s(FREQ)
+    # Flattened, the nesting is the same computation as the flat tuple.
+    assert np.array_equal(nested(models, method=method).s(FREQ), s_flat)
+    s_as_written = nested(models, method=method, flatten=False).s(FREQ)
+    assert np.abs(s_as_written - s_flat).max() < AS_WRITTEN_S_TOL[method]
+
+
+@pytest.mark.parametrize('method', ['s', 'a'])
+def test_nested_cascade_traces_one_reduction(method):
+    models = sections()
+    def scans(chain):
+        return count_scans(jax.make_jaxpr(lambda: chain.s(FREQ))().jaxpr)
+
+    assert scans(nested(models, method=method)) == 1
+    assert scans(nested(models, method=method, flatten=False)) == len(models) - 1

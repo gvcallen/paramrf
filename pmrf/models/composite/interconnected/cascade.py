@@ -29,8 +29,10 @@ class Cascade(Model):
     All models must have 2N-many ports. Ports N to 2*N-1 of the first model
     are connected to ports 0 to N-1 of the second, and so on.
 
-    Any nested `Cascade` instances are automatically flattened to maintain
-    a simple, linear chain of models.
+    By default, nested `Cascade` instances are evaluated as one flat chain at
+    any depth, so ``a ** b ** c``, which nests to the right, costs the same as
+    ``Cascade((a, b, c))``. A nested `Cascade` with a name or metadata is kept
+    as a single unit.
 
     Parameters
     ----------
@@ -38,8 +40,11 @@ class Cascade(Model):
         The sequence of models in the cascade.
     method : {'s', 'a'}, default='s'
         The underlying mathematical domain to use for the cascade reduction.
-    flatten: bool, default=True
-        (experimental) Flattens the cascade into one large cascade if they contain sub-cascades.
+    flatten : bool, default=True
+        Evaluate nested cascades as one flat chain (see :meth:`flattened`),
+        under this cascade's `method`; the `flatten` and `method` of an unwrapped
+        nested `Cascade` are not used. If False, each nested `Cascade` is
+        evaluated on its own, as written.
 
     Notes
     -----
@@ -76,7 +81,7 @@ class Cascade(Model):
     #: The models.
     cascade: tuple[Model, ...]
     
-    #: (experimental) Flatten the connections if they contain any sub-circuits
+    #: Evaluate nested cascades as one flat chain; if False, as written.
     flatten: bool = field(default=True, static=True, kw_only=True)
     
     #: The cascade reduction algorithm method.
@@ -99,11 +104,22 @@ class Cascade(Model):
         return self.cascade[0].number_of_ports
     
     def flattened(self) -> 'Cascade':
+        """
+        Returns this cascade with nested cascades unwrapped at every depth.
+
+        A nested `Cascade` with a name or metadata is kept whole, as one model
+        of the chain. The result uses this cascade's `method` throughout.
+
+        Returns
+        -------
+        Cascade
+            A flat cascade, with `flatten` False since there is nothing left to
+            unwrap.
+        """
         merged = []
         for model in self.cascade:
-            # Only extend if the user has not given it a name or metadata
             if isinstance(model, Cascade) and model.name is None and model.metadata is None:
-                merged.extend(model.cascade)
+                merged.extend(model.flattened().cascade)
             else:
                 merged.append(model)
 
@@ -131,10 +147,7 @@ class Cascade(Model):
 
     def _solve(self, freq: Frequency, z0: ArrayLike = EVAL_Z0) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         """Dispatches data prep and solving across the active vmapped mathematical method."""
-        if self.flatten:
-            flat = self
-        else:
-            flat = self.flattened()
+        flat = self.flattened() if self.flatten else self
 
         if flat.method == 's':
             s_blocks, z0_blocks = flat._evaluate_scattering(freq, z0)
