@@ -1,0 +1,12 @@
+
+
+
+Substrate
+=========
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: Substrate
+   :members:
+   :show-inheritance:
+   :inherited-members:

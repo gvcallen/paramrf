@@ -1,0 +1,12 @@
+
+
+
+LogUniform
+==========
+
+.. currentmodule:: pmrf.stats.distributions
+
+.. autoclass:: LogUniform
+   :members:
+   :show-inheritance:
+   :inherited-members:

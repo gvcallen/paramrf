@@ -1,0 +1,12 @@
+
+
+
+Permute
+=======
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Permute
+   :members:
+   :show-inheritance:
+   :inherited-members:

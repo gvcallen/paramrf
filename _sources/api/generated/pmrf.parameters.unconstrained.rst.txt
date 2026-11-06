@@ -1,0 +1,9 @@
+
+
+
+unconstrained
+=============
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: unconstrained

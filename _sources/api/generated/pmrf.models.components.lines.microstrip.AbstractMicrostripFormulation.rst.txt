@@ -1,0 +1,12 @@
+
+
+
+AbstractMicrostripFormulation
+=============================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: AbstractMicrostripFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

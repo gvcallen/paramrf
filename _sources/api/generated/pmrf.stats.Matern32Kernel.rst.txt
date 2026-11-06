@@ -1,0 +1,12 @@
+
+
+
+Matern32Kernel
+==============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Matern32Kernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

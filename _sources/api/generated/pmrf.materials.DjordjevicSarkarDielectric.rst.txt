@@ -1,0 +1,12 @@
+
+
+
+DjordjevicSarkarDielectric
+==========================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: DjordjevicSarkarDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

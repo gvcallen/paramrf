@@ -1,0 +1,60 @@
+
+
+
+bijectors
+=========
+
+.. automodule:: pmrf.stats.bijectors
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractBijector
+
+   Chain
+
+   DiagLinear
+
+   Exp
+
+   Identity
+
+   Inverse
+
+   Leafwise
+
+   Permute
+
+   R2ToComplex
+
+   ScalarAffine
+
+   Shift
+
+   Sigmoid
+
+   Softplus
+
+   Tanh
+
+   Transpose
+
+   TriangularLinear
+
+
+
+
+
+

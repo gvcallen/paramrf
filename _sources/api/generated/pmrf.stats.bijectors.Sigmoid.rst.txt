@@ -1,0 +1,12 @@
+
+
+
+Sigmoid
+=======
+
+.. currentmodule:: pmrf.stats.bijectors
+
+.. autoclass:: Sigmoid
+   :members:
+   :show-inheritance:
+   :inherited-members:

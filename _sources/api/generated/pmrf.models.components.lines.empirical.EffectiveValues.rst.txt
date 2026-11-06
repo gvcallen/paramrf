@@ -1,0 +1,12 @@
+
+
+
+EffectiveValues
+===============
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: EffectiveValues
+   :members:
+   :show-inheritance:
+   :inherited-members:

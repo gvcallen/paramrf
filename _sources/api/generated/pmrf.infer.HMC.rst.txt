@@ -1,0 +1,12 @@
+
+
+
+HMC
+===
+
+.. currentmodule:: pmrf.infer
+
+.. autoclass:: HMC
+   :members:
+   :show-inheritance:
+   :inherited-members:

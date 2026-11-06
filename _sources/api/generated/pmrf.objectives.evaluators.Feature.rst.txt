@@ -1,0 +1,12 @@
+
+
+
+Feature
+=======
+
+.. currentmodule:: pmrf.objectives.evaluators
+
+.. autoclass:: Feature
+   :members:
+   :show-inheritance:
+   :inherited-members:

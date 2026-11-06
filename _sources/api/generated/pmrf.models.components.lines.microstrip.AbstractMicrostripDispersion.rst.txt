@@ -1,0 +1,12 @@
+
+
+
+AbstractMicrostripDispersion
+============================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: AbstractMicrostripDispersion
+   :members:
+   :show-inheritance:
+   :inherited-members:

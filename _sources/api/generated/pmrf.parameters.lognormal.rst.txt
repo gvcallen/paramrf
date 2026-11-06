@@ -1,0 +1,9 @@
+
+
+
+lognormal
+=========
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: lognormal

@@ -1,0 +1,12 @@
+
+
+
+IdentityMixing
+==============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: IdentityMixing
+   :members:
+   :show-inheritance:
+   :inherited-members:

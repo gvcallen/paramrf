@@ -1,0 +1,9 @@
+
+
+
+truncated_normal
+================
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: truncated_normal

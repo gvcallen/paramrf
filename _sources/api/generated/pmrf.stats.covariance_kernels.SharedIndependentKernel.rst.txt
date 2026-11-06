@@ -1,0 +1,12 @@
+
+
+
+SharedIndependentKernel
+=======================
+
+.. currentmodule:: pmrf.stats.covariance_kernels
+
+.. autoclass:: SharedIndependentKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

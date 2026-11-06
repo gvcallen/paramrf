@@ -1,0 +1,32 @@
+
+
+
+discrepancy_models
+==================
+
+.. automodule:: pmrf.stats.discrepancy_models
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractDiscrepancyModel
+
+   GaussianProcess
+
+
+
+
+
+

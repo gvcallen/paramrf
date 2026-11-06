@@ -1,0 +1,12 @@
+
+
+
+WheelerCurrentDistribution
+==========================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: WheelerCurrentDistribution
+   :members:
+   :show-inheritance:
+   :inherited-members:

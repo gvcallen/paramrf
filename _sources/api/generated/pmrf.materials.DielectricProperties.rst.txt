@@ -1,0 +1,12 @@
+
+
+
+DielectricProperties
+====================
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: DielectricProperties
+   :members:
+   :show-inheritance:
+   :inherited-members:

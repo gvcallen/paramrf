@@ -1,0 +1,9 @@
+
+
+
+normal
+======
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: normal

@@ -1,0 +1,9 @@
+﻿
+
+
+**truncated_normal** (pmrf.truncated_normal)
+============================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: truncated_normal

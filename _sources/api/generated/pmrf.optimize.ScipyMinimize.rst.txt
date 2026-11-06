@@ -1,0 +1,12 @@
+
+
+
+ScipyMinimize
+=============
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: ScipyMinimize
+   :members:
+   :show-inheritance:
+   :inherited-members:

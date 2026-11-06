@@ -1,0 +1,12 @@
+
+
+
+NominalEffectiveLineFormulation
+===============================
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: NominalEffectiveLineFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

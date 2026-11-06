@@ -1,0 +1,9 @@
+
+
+
+_k_ratio_series
+===============
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: _k_ratio_series

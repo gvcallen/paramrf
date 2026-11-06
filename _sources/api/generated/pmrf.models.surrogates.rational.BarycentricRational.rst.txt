@@ -1,0 +1,12 @@
+
+
+
+BarycentricRational
+===================
+
+.. currentmodule:: pmrf.models.surrogates.rational
+
+.. autoclass:: BarycentricRational
+   :members:
+   :show-inheritance:
+   :inherited-members:

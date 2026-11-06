@@ -1,0 +1,12 @@
+
+
+
+SharedIndependentKernel
+=======================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: SharedIndependentKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

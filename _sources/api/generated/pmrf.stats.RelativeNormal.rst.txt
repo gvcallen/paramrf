@@ -1,0 +1,9 @@
+
+
+
+RelativeNormal
+==============
+
+.. currentmodule:: pmrf.stats
+
+.. autofunction:: RelativeNormal

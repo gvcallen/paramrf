@@ -1,0 +1,12 @@
+
+
+
+GeneralizedRLTerm
+=================
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: GeneralizedRLTerm
+   :members:
+   :show-inheritance:
+   :inherited-members:

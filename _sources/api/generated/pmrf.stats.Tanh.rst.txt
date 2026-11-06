@@ -1,0 +1,12 @@
+
+
+
+Tanh
+====
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Tanh
+   :members:
+   :show-inheritance:
+   :inherited-members:

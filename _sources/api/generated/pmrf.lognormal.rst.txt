@@ -1,0 +1,9 @@
+﻿
+
+
+**lognormal** (pmrf.lognormal)
+==============================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: lognormal

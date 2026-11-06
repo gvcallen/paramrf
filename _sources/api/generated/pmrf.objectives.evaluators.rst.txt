@@ -1,0 +1,52 @@
+
+
+
+evaluators
+==========
+
+.. automodule:: pmrf.objectives.evaluators
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   AbstractEvaluator
+
+   Feature
+
+   TargetLoss
+
+   MarginalLogLikelihood
+
+   GibbsMarginalLogLikelihood
+
+   Negated
+
+   Goal
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   whitened_residual
+
+

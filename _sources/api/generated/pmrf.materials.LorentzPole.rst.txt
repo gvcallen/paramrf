@@ -1,0 +1,12 @@
+
+
+
+LorentzPole
+===========
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: LorentzPole
+   :members:
+   :show-inheritance:
+   :inherited-members:
