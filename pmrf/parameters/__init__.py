@@ -171,7 +171,7 @@ class Param(prx.AbstractVariable, AbstractAnnotated[Any]):
                 if bound is not None and not jnp.any(jnp.isinf(jnp.asarray(bound.bounds))):
                     value = bound.midpoint()
                 else:
-                    value = distribution.mean()
+                    value = _distribution_mean(distribution)
 
             value = jnp.asarray(value)
             if distribution is not None:
@@ -457,6 +457,22 @@ def _check_in_constraint(value: ArrayLike, constraint: AbstractConstraint) -> Ar
     if not isinstance(value_array, jax.core.Tracer):
         return _check_in_constraint_jit(value_array, constraint)
     return _check_in_constraint_impl(value_array, constraint)
+
+
+def _distribution_mean(distribution: AbstractDistribution) -> Array:
+    """Returns `distribution.mean()`, compiled into one dispatch when it is concrete.
+
+    Eagerly, a mean is a chain of small ops, each dispatched on its own, and that
+    dominates warm construction of a parameter whose value defaults to its mean.
+    """
+    if any(isinstance(leaf, jax.core.Tracer) for leaf in jax.tree.leaves(distribution)):
+        return distribution.mean()
+    return _distribution_mean_jit(distribution)
+
+
+@eqx.filter_jit
+def _distribution_mean_jit(distribution: AbstractDistribution) -> Array:
+    return distribution.mean()
 
 
 @eqx.filter_jit
