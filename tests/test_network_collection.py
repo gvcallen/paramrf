@@ -45,9 +45,8 @@ def test_interpolate_self_accepts_pmrf_frequency():
         assert ntwk.frequency.unit == "MHz"
 
 
-@pytest.mark.parametrize("unit", ["MHz", "GHz"])
-def test_interpolate_pmrf_frequency_matches_skrf_frequency(unit):
-    start, stop = (50, 200) if unit == "MHz" else (0.05, 0.2)
+@pytest.mark.parametrize("start, stop, unit", [(50, 200, "MHz"), (0.05, 0.2, "GHz")])
+def test_interpolate_pmrf_frequency_matches_skrf_frequency(start, stop, unit):
     coll = make_collection()
     with deadline(10):
         from_pmrf = coll.interpolate(prf.Frequency(start, stop, 151, unit))
