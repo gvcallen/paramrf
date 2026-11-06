@@ -17,7 +17,15 @@ def _junction_inverse(M: jnp.ndarray, observed: jnp.ndarray) -> jnp.ndarray:
     unchanged whatever value it takes, so a rank-k update pins it and everything
     the external ports can observe is inverted exactly. `observed` is the block
     that carries the junction to the external ports.
+
+    A 1x1 junction has the single singular value
+    ``sqrt(|M|^2 + |observed|^2)``, so it is pinned only when `M` and `observed`
+    are both zero, and is inverted by scalar division with no LAPACK call.
     """
+    if M.shape == (1, 1):
+        pin = ((M == 0) & (observed == 0)).astype(M.dtype)
+        return 1 / (M + pin)
+
     rtol = np.sqrt(np.finfo(M.real.dtype).eps)
     stacked = jax.lax.stop_gradient(jnp.concatenate((M, observed), axis=0))
     _, sv, Vh = jnp.linalg.svd(stacked, full_matrices=False)
@@ -62,6 +70,15 @@ def cascade_two_s(
     outside autodiff, so gradients never pass through the zero singular values.
     A resonance is observable from the ports, so it is never pinned; for
     full-rank $M$ this is the plain inverse.
+
+    For 2-ports the junction is a scalar $m = 1 - b_{11} a_{22}$, and the
+    stacked block has the single singular value $\sqrt{|m|^2 + |a_{12}|^2}$, so
+    the relative test pins only when both are exactly zero. The junction is
+    then inverted in closed form,
+
+    $$x = \frac{1}{m + p}, \qquad p = \begin{cases} 1 & m = a_{12} = 0 \\ 0 & \text{otherwise,} \end{cases}$$
+
+    and likewise with $b_{21}$ for the second junction.
 
     A lossless network evaluated exactly at a true resonance frequency is still
     singular. That is physical, and the result there is not finite.
