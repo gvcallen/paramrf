@@ -8,6 +8,7 @@ import re
 
 import equinox as eqx
 import jax.numpy as jnp
+import numpy as np
 from jaxtyping import ArrayLike
 
 from pmrf.utils import field
@@ -173,7 +174,6 @@ class Frequency(eqx.Module):
         skrf.Frequency
             The equivalent scikit-rf Frequency object.
         """
-        import numpy as np
         import skrf
         return skrf.Frequency.from_f(np.array(self.f_scaled), self.unit)
     
@@ -188,6 +188,12 @@ class Frequency(eqx.Module):
             if str, then should be like '50.1-75.5ghz', or just '50'.
             If the frequency unit is omitted then :attr:`unit` is
             used.
+
+        Raises
+        ------
+        IndexError
+            If `key` is a Python or NumPy integer outside ``[-npoints, npoints)``.
+            Traced indices are not checked.
 
         Examples
         --------
@@ -226,6 +232,12 @@ class Frequency(eqx.Module):
             except(IndexError) as err:
                 raise IndexError('slicing frequency is incorrect') from err
 
+        # JAX clamps out-of-range indices, so check concrete integers here.
+        # Without this, NumPy's sequence protocol never sees an `IndexError`.
+        if isinstance(key, (int, np.integer)) and not isinstance(key, bool):
+            if not -self.npoints <= key < self.npoints:
+                raise IndexError(f"index {key} is out of range for {self.npoints} frequency points")
+
         if self.f.shape[0] > 0:
             f_scaled = jnp.array(self.f_scaled[key]).reshape(-1)
         else:
@@ -233,6 +245,26 @@ class Frequency(eqx.Module):
 
         return Frequency.from_f(f_scaled, unit=self.unit)
     
+    def __array__(self, dtype=None, copy=None) -> np.ndarray:
+        """
+        Return the frequency vector in Hz as a NumPy array.
+
+        Under :func:`jax.jit`, a traced `Frequency` raises JAX's tracer-conversion error.
+
+        Parameters
+        ----------
+        dtype : data-type, optional
+            The dtype of the returned array. Default is the dtype of :attr:`f`.
+        copy : bool, optional
+            Passed to :func:`numpy.array`.
+
+        Returns
+        -------
+        np.ndarray
+            The frequency vector in Hz.
+        """
+        return np.array(self.f, dtype=dtype, copy=copy)
+
     def __hash__(self):
         return hash((self.f, self.unit))
 
