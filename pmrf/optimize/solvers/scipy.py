@@ -68,10 +68,12 @@ class ScipyMinimize(AbstractBoundedMinimizer):
     Not every method backtracks: L-BFGS-B stops at its last finite iterate instead. A
     fit that backed off and ended no better than its start raises
     :class:`FloatingPointError` rather than returning that start as a success, as does
-    a nonfinite final value. A nonfinite value at the start point, or a nonfinite
-    attempted parameter vector, raises with the method and evaluation number. With
-    `nonfinite='raise'`, every nonfinite evaluation raises, which helps find where an
-    objective breaks. Finite nonconvergence keeps SciPy's usual result.
+    a nonfinite final value. L-BFGS-B also raises when it ends no better than its best
+    loss before its last backed-off trial, since it never recovers from one. A
+    nonfinite value at the start point, or a nonfinite attempted parameter vector,
+    raises with the method and evaluation number. With `nonfinite='raise'`, every
+    nonfinite evaluation raises, which helps find where an objective breaks. Finite
+    nonconvergence keeps SciPy's usual result.
     """
     method: str | None = eqx.field(static=True, default=None)
     tol: float | None = eqx.field(static=True, default=None)
@@ -131,6 +133,11 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             flat_upper = np.asarray(flat_upper, dtype=np.float64)
             scipy_bounds = list(zip(flat_lower, flat_upper))
 
+        # With bounds and no constraints, SciPy's default method is L-BFGS-B.
+        is_lbfgsb = (method.lower() == 'l-bfgs-b') if isinstance(method, str) else (
+            method is None and scipy_bounds is not None and not kwargs.get('constraints')
+        )
+
         use_affine = (
             scipy_bounds is not None
             and isinstance(method, str)
@@ -166,6 +173,8 @@ class ScipyMinimize(AbstractBoundedMinimizer):
         current_loss = [np.inf]
         eval_count = [0]
         start_loss = [np.inf]
+        best_loss = [np.inf]
+        best_before_backoff = [np.inf]
         backoff_count = [0]
 
         labels = _coordinate_labels(y0)
@@ -196,12 +205,14 @@ class ScipyMinimize(AbstractBoundedMinimizer):
             # SciPy's first evaluation is the start point, which it cannot back off from.
             if self.nonfinite == 'backoff' and eval_count[0] > 1:
                 backoff_count[0] += 1
+                best_before_backoff[0] = best_loss[0]
                 return True
             return False
 
         def record_loss(loss_float):
             if eval_count[0] == 1:
                 start_loss[0] = loss_float
+            best_loss[0] = min(best_loss[0], loss_float)
             current_loss[0] = loss_float
 
         def objective_with_grad(x_np):
@@ -271,12 +282,19 @@ class ScipyMinimize(AbstractBoundedMinimizer):
                     f"SciPy {method or 'default'} terminated after {eval_count[0]} objective "
                     f"evaluations with a nonfinite final loss; {context}"
                 )
-            # Some methods, such as L-BFGS-B, stop rather than backtrack from `+inf`, and
-            # report success at the start point.
-            if backoff_count[0] and not final_loss < start_loss[0]:
+            # L-BFGS-B never recovers from a backed-off trial: it stops at its last finite
+            # point and reports success. Other methods, such as a simplex, may probe a
+            # nonfinite region near convergence, so only a fit that ended no better than
+            # its start has given up.
+            if is_lbfgsb:
+                reference = best_before_backoff[0]
+                reference_name = 'its best loss before its last backed-off trial'
+            else:
+                reference, reference_name = start_loss[0], 'its start'
+            if backoff_count[0] and not final_loss < reference:
                 raise FloatingPointError(
                     f"SciPy {method or 'default'} backed off from {backoff_count[0]} nonfinite "
-                    f"objective evaluations and ended no better than its start; {context}"
+                    f"objective evaluations and ended no better than {reference_name}; {context}"
                 )
 
         result_x = np.asarray(res.x, dtype=np.float64)
