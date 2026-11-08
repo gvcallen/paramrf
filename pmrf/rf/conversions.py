@@ -781,6 +781,57 @@ def s2mna(s: ArrayLike, z0: ArrayLike, s_def: str = 'power') -> MNAStamp:
     else:
         raise ValueError(f"S-parameters must be 2D or 3D. Got {s_arr.ndim}D.")
 
+def linear_solve_or_nan(
+    matrix: jnp.ndarray,
+    rhs: jnp.ndarray,
+    linear_solver: lx.AbstractLinearSolver,
+) -> jnp.ndarray:
+    r"""
+    Solve $A X = B$ column by column, giving NaN in place of a failed solve.
+
+    A solve fails when lineax reports it unsuccessful, or when $X$ is not
+    finite. A failure never raises, under `jax.jit` or `jax.grad`, and its
+    value and gradient are NaN. lineax's tangent and transpose solves raise
+    whatever `throw` is, so the failure is detected by a first solve with
+    gradients stopped, and the gradient flows through a second solve in which
+    a failed system is replaced by the identity.
+
+    Parameters
+    ----------
+    matrix : jnp.ndarray
+        The square system matrix $A$, of shape `(n, n)`.
+    rhs : jnp.ndarray
+        The right-hand sides $B$, of shape `(n, m)`.
+    linear_solver : lx.AbstractLinearSolver
+        The lineax solver.
+
+    Returns
+    -------
+    jnp.ndarray
+        $X$, of shape `(n, m)`, or all NaN if the solve failed.
+    """
+    def solve(A, B):
+        operator = lx.MatrixLinearOperator(A)
+        def solve_column(b):
+            solution = lx.linear_solve(operator, b, linear_solver, throw=False)
+            return solution.value, solution.result
+        return jax.vmap(solve_column, in_axes=1, out_axes=(1, 0))(B)
+
+    probe, results = solve(jax.lax.stop_gradient(matrix), jax.lax.stop_gradient(rhs))
+    failed = jnp.any(results != lx.RESULTS.successful) | ~jnp.all(jnp.isfinite(probe))
+
+    identity = jnp.eye(matrix.shape[0], dtype=matrix.dtype)
+    X = solve(jnp.where(failed, identity, matrix), jnp.where(failed, 0, rhs))[0]
+
+    # Zero-valued, but carries the gradient of every finite entry, so a failed solve's
+    # gradient is NaN without a NaN cotangent ever reaching lineax. The NaN factor is
+    # zero for a successful solve, so its gradient stays finite.
+    def tangent_carrier(a):
+        return jnp.sum(jnp.where(jnp.isfinite(a), a - jax.lax.stop_gradient(a), 0))
+    nan_if_failed = jnp.where(failed, jnp.nan, 0.0)
+    failure_value = nan_if_failed * (1 + tangent_carrier(matrix) + tangent_carrier(rhs))
+    return jnp.where(failed, failure_value.astype(X.dtype), X)
+
 def mna2s(
     stamp: MNAStamp,
     z0: ArrayLike,
@@ -845,11 +896,7 @@ def mna2s(
         ]).astype(complex)
         drive = jnp.concatenate([jnp.diag(g0), jnp.zeros((naux, nports), dtype=complex)])
 
-        operator = lx.MatrixLinearOperator(M)
-        X = jax.vmap(
-            lambda b: lx.linear_solve(operator, b, linear_solver).value,
-            in_axes=1, out_axes=1,
-        )(drive)
+        X = linear_solve_or_nan(M, drive, linear_solver)
         H = X[:nports]
 
         # F H F^-1 scales H[i, j] by sqrt(Re z0_j / Re z0_i).

@@ -27,6 +27,7 @@
  "test_model.py": 1.3,
  "test_models/test_adapters.py": 38.5,
  "test_models/test_cascade.py": 103.5,
+ "test_models/test_circuit_failed_solve.py": 24.0,
  "test_models/test_circuit_native_z0.py": 113.0,
  "test_models/test_circuit_nodal.py": 7.7,
  "test_models/test_circuit_port_order.py": 79.4,
