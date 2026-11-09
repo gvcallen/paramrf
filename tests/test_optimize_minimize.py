@@ -135,7 +135,7 @@ def test_scipy_minimizer_raises_on_first_nonfinite_loss_with_eval_context(monkey
         fun(np.array([1.0]))
 
     monkeypatch.setattr(scipy_solver, "scipy_minimize", fake_minimize)
-    solver = ScipyMinimize(method="BFGS", show_progress=False)
+    solver = ScipyMinimize(method="BFGS", show_progress=False, nonfinite="raise")
     with pytest.raises(
         FloatingPointError,
         match=r"SciPy BFGS objective evaluation 2.*nonfinite loss.*'x'",
@@ -167,7 +167,7 @@ def test_scipy_minimizer_names_nonfinite_gradient_parameter(monkeypatch):
         fun(np.array([0.0]))
 
     monkeypatch.setattr(scipy_solver, "scipy_minimize", fake_minimize)
-    solver = ScipyMinimize(method="BFGS", show_progress=False)
+    solver = ScipyMinimize(method="BFGS", show_progress=False, nonfinite="raise")
     with pytest.raises(
         FloatingPointError,
         match=r"SciPy BFGS objective evaluation 2.*nonfinite gradient.*'x'",
@@ -196,10 +196,109 @@ def test_scipy_gradient_free_path_checks_nonfinite_loss(monkeypatch):
 
     monkeypatch.setattr(scipy_solver, "scipy_minimize", fake_minimize)
     with pytest.raises(FloatingPointError, match=r"evaluation 2.*nonfinite loss"):
-        ScipyMinimize(method="Nelder-Mead", show_progress=False).run(
+        ScipyMinimize(method="Nelder-Mead", show_progress=False, nonfinite="raise").run(
             lambda values, _: jnp.where(values["x"][0] > 0.5, jnp.nan, values["x"][0] ** 2),
             {"x": jnp.array([0.0])},
         )
+
+
+class _Scalar(prf.Module):
+    x: prf.Param
+
+
+def _sqrt_barrier(m):
+    """Minimum at x = 2.9; NaN beyond x = 3, where a unit step from 2.5 lands."""
+    return 1e6 * (m.x - 2.9) ** 2 + jnp.sqrt(3.0 - m.x)
+
+
+@pytest.mark.parametrize("method", ["BFGS", "Nelder-Mead"])
+def test_scipy_minimizer_backs_off_from_nonfinite_trial_points(method):
+    start = _Scalar(x=prf.unconstrained(2.5))
+    result = minimize(_sqrt_barrier, start, solver=ScipyMinimize(method=method, show_progress=False))
+    assert abs(float(result.model.x.value) - 2.9) < 1e-4
+
+
+def test_scipy_minimizer_backoff_hands_scipy_inf_and_zero_gradient(monkeypatch):
+    returned = []
+
+    def fake_minimize(fun, x, **kwargs):
+        returned.extend([fun(x), fun(np.array([1.0]))])
+        result = type("Result", (), {})()
+        result.x, result.fun, result.success = np.asarray(x), returned[0][0] - 1.0, True
+        return result
+
+    monkeypatch.setattr(scipy_solver, "scipy_minimize", fake_minimize)
+    ScipyMinimize(method="BFGS", show_progress=False).run(
+        lambda values, _: jnp.where(values["x"][0] > 0.5, jnp.nan, values["x"][0] ** 2),
+        {"x": jnp.array([0.0])},
+    )
+    loss, grad = returned[1]
+    assert loss == np.inf
+    np.testing.assert_array_equal(grad, [0.0])
+
+
+def test_scipy_minimizer_guards_lbfgsb_stopping_at_its_start():
+    # SciPy's L-BFGS-B does not backtrack from `+inf`: it returns to the start and
+    # reports success.
+    start = _Scalar(x=prf.unconstrained(2.5))
+    with pytest.raises(
+        FloatingPointError,
+        match=r"SciPy L-BFGS-B backed off from 1 nonfinite objective evaluations.*no better than its best loss before its last backed-off trial.*'model\.x'",
+    ):
+        minimize(_sqrt_barrier, start, solver=ScipyMinimize(method="L-BFGS-B", show_progress=False))
+
+
+def test_scipy_minimizer_guards_lbfgsb_stopping_after_progress():
+    # L-BFGS-B descends from -1 to near x = 2.94, steps past the NaN wall at x = 3, and
+    # stops at its last finite point with `success=True` while far from stationary.
+    start = _Scalar(x=prf.unconstrained(-1.0))
+    objective = lambda m: 0.5 * (m.x - 2.9) ** 2 + 0.1 * jnp.sqrt(3.0 - m.x)
+    with pytest.raises(
+        FloatingPointError,
+        match=r"SciPy L-BFGS-B backed off from 1 nonfinite objective evaluations.*no better than its best loss before its last backed-off trial",
+    ):
+        minimize(objective, start, solver=ScipyMinimize(method="L-BFGS-B", show_progress=False))
+
+
+def test_scipy_minimizer_raises_on_nonfinite_start_point():
+    start = _Scalar(x=prf.unconstrained(3.5))
+    with pytest.raises(FloatingPointError, match=r"SciPy L-BFGS-B objective evaluation 1.*nonfinite loss.*'model\.x'"):
+        minimize(_sqrt_barrier, start, solver=ScipyMinimize(method="L-BFGS-B", show_progress=False))
+
+
+@pytest.mark.parametrize("method", ["BFGS", "L-BFGS-B"])
+def test_scipy_minimizer_nonfinite_raise_restores_fail_fast(method):
+    start = _Scalar(x=prf.unconstrained(2.5))
+    solver = ScipyMinimize(method=method, show_progress=False, nonfinite="raise")
+    with pytest.raises(FloatingPointError, match=rf"SciPy {method} objective evaluation 2.*nonfinite loss.*'model\.x'"):
+        minimize(_sqrt_barrier, start, solver=solver)
+
+
+@pytest.mark.parametrize("method", ["L-BFGS-B", "Nelder-Mead"])
+def test_scipy_minimizer_raises_when_only_the_start_is_finite(method):
+    start = _Scalar(x=prf.unconstrained(2.5))
+    objective = lambda m: jnp.where(m.x == 2.5, (m.x - 2.0) ** 2, jnp.nan)
+    with pytest.raises(FloatingPointError, match=rf"SciPy {method} backed off.*no better than its"):
+        minimize(objective, start, solver=ScipyMinimize(method=method, show_progress=False))
+
+
+def test_scipy_minimizer_raises_on_nonfinite_final_loss(monkeypatch):
+    def fake_minimize(fun, x, **kwargs):
+        fun(x)
+        result = type("Result", (), {})()
+        result.x, result.fun, result.success = np.asarray(x), np.inf, True
+        return result
+
+    monkeypatch.setattr(scipy_solver, "scipy_minimize", fake_minimize)
+    with pytest.raises(FloatingPointError, match=r"SciPy BFGS terminated after 1 objective evaluations with a nonfinite final loss"):
+        ScipyMinimize(method="BFGS", show_progress=False).run(
+            lambda values, _: jnp.sum(values["x"] ** 2), {"x": jnp.array([1.0])}
+        )
+
+
+def test_scipy_minimizer_rejects_unknown_nonfinite_policy():
+    with pytest.raises(ValueError, match="nonfinite"):
+        ScipyMinimize(nonfinite="ignore")
 
 
 def test_scipy_closes_progress_bar_after_numerical_failure(monkeypatch):
