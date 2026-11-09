@@ -13,7 +13,7 @@ from pmrf.models.composite.interconnected.circuit.base import (
     ScatteringResult,
 )
 
-from pmrf.rf.conversions import s2s
+from pmrf.rf.conversions import s2s, linear_solve_or_nan
 
 
 class GlobalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
@@ -120,13 +120,7 @@ class HierarchicalScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             
             M = jnp.eye(len(idx_list), dtype=S.dtype) - X_local @ S_II
             M_reg = M + self.eps * jnp.eye(len(idx_list), dtype=S.dtype)
-            operator_M = lx.MatrixLinearOperator(M_reg)
-            
-            rhs = X_local @ S_I_All
-            W = jax.vmap(
-                lambda b: lx.linear_solve(operator_M, b, self.linear_solver).value,
-                in_axes=1, out_axes=1
-            )(rhs)
+            W = linear_solve_or_nan(M_reg, X_local @ S_I_All, self.linear_solver)
             
             # Sub-network growth
             S = S + S_All_I @ W
@@ -199,13 +193,7 @@ class SequentialScatteringCircuitSolver(AbstractScatteringCircuitSolver):
             
             M = jnp.eye(len(net_ports), dtype=S.dtype) - X_local @ S_II
             M_reg = M + self.eps * jnp.eye(len(net_ports), dtype=S.dtype)
-            operator_M = lx.MatrixLinearOperator(M_reg)
-            
-            rhs = X_local @ S_I_All
-            W = jax.vmap(
-                lambda b: lx.linear_solve(operator_M, b, self.linear_solver).value,
-                in_axes=1, out_axes=1
-            )(rhs)
+            W = linear_solve_or_nan(M_reg, X_local @ S_I_All, self.linear_solver)
             
             S = S + S_All_I @ W
             
@@ -320,14 +308,9 @@ def reduce_to_external(
     
     # Apply Tikhonov regularization for resonant singularities
     A_reg = A + eps * I_ii
-    operator_A = lx.MatrixLinearOperator(A_reg)
     
     # Solve for Y = (I - X_ii @ C_i)^-1 @ X_ie
-    # This replaces explicit matrix inversion with a batched linear solve
-    Y = jax.vmap(
-        lambda b: lx.linear_solve(operator_A, b, linear_solver).value,
-        in_axes=1, out_axes=1
-    )(X_ie)
+    Y = linear_solve_or_nan(A_reg, X_ie, linear_solver)
     
     # Compute reduced external S-parameters (Eq. 10)
     return X_ee + X_ei @ C_i @ Y

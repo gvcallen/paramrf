@@ -5,6 +5,7 @@ transitivity, and JAX batching functionality.
 
 import pytest
 import numpy as np
+import jax
 import jax.numpy as jnp
 
 from pmrf.rf.conversions import (
@@ -237,3 +238,29 @@ def test_mna2s_short_between_ports():
     b = jnp.array([[1.0], [-1.0]], dtype=complex)
     stamp = MNAStamp(Y=jnp.zeros((2, 2), dtype=complex), B=b, C=b.T, D=jnp.zeros((1, 1), dtype=complex))
     np.testing.assert_allclose(mna2s(stamp, 50.0), [[0, 1], [1, 0]], rtol=0, atol=1e-15)
+
+def _sqrt_series_stamp(x):
+    """A two-port series admittance sqrt(3 - x), non-finite for x > 3."""
+    g = jnp.sqrt(3.0 - x)
+    return y2mna(jnp.array([[g, -g], [-g, g]], dtype=complex))
+
+def test_mna2s_nonfinite_stamp_gives_nan():
+    """A failed solve gives NaN S and a NaN gradient instead of raising (#353)."""
+    assert np.all(np.isnan(mna2s(_sqrt_series_stamp(3.5), 50.0)))
+    assert np.all(np.isnan(jax.jit(lambda x: mna2s(_sqrt_series_stamp(x), 50.0))(3.5)))
+
+    def loss(x):
+        return jnp.sum(jnp.abs(mna2s(_sqrt_series_stamp(x), 50.0)) ** 2)
+    assert np.isnan(jax.grad(loss)(3.5))
+    assert np.isfinite(jax.grad(loss)(2.5))
+
+def test_mna2s_singular_stamp_gives_nan():
+    """A finite stamp whose loaded system is singular gives NaN, value and gradient."""
+    def stamp(x):
+        # An auxiliary row with no coupling: D = 0, and C and B are zero.
+        return MNAStamp(
+            Y=jnp.eye(2, dtype=complex) * x, B=jnp.zeros((2, 1), dtype=complex),
+            C=jnp.zeros((1, 2), dtype=complex), D=jnp.zeros((1, 1), dtype=complex),
+        )
+    assert np.all(np.isnan(mna2s(stamp(1.0), 50.0)))
+    assert np.isnan(jax.grad(lambda x: jnp.sum(jnp.abs(mna2s(stamp(x), 50.0)) ** 2))(1.0))

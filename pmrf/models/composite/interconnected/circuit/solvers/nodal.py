@@ -15,6 +15,7 @@ from pmrf.models.composite.interconnected.circuit.base import (
     ScatteringResult,
 )
 from pmrf.rf import MNAStamp, mna2s
+from pmrf.rf.conversions import linear_solve_or_nan
 
 class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
     """
@@ -61,13 +62,7 @@ class GlobalNodalCircuitSolver(AbstractAdmittanceCircuitSolver):
             Y_ie = Y_global[jnp.ix_(topology.int_idx, topology.ext_idx)]
             Y_ii = Y_global[jnp.ix_(topology.int_idx, topology.int_idx)]
 
-            operator_ii = lx.MatrixLinearOperator(Y_ii)
-            
-            # vmap over columns (axis=1) of Y_ie
-            X = jax.vmap(
-                lambda b: lx.linear_solve(operator_ii, b, self.linear_solver).value,
-                in_axes=1, out_axes=1
-            )(Y_ie)
+            X = linear_solve_or_nan(Y_ii, Y_ie, self.linear_solver)
             
             y_reduced = Y_ee - Y_ei @ X
         else:
