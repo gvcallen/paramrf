@@ -5,7 +5,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from scipy.constants import c
 
-from pmrf.parameters.constraints import GreaterThan, NonNegative, Positive
+from pmrf.parameters.constraints import NonNegative, Positive
 from pmrf.frequency import Frequency
 from pmrf.materials import DjordjevicSarkarDielectric
 from pmrf.models.components.lines.base import AbstractImmittanceLine, AbstractUniformLine, ImmittanceResult
@@ -544,7 +544,8 @@ class LowLossLine(AbstractUniformLine):
     zn : Param, default=50.0
         Characteristic impedance in ohm.
     ep_eff : Param, default=1.0
-        Effective relative permittivity.
+        Effective relative permittivity. A fitted effective value, not a material
+        permittivity, so it may be below 1.
     A : Param, default=0.0
         Conductor attenuation in dB/m at `f_ref`.
     tand : Param, default=0.0
@@ -559,7 +560,7 @@ class LowLossLine(AbstractUniformLine):
     zn: Param = param(default=50.0, constraint=Positive())
 
     #: Effective relative permittivity
-    ep_eff: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    ep_eff: Param = param(default=1.0, constraint=Positive())
 
     #: Conductor attenuation in dB/m at `f_ref`
     A: Param = param(default=0.0, constraint=NonNegative())
@@ -654,7 +655,9 @@ class EquivalentLine(AbstractEffectiveLine):
     zn : Param, default=50.0
         Nominal characteristic impedance in ohm, defining the L/C ratio.
     ep_eff : Param, default=1.0
-        Effective relative permittivity at `f_ref`.
+        Effective relative permittivity at `f_ref`. A fitted effective value that
+        trades off against the line's length, not a material permittivity, so it
+        may be below 1.
     A : Param, default=0.0
         Conductor attenuation in dB/m at `f_ref`.
     tand : Param, default=0.0
@@ -669,7 +672,7 @@ class EquivalentLine(AbstractEffectiveLine):
     zn: Param = param(default=50.0, constraint=Positive())
 
     #: Effective relative permittivity at `f_ref`
-    ep_eff: Param = param(default=1.0, constraint=GreaterThan(1.0))
+    ep_eff: Param = param(default=1.0, constraint=Positive())
 
     #: Conductor attenuation in dB/m at `f_ref`
     A: Param = param(default=0.0, constraint=NonNegative())

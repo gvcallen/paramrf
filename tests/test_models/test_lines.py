@@ -1532,8 +1532,10 @@ def test_negative_line_loss_is_rejected(make, where):
     lambda: RLGCLine(C=0.0, length=0.1),
     lambda: RLGCLine(length=0.0),
     lambda: LowLossLine(zn=0.0, length=0.1),
+    lambda: LowLossLine(ep_eff=0.0, length=0.1),
     lambda: LowLossLine(f_ref=0.0, length=0.1),
     lambda: EquivalentLine(zn=0.0, length=0.1),
+    lambda: EquivalentLine(ep_eff=0.0, length=0.1),
     lambda: EquivalentLine(f_ref=0.0, length=0.1),
     lambda: DatasheetLine(zn=0.0, length=0.1),
     lambda: DatasheetLine(vf=0.0, length=0.1),
@@ -1543,8 +1545,8 @@ def test_negative_line_loss_is_rejected(make, where):
     lambda: GeneralizedEffectiveLineFormulation(f_s=0.0),
 ], ids=[
     "RLGCLine.L", "RLGCLine.C", "RLGCLine.length",
-    "LowLossLine.zn", "LowLossLine.f_ref",
-    "EquivalentLine.zn", "EquivalentLine.f_ref",
+    "LowLossLine.zn", "LowLossLine.ep_eff", "LowLossLine.f_ref",
+    "EquivalentLine.zn", "EquivalentLine.ep_eff", "EquivalentLine.f_ref",
     "DatasheetLine.zn", "DatasheetLine.vf", "DatasheetLine.f_ref",
     "GeneralizedEffectiveLineFormulation.f_low", "GeneralizedEffectiveLineFormulation.f_high",
     "GeneralizedEffectiveLineFormulation.f_s",
@@ -1587,3 +1589,44 @@ def test_hammerstad_jensen_at_air_has_finite_gradient():
     np.testing.assert_allclose(value, skrf_(1 + 1e-12), rtol=1e-11)
     for g, ref in zip(grad, fd):
         np.testing.assert_allclose(g, ref, rtol=0, atol=1e-5 * np.max(np.abs(ref)))
+
+
+_FORMULATIONS = {"nominal": {}, "generalized": {"formulation": GeneralizedEffectiveLineFormulation()}}
+
+
+_BELOW_ONE = {
+    "LowLossLine": (LowLossLine, {}),
+    "EquivalentLine-nominal": (EquivalentLine, _FORMULATIONS["nominal"]),
+    "EquivalentLine-generalized": (EquivalentLine, _FORMULATIONS["generalized"]),
+}
+
+
+@pytest.mark.parametrize("cls, kw", _BELOW_ONE.values(), ids=_BELOW_ONE.keys())
+def test_effective_line_accepts_ep_eff_below_one(cls, kw, basic_freq):
+    # ep_eff is a fitted effective value, not a material permittivity.
+    line = cls(zn=55.0, ep_eff=0.95, A=0.1, tand=1e-4, length=0.5, f_ref=1e8, **kw)
+    assert jnp.all(jnp.isfinite(line.s(basic_freq)))
+
+
+@pytest.mark.parametrize("kw", _FORMULATIONS.values(), ids=_FORMULATIONS.keys())
+def test_equivalent_line_below_one_matches_datasheet_line(kw, basic_freq):
+    ep_eff, A, f_ref = 0.95, 0.1, 1e8
+    equivalent = EquivalentLine(zn=55.0, ep_eff=ep_eff, A=A, tand=0.0, length=0.5, f_ref=f_ref, **kw)
+    datasheet = DatasheetLine(
+        zn=55.0, vf=1 / np.sqrt(ep_eff), k1=A * 100 / np.sqrt(f_ref / 1e6), k2=0.0,
+        length=0.5, f_ref=f_ref, **kw,
+    )
+    np.testing.assert_allclose(equivalent.s(basic_freq), datasheet.s(basic_freq), rtol=1e-12, atol=1e-14)
+
+
+@pytest.mark.parametrize("kw", _FORMULATIONS.values(), ids=_FORMULATIONS.keys())
+def test_equivalent_line_at_unit_ep_eff_has_finite_raw_value_and_gradient(kw, basic_freq):
+    import pmrf as prf
+
+    line = EquivalentLine(zn=55.0, ep_eff=1.0, A=0.1, tand=1e-4, length=0.5, f_ref=1e8, **kw)
+    assert np.isfinite(float(prf.values(line, space="raw")["ep_eff"]))
+
+    def s21(x):
+        return jnp.sum(jnp.abs(prf.update(line, {"ep_eff": x}).s(basic_freq)[:, 1, 0]))
+
+    assert jnp.isfinite(jax.grad(s21)(1.0))
