@@ -3,10 +3,11 @@ The linearisation of a fit at its MAP, and the linearised posterior covariance.
 
 A linearisation is a Gauss–Newton approximation of a fit: the observation Jacobian
 $J_h = \partial h / \partial \theta = -\partial r / \partial \theta$ in event space
-with respect to the model parameters $\theta$, with the discrepancy's hyperparameters
-held fixed, and the model-parameter Fisher matrix
+with respect to the model parameters $\theta$, and the model-parameter Fisher matrix
 $F_h = \sum_b J_{h,b}^\top \Sigma_{d,b}^{-1} J_{h,b}$, where the data covariance is
-$\Sigma_d = K + \Sigma_n$ per event block. Build one with
+$\Sigma_d = K + \Sigma_n$ per event block. It also carries the Fisher matrix $F_\psi$
+of the hyperparameters $\psi$, the evaluator's free parameters, on which
+$\Sigma_d$ depends. Build one with
 :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, and combine one or more with
 the prior in :func:`posterior_covariance`.
 """
@@ -41,7 +42,8 @@ class Linearization(eqx.Module):
     Built by :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`. Columns of
     :attr:`J_h`, and rows and columns of :attr:`F_h`, follow the model parameters in
     :attr:`theta_names` order, each flattened in C order to its size in
-    :attr:`theta_shapes`.
+    :attr:`theta_shapes`. Rows and columns of :attr:`F_psi` follow the hyperparameters
+    in :attr:`psi_names` order in the same way.
     """
 
     #: The observation Jacobian $J_h = \partial h / \partial \theta
@@ -59,19 +61,38 @@ class Linearization(eqx.Module):
     #: $F_h = \sum_b J_{h,b}^\top \Sigma_{d,b}^{-1} J_{h,b}$, with shape ``(p, p)``.
     F_h: Array
 
+    #: The hyperparameter Fisher matrix
+    #: $[F_\psi]_{ij} = \tfrac{1}{2} \sum_b \operatorname{tr}\big(\Sigma_{d,b}^{-1}
+    #: J_{\Sigma,i}\, \Sigma_{d,b}^{-1} J_{\Sigma,j}\big)$, with
+    #: $J_{\Sigma,i} = \partial \Sigma_{d,b} / \partial \psi_i$ and shape
+    #: ``(q, q)``. With no free hyperparameters it has shape ``(0, 0)``.
+    F_psi: Array
+
     #: The names of the model parameters, in column order.
     theta_names: tuple[str, ...] = field(static=True)
 
     #: The shape of each model parameter's value, in :attr:`theta_names` order.
     theta_shapes: tuple[tuple[int, ...], ...] = field(static=True)
 
-    #: The space the parameter values, and so :attr:`J_h` and :attr:`F_h`, are in.
+    #: The names of the hyperparameters, in :attr:`F_psi` order.
+    psi_names: tuple[str, ...] = field(static=True)
+
+    #: The shape of each hyperparameter's value, in :attr:`psi_names` order.
+    psi_shapes: tuple[tuple[int, ...], ...] = field(static=True)
+
+    #: The space the parameter values, and so :attr:`J_h`, :attr:`F_h` and
+    #: :attr:`F_psi`, are in.
     space: Space = field(static=True)
 
     def unflatten_theta(self, vector: Array) -> dict[str, Array]:
         """Map a flat vector over the model parameters, such as a row of :attr:`F_h`,
         back to names."""
         return _unflatten(self.theta_names, self.theta_shapes, vector)
+
+    def unflatten_psi(self, vector: Array) -> dict[str, Array]:
+        """Map a flat vector over the hyperparameters, such as a row of :attr:`F_psi`,
+        back to names."""
+        return _unflatten(self.psi_names, self.psi_shapes, vector)
 
 
 def _unflatten(names, shapes, vector) -> dict[str, Array]:
@@ -83,16 +104,19 @@ def _unflatten(names, shapes, vector) -> dict[str, Array]:
     }
 
 
-def _flat(model: PyTree, space: Space):
+def _flat(model: PyTree, space: Space, allow_empty: bool = False):
     """The free parameter values of `model` in `space` as one vector, and its map back.
 
     Returns the names, the shapes, the flat vector, and a function from a flat vector to
-    a copy of `model` holding those values.
+    a copy of `model` holding those values. Without free parameters it raises, unless
+    `allow_empty`, when the vector is empty.
     """
     _check_space(space)
     named = _values(model, free_only=True, space=space)
     if not named:
-        raise ValueError("The model has no free parameters to linearise over.")
+        if not allow_empty:
+            raise ValueError("The model has no free parameters to linearise over.")
+        return (), (), jnp.zeros(0), lambda x: model
     names = tuple(named)
     shapes = tuple(tuple(jnp.shape(value)) for value in named.values())
     vector = jnp.concatenate([jnp.ravel(value) for value in named.values()])
@@ -106,14 +130,15 @@ def _flat(model: PyTree, space: Space):
 def _linearize(
     residual_fn: Callable[[PyTree], Array],
     model: PyTree,
-    chol: Array,
+    covariance_fn: Callable[[PyTree], Array],
+    hyperparameters: PyTree,
     space: Space,
 ) -> Linearization:
-    """Linearise a residual function of a model, given the factor of its covariance.
+    """Linearise a residual function of a model, and its covariance's hyperparameters.
 
     The evaluator-facing entry point is
     :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, which supplies
-    `residual_fn` and `chol`.
+    `residual_fn`, `covariance_fn` and itself as `hyperparameters`.
 
     Parameters
     ----------
@@ -121,9 +146,12 @@ def _linearize(
         Maps a model to its event-space residual, with shape ``(*batch, N)``.
     model : PyTree
         The model to linearise at. Must still be wrapped.
-    chol : jax.Array
-        The lower Cholesky factor of $\\Sigma_d$, with shape ``(*chol_batch, N, N)``
-        broadcasting to ``batch``.
+    covariance_fn : Callable
+        Maps a copy of `hyperparameters` to $\\Sigma_d$ at `model`, with shape
+        ``(*chol_batch, N, N)`` broadcasting to ``batch``. It must not depend on the
+        model parameters.
+    hyperparameters : PyTree
+        The tree whose free parameters are the hyperparameters. Must still be wrapped.
     space : {'declared', 'physical', 'raw'}
         The space of the parameter values differentiated with respect to.
 
@@ -134,10 +162,40 @@ def _linearize(
     names, shapes, x0, rebuild = _flat(model, space)
     residual = residual_fn(model)
     J_h = -jax.jacfwd(lambda x: residual_fn(rebuild(x)))(x0)
+    chol = jnp.linalg.cholesky(covariance_fn(hyperparameters))
 
     W = _whitened_jacobian(J_h, chol)
     F_h = jnp.einsum('...nps,...nqs->pq', W, W)
-    return Linearization(J_h, residual, chol, F_h, names, shapes, space)
+
+    psi_names, psi_shapes, psi0, rebuild_psi = _flat(hyperparameters, space, allow_empty=True)
+    F_psi = _hyperparameter_fisher(
+        lambda x: covariance_fn(rebuild_psi(x)), psi0, chol, residual.shape[:-1],
+    )
+    return Linearization(J_h, residual, chol, F_h, F_psi, names, shapes, psi_names, psi_shapes, space)
+
+
+def _hyperparameter_fisher(
+    covariance_fn: Callable[[Array], Array],
+    psi0: Array,
+    chol: Array,
+    batch_shape: tuple[int, ...],
+) -> Array:
+    r"""The Fisher matrix of flat hyperparameters $\psi$ through $\Sigma_d(\psi)$.
+
+    With $B_i = L^{-1} J_{\Sigma,i} L^{-\top}$, symmetric as $J_{\Sigma,i}$ is,
+    $\operatorname{tr}(\Sigma_d^{-1} J_{\Sigma,i}\, \Sigma_d^{-1} J_{\Sigma,j})
+    = \sum B_i \odot B_j$. A factor shared by several event blocks counts once per
+    block it covers.
+    """
+    q = psi0.size
+    if q == 0:
+        return jnp.zeros((0, 0), chol.dtype)
+    J_sigma = jnp.moveaxis(jax.jacfwd(covariance_fn)(psi0), -1, -3)
+    L = jnp.broadcast_to(chol[..., None, :, :], J_sigma.shape)
+    X = jsp.linalg.solve_triangular(L, J_sigma, lower=True)
+    B = jsp.linalg.solve_triangular(L, jnp.swapaxes(X, -1, -2), lower=True)
+    blocks = math.prod(batch_shape) // math.prod(chol.shape[:-2])
+    return 0.5 * blocks * jnp.einsum('...iab,...jab->ij', B, B)
 
 
 def _whitened_jacobian(J_h: Array, chol: Array) -> Array:
