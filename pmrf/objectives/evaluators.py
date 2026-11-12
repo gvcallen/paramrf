@@ -911,11 +911,11 @@ class MarginalLogLikelihood(AbstractEvaluator):
         and $J_h$ includes that dependence. Only the model is differentiated: the kernel's
         hyperparameters and the noise are held at their values in this evaluator.
 
-        The data covariance $\Sigma_d = K + \Sigma_n$ is factorized per event block, with the noise
-        variance read from the :class:`~pmrf.stats.likelihoods.GaussianLikelihood` at
-        ``model``'s prediction. It may vary along frequency for an ordinary
-        discrepancy; orthogonal discrepancy requires event-constant noise.
-        Without a discrepancy,
+        The data covariance $\Sigma_d = K + \Sigma_n$ is factorized per event block,
+        with the noise variance read from the
+        :class:`~pmrf.stats.likelihoods.GaussianLikelihood` at ``model``'s prediction. It
+        may vary along frequency for an ordinary discrepancy; orthogonal discrepancy
+        requires event-constant noise. Without a discrepancy,
         $\Sigma_d = \Sigma_n$. With orthogonal discrepancy it is
         $\Sigma_d = P K P^\top + \Sigma_n$, using the fixed tangent basis at
         ``model`` (or a recomputed basis held fixed during linearisation).

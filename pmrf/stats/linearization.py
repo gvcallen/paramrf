@@ -42,8 +42,8 @@ class Linearization(eqx.Module):
     #: The residual $r$ in event space, with shape ``(*batch, N)``.
     residual: Array
 
-    #: The lower Cholesky factor of the data covariance $\Sigma_d = K + \Sigma_n$, at its own batch shape,
-    #: which broadcasts to ``batch``.
+    #: The lower Cholesky factor of the data covariance $\Sigma_d = K + \Sigma_n$, at
+    #: its own batch shape, which broadcasts to ``batch``.
     chol: Array
 
     #: The model-parameter Fisher matrix
@@ -180,7 +180,7 @@ def posterior_covariance_factor(
     -------
     jax.Array
         A factor ``W`` with shape ``(p, p)`` such that ``W @ W.T`` is the
-        covariance over free parameters in :attr:`~Linearization.theta_names` order.
+        covariance over model parameters in :attr:`~Linearization.theta_names` order.
 
     Raises
     ------
@@ -197,7 +197,7 @@ def posterior_covariance_factor(
             )
         if linearization.theta_names != names or linearization.theta_shapes != shapes:
             raise ValueError(
-                "A linearisation is over different free parameters from the model: "
+                "A linearisation is over different model parameters from the model: "
                 f"{linearization.theta_names} rather than {names}."
             )
     prior_precision = -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
