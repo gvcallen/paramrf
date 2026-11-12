@@ -248,25 +248,41 @@ the discrepancy, not a predicted observation.
 
 ### Linearisation
 
-A Gauss–Newton approximation of a fit at its MAP, with the discrepancy's
-hyperparameters held fixed: the Jacobian $J = -\partial r / \partial \theta$ of the
-residual with respect to the model's free parameters, and the Fisher matrix
-$F = J^\top \Sigma_D^{-1} J$ with $\Sigma_D = K + \Sigma_n$ per event block. With
-the prior precision $\Sigma_0^{-1}$ it gives the linearised posterior covariance
-$\Sigma_\text{post} = (F + \Sigma_0^{-1})^{-1}$, over parameter values in one space
-(declared by default). Fisher matrices of independent fits add.
+A Gauss–Newton approximation of a fit at its MAP, over the model parameters $\theta$
+and the hyperparameters $\psi$, in one space (declared by default). With the data
+covariance $\Sigma_d = \Sigma_n + K$ per event block, it gives the observation
+Jacobian $J_h = \partial h / \partial \theta = -\partial r / \partial \theta$, the
+Fisher matrix $F_h = J_h^\top \Sigma_d^{-1} J_h$ of the model parameters, and the
+Fisher matrix
+$[F_\psi]_{ij} = \tfrac{1}{2}\operatorname{tr}(\Sigma_d^{-1} J_{\Sigma,i}\, \Sigma_d^{-1} J_{\Sigma,j})$
+of the hyperparameters, with $J_{\Sigma,i} = \partial \Sigma_d / \partial \psi_i$.
+Since $\Sigma_d$ does not depend on $\theta$, the linearised posterior is block
+diagonal: $\Sigma_\text{post} = (F_h + \Sigma_0^{-1})^{-1}$ and
+$\Sigma_{\psi,\text{post}} = (F_\psi + \Sigma_{\psi,0}^{-1})^{-1}$. Where $\Sigma_d$
+would depend on $\theta$ (noise that is a function of the prediction, a conditional
+event transform, an orthogonal discrepancy), the hyperparameters must be held fixed.
+$F_h$ of independent fits add; $F_\psi$ does not, since the hyperparameters belong
+to one evaluator.
 
-The **posterior covariance factor** $W$ is a square root of this covariance:
-$\Sigma_\text{post}=WW^\top$. It follows the same free-parameter order and space as
+The prior precisions $\Sigma_0^{-1}$ and $\Sigma_{\psi,0}^{-1}$ are **moment
+matched** by default: the inverse of each prior's variance, or a joint normal prior's
+precision block. The alternative, the curvature of the log prior, gives a uniform
+prior no precision at all.
+
+*Avoid:* "Jacobian" alone for $J_h$ (there are two); $\Sigma_D$ (write $\Sigma_d$).
+
+The **posterior covariance factor** $W$ is a square root of $\Sigma_\text{post}$:
+$\Sigma_\text{post}=WW^\top$. It follows the same model-parameter order and space as
 the linearisation. For a stack $A$ of whitened Jacobians and a square root of the
 prior precision, $A=USV^\top$ gives $W=VS^{-1}$. Joint prediction uses $W$ to
 carry parameter uncertainty without first forming the Fisher matrix.
 
 ### Joint prediction
 
-The Gaussian over the free parameters and the discrepancy at new frequencies
-together, from a linearisation: unlike a discrepancy prediction, it carries the
-parameters' uncertainty into $\delta$ and the cross-covariance between them. It is
+The Gaussian over the model parameters and the discrepancy at new frequencies
+together, from a linearisation with the hyperparameters held: unlike a discrepancy
+prediction, it carries the parameters' uncertainty into $\delta$ and the
+cross-covariance between them. It is
 the form in which one fit's posterior becomes the next fit's joint prior.
 
 ### Hyperparameter
@@ -280,7 +296,7 @@ kernel's length scale. The model parameters are the free parameters of
 A term's residual scaled so that half its squared norm is the term's negative log
 likelihood, up to terms constant in the model parameters, with the hyperparameters
 held: $L^{-1} r$ per event block for a `MarginalLogLikelihood`, with
-$\Sigma_D = K + \Sigma_n = L L^\top$. Its Jacobian is the whitened Jacobian of a
+$\Sigma_d = \Sigma_n + K = L L^\top$. Its Jacobian is the whitened Jacobian of a
 linearisation (ADR-0009).
 
 ### Prior residual
@@ -295,7 +311,7 @@ It is computed from the distribution, not read from raw space (ADR-0009).
 
 In an alternating MAP fit, the scalar minimisation of the full negative log posterior
 over the hyperparameters with the model parameters held. It takes the
-$\tfrac{1}{2}\ln|\Sigma_D|$ term, which a least-squares solve cannot (ADR-0009).
+$\tfrac{1}{2}\ln|\Sigma_d|$ term, which a least-squares solve cannot (ADR-0009).
 
 ### Port discrepancy
 
