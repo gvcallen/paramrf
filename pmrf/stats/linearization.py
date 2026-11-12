@@ -13,16 +13,25 @@ the prior in :func:`posterior_covariance`.
 from __future__ import annotations
 
 import math
-from typing import Callable, Sequence
+from typing import Callable, Literal, Sequence
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import parax as prx
 from jaxtyping import Array, PyTree
+from parax.distributions import (
+    AbstractDistribution, MultivariateNormalDiag, MultivariateNormalFullCovariance,
+    MultivariateNormalTri, Transformed,
+)
 
+from pmrf.stats.bijectors import ScalarAffine
 from pmrf.stats.discrepancy_models import _group_by_matrix
-from pmrf.parameters import Space, _check_space, log_prior, update, values as _values
+from pmrf.parameters import (
+    Space, _check_space, _joint_prior_paths, _joint_priors, is_param, log_prior,
+    tree_param_paths, update, values as _values,
+)
 from pmrf.utils import field
 
 
@@ -143,10 +152,93 @@ def _whitened_jacobian(J_h: Array, chol: Array) -> Array:
     return W.reshape(W.shape[:-1] + (p, -1))
 
 
+_MULTIVARIATE_NORMALS = (MultivariateNormalDiag, MultivariateNormalFullCovariance, MultivariateNormalTri)
+
+
+def _declared_variance(distribution: AbstractDistribution) -> Array:
+    """The variance of a one-dimensional prior, a parameter's own, in declared space."""
+    distribution = prx.as_unwrapped(distribution)
+    if isinstance(distribution, Transformed):
+        # A prior over physical space reaches declared space through a scale.
+        bijector = prx.as_unwrapped(distribution.bijector)
+        if not isinstance(bijector, ScalarAffine):
+            raise NotImplementedError(
+                f"A moment-matched prior precision needs an affine map to the prior's space, but "
+                f"a prior is mapped through a {type(bijector).__name__}, as a prior over raw space "
+                "is. Use prior_precision='hessian'."
+            )
+        return _declared_variance(distribution.distribution) * bijector.scale ** 2
+    try:
+        return distribution.variance()
+    except NotImplementedError:
+        raise NotImplementedError(
+            f"A moment-matched prior precision needs the prior's variance(), which a "
+            f"{type(distribution).__name__} does not provide. Use prior_precision='hessian'."
+        ) from None
+
+
+def _prior_precision(
+    model: PyTree,
+    space: Space,
+    names: tuple[str, ...],
+    shapes: tuple[tuple[int, ...], ...],
+    x0: Array,
+    rebuild: Callable[[Array], PyTree],
+    prior_precision: str,
+) -> Array:
+    """The prior precision over the flat free parameters of `model` in `space`."""
+    log_prior_hessian = lambda: -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
+    if prior_precision == 'hessian':
+        return log_prior_hessian()
+    if prior_precision != 'moment_matched':
+        raise ValueError(
+            f"Unknown prior_precision {prior_precision!r}; expected 'moment_matched' or 'hessian'."
+        )
+    if space == 'raw':
+        raise NotImplementedError(
+            "A moment-matched prior precision is not available in raw space, whose map to "
+            "declared space is nonlinear. Use prior_precision='hessian'."
+        )
+    for _, joint in _joint_priors(model):
+        if joint.space == 'raw':
+            raise NotImplementedError(
+                "A moment-matched prior precision is not available for a joint prior over raw "
+                "space, whose map to declared space is nonlinear. Use prior_precision='hessian'."
+            )
+        distribution = prx.as_unwrapped(joint.distribution)
+        if not isinstance(distribution, _MULTIVARIATE_NORMALS):
+            raise NotImplementedError(
+                f"A moment-matched prior precision needs a joint prior to be a multivariate "
+                f"normal, not a {type(distribution).__name__}. Use prior_precision='hessian'."
+            )
+
+    joint_paths = _joint_prior_paths(model)
+    resolved = tree_param_paths(model, free_only=True)
+    diagonal, in_joint = [], []
+    for name, shape in zip(names, shapes):
+        path, node = resolved[name]
+        in_joint.append(jnp.full(shape, path in joint_paths))
+        distribution = node.distribution if is_param(node) and path not in joint_paths else None
+        if distribution is None:
+            diagonal.append(jnp.zeros(shape, x0.dtype))
+            continue
+        precision = 1.0 / jnp.broadcast_to(_declared_variance(distribution), shape)
+        if space == 'physical':
+            precision = precision / node._scale ** 2
+        diagonal.append(precision)
+    precision = jnp.diag(jnp.concatenate([jnp.ravel(d) for d in diagonal]).astype(x0.dtype))
+    in_joint = jnp.concatenate([jnp.ravel(j) for j in in_joint])
+    if not joint_paths:
+        return precision
+    # A multivariate normal is already Gaussian: its block of the curvature is its precision.
+    return jnp.where(in_joint[:, None] & in_joint[None, :], log_prior_hessian(), precision)
+
+
 def posterior_covariance_factor(
     linearizations: Sequence[Linearization],
     model: PyTree,
     space: Space = 'declared',
+    prior_precision: Literal['moment_matched', 'hessian'] = 'moment_matched',
 ) -> Array:
     r"""A square root of the linearised posterior covariance of free parameters.
 
@@ -158,13 +250,27 @@ def posterior_covariance_factor(
     $$A = \begin{bmatrix}L_1^{-1}J_{h,1} \\ \cdots \\ L_k^{-1}J_{h,k} \\
     \Sigma_0^{-1/2}\end{bmatrix}, \qquad
     A = U S V^\top, \qquad W = V S^{-1}, \qquad
-    \Sigma_\text{post} = W W^\top,$$
+    \Sigma_\text{post} = W W^\top.$$
 
-    where $\Sigma_0^{-1} = -\nabla^2\log p(\theta)$ in `space`. Its symmetric
-    eigendecomposition supplies the square root; negative eigenvalues are clipped to
-    zero. This local approximation is only meaningful where the prior is log-concave.
-    A parameter without a prior, or with a uniform prior inside its bounds, adds zero
-    prior precision.
+    With ``prior_precision='moment_matched'``, each prior is replaced by the Gaussian
+    of the same mean and variance, so a parameter with its own prior adds
+
+    $$\Sigma_{0,ii}^{-1} = 1 / \operatorname{Var}[\theta_i]$$
+
+    from the distribution's ``variance()``, in `space`: a declared-space variance
+    times the squared scale in physical space. A joint multivariate normal prior
+    adds its precision block. This keeps a uniform or log-uniform prior from adding
+    no information, which would leave a weakly constrained parameter's posterior far
+    wider than its prior's support. It applies to the linearisation only; the MAP
+    objective keeps the true prior.
+
+    With ``prior_precision='hessian'``, $\Sigma_0^{-1} = -\nabla^2\log p(\theta)$ in
+    `space` at the linearisation point. This local approximation is only meaningful
+    where the prior is log-concave, and a uniform prior inside its bounds adds zero.
+
+    Either way, a symmetric eigendecomposition of $\Sigma_0^{-1}$ supplies its square
+    root, with negative eigenvalues clipped to zero, and a parameter without a prior
+    adds zero prior precision.
 
     Parameters
     ----------
@@ -175,6 +281,8 @@ def posterior_covariance_factor(
         wrapped.
     space : {'declared', 'physical', 'raw'}, default='declared'
         The space of the parameter values. See :class:`pmrf.Param`.
+    prior_precision : {'moment_matched', 'hessian'}, default='moment_matched'
+        How the prior's precision is taken, as above.
 
     Returns
     -------
@@ -185,7 +293,12 @@ def posterior_covariance_factor(
     Raises
     ------
     ValueError
-        If no linearisation is given, or one is over other parameters or another space.
+        If no linearisation is given, one is over other parameters or another space,
+        or `prior_precision` is unknown.
+    NotImplementedError
+        With ``prior_precision='moment_matched'``, if `space` is ``'raw'``, a prior is
+        over raw space, a prior has no ``variance()``, or a joint prior is not a
+        multivariate normal.
     """
     if not linearizations:
         raise ValueError("At least one linearisation is required.")
@@ -200,8 +313,8 @@ def posterior_covariance_factor(
                 "A linearisation is over different model parameters from the model: "
                 f"{linearization.theta_names} rather than {names}."
             )
-    prior_precision = -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
-    eigenvalues, eigenvectors = jnp.linalg.eigh(0.5 * (prior_precision + prior_precision.T))
+    precision = _prior_precision(model, space, names, shapes, x0, rebuild, prior_precision)
+    eigenvalues, eigenvectors = jnp.linalg.eigh(0.5 * (precision + precision.T))
     prior_root = jnp.sqrt(jnp.maximum(eigenvalues, 0.0))[:, None] * eigenvectors.T
     p = x0.size
     factors = [
@@ -223,14 +336,15 @@ def posterior_covariance(
     linearizations: Sequence[Linearization],
     model: PyTree,
     space: Space = 'declared',
+    prior_precision: Literal['moment_matched', 'hessian'] = 'moment_matched',
 ) -> Array:
     r"""The linearised posterior covariance of a model's free parameters.
 
-    See :func:`posterior_covariance_factor` for the factorisation and its
-    assumptions. The result has shape ``(p, p)`` in the linearisations'
-    :attr:`~Linearization.theta_names` order.
+    See :func:`posterior_covariance_factor` for the factorisation, the choice of
+    `prior_precision` and its assumptions. The result has shape ``(p, p)`` in the
+    linearisations' :attr:`~Linearization.theta_names` order.
     """
-    W = posterior_covariance_factor(linearizations, model, space)
+    W = posterior_covariance_factor(linearizations, model, space, prior_precision)
     return W @ W.T
 
 
