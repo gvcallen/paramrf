@@ -8,6 +8,7 @@ import parax as prx
 import parax.bijectors as bij
 import parax.distributions as dd
 import pytest
+import scipy.stats
 
 import pmrf as prf
 from pmrf.stats.covariance_kernels import Matern52Kernel, cross_gram, gram
@@ -226,7 +227,8 @@ def test_jacobian_through_conditional_event_transform_matches_finite_differences
     _assert_close(lin.J_h, finite_difference, 1e-7)
 
 
-def test_parameter_without_prior_adds_no_prior_precision():
+@pytest.mark.parametrize('prior_precision', ['moment_matched', 'hessian'])
+def test_parameter_without_prior_adds_no_prior_precision(prior_precision):
     def predictor(model, frequency):
         m = _inner(model)
         h = jnp.einsum('bnp,p->bn', A, m.theta) + m.beta * jnp.linspace(0, 1, N) + m.gamma
@@ -245,7 +247,8 @@ def test_parameter_without_prior_adds_no_prior_precision():
     )
     lin = mll.linearize(model, FREQ)
     assert lin.theta_names == ('theta', 'beta', 'gamma')
-    precision = np.linalg.inv(np.asarray(posterior_covariance([lin], model))) - np.asarray(lin.F_h)
+    covariance = posterior_covariance([lin], model, prior_precision=prior_precision)
+    precision = np.linalg.inv(np.asarray(covariance)) - np.asarray(lin.F_h)
     scale = np.abs(np.asarray(lin.F_h)).max()
     # Measured at 3e-16 relative to the largest Fisher entry.
     np.testing.assert_allclose(precision[P:, :], 0.0, atol=1e-10 * scale)
@@ -374,9 +377,12 @@ def test_circuit_covariance_matches_high_precision_reference(open_load):
                         for previous in range(row)
                     )) / lower[row, row]
             precision += W.T * W
-        names, shapes, x0, rebuild = prf.stats.linearization._flat(model, 'declared')
-        prior_hessian = np.asarray(-jax.hessian(lambda x: prf.log_prior(rebuild(x)))(x0))
-        precision += mpmath.matrix(prior_hessian.tolist())
+        # The moment-matched prior precision, 1 / Var, in declared space. The
+        # validities truncate the normals twenty standard deviations from their means,
+        # which leaves their variances unchanged in float64.
+        variance = [0.05**2, 0.05**2, 0.07**2, 0.05**2, 0.05**2, 2.0**2 / 12, 2.0**2 / 12, 2.0**2 / 12,
+                    999.0**2 / 12 if open_load else 0.05**2]
+        precision += mpmath.diag([1 / mpmath.mpf(v) for v in variance])
         reference = np.array(mpmath.inverse(precision).tolist(), dtype=float)
     _assert_close(actual, reference, 1e-7 if open_load else 1e-10)
 
@@ -618,3 +624,159 @@ def test_joint_prediction_rejects_unsupported_combinations(unsupported):
         mll = eqx.tree_at(lambda evaluator: evaluator.likelihood, mll, lambda event: dd.Normal(event, 1.0))
     with pytest.raises(TypeError, match='Gaussian'):
         mll.predict_joint(model, FREQ, FREQ)
+
+
+def _prior_only(model, space='declared'):
+    """A linearisation of `model` carrying no data information, so the posterior
+    covariance is the inverse prior precision."""
+    names, shapes, x0, _ = prf.stats.linearization._flat(model, space)
+    p = x0.size
+    return Linearization(jnp.zeros((1, p)), jnp.zeros(1), jnp.eye(1), jnp.zeros((p, p)),
+                         names, shapes, space)
+
+
+def _precision(model, space='declared', **kwargs):
+    covariance = posterior_covariance([_prior_only(model, space)], model, space, **kwargs)
+    return np.linalg.inv(np.asarray(covariance))
+
+
+class _FourPriors(Model):
+    a: jnp.ndarray = None
+    b: jnp.ndarray = None
+    c: jnp.ndarray = None
+    d: jnp.ndarray = None
+
+    def s(self, freq):
+        return jnp.zeros((freq.npoints, 1, 1))
+
+
+def test_moment_matched_precision_is_the_inverse_prior_variance_of_each_type():
+    model = _FourPriors(
+        a=prf.random(prf.stats.Normal(1.0, 0.25), value=1.0),
+        b=prf.random(prf.stats.Uniform(0.5, 1.5), value=0.7),
+        c=prf.random(prf.stats.LogNormal(0.0, np.log(2.0)), value=1.3),
+        d=prf.random(prf.stats.LogUniform(0.25, 2.5), value=0.5),
+    )
+    # The precisions are moment matched by default. The tolerance is that of the
+    # six-figure expected values.
+    np.testing.assert_allclose(np.diag(_precision(model)), [16.0, 12.0, 1.00275, 2.57234], rtol=1e-5)
+    np.testing.assert_allclose(_precision(model, prior_precision='moment_matched'), _precision(model), rtol=1e-14)
+
+
+@pytest.mark.parametrize('distribution', [
+    prf.stats.TruncatedNormal(1.0, 0.5, 0.2, 2.0),
+    prf.stats.Gamma(2.0, 3.0),
+], ids=['truncated_normal', 'gamma'])
+def test_moment_matched_precision_uses_the_distribution_variance(distribution):
+    model = _Linear(theta=prf.random(distribution, value=0.6))
+    np.testing.assert_allclose(_precision(model), [[1.0 / float(distribution.variance())]], rtol=1e-12)
+
+
+def test_moment_matched_precision_of_a_normal_truncated_to_its_validity():
+    from pmrf.parameters.constraints import Positive
+
+    class _Positive(_Linear):
+        theta: prf.Param = prf.param(constraint=Positive())
+
+    model = prf.prior(_Positive(theta=prf.unconstrained(0.5)), 'theta', prf.stats.Normal(0.2, 1.0))
+    truncated = prf.stats.TruncatedNormal(0.2, 1.0, 0.0, np.inf)
+    np.testing.assert_allclose(_precision(model), [[1.0 / float(truncated.variance())]], rtol=1e-10)
+
+
+@pytest.mark.parametrize('prior_space', ['declared', 'physical'])
+def test_moment_matched_physical_precision_divides_by_the_scale_squared(prior_space):
+    scale = 1e-3
+    model = _Linear(theta=prf.unconstrained(2.0, scale=scale))
+    sd = 0.5 if prior_space == 'declared' else 0.5 * scale
+    model = prf.prior(model, 'theta', prf.stats.Normal(2.0 if prior_space == 'declared' else 2.0 * scale, sd),
+                      space=prior_space)
+    declared = _precision(model, 'declared')
+    np.testing.assert_allclose(declared, [[1.0 / 0.5**2]], rtol=1e-12)
+    np.testing.assert_allclose(_precision(model, 'physical'), declared / scale**2, rtol=1e-12)
+
+
+def test_moment_matched_precision_raises_in_raw_space():
+    model = _Linear(theta=prf.random(prf.stats.Normal(1.0, 0.25), value=1.0))
+    with pytest.raises(NotImplementedError, match='raw'):
+        posterior_covariance([_prior_only(model, 'raw')], model, 'raw')
+    # The curvature of the log prior is still available there.
+    assert np.isfinite(_precision(model, 'raw', prior_precision='hessian')).all()
+
+
+def test_moment_matched_precision_raises_for_a_prior_over_raw_space():
+    model = prf.prior(_Linear(theta=prf.bounded(0.0, 2.0, value=1.0)), 'theta',
+                      prf.stats.Normal(0.0, 1.0), space='raw')
+    with pytest.raises(NotImplementedError, match='raw'):
+        _precision(model)
+
+
+def test_moment_matched_precision_raises_for_a_joint_prior_that_is_not_a_multivariate_normal():
+    joint = dd.Independent(dd.Normal(jnp.asarray(MU0), jnp.ones(P)), 1)
+    model = prf.prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))), 'theta', joint)
+    with pytest.raises(NotImplementedError, match='multivariate normal'):
+        _precision(model)
+    assert np.isfinite(_precision(model, prior_precision='hessian')).all()
+
+
+def test_moment_matched_precision_raises_for_a_joint_prior_over_raw_space():
+    model = prf.prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))), 'theta',
+                      dd.MultivariateNormalFullCovariance(jnp.asarray(MU0), jnp.asarray(SIGMA0)), space='raw')
+    with pytest.raises(NotImplementedError, match='raw'):
+        _precision(model)
+
+
+@pytest.mark.parametrize('prior_space, scale', [('declared', 1.0), ('declared', 1e-3), ('physical', 1e-3)])
+def test_joint_multivariate_normal_prior_is_the_same_under_both_settings(prior_space, scale):
+    # An independent normal alongside, whose curvature is its moment-matched precision.
+    model = _Linear(theta=prf.unconstrained(jnp.zeros(P), scale=scale),
+                    beta=prf.random(prf.stats.Normal(0.5, 0.2), value=0.4))
+    model = prf.prior(model, 'theta', dd.MultivariateNormalFullCovariance(
+        jnp.asarray(MU0) * scale ** (prior_space == 'physical'),
+        jnp.asarray(SIGMA0) * scale ** (2 * (prior_space == 'physical'))), space=prior_space)
+    lin = _mll(A, _observed(A, 0)).linearize(model, FREQ)
+    hessian = np.asarray(posterior_covariance([lin], model, prior_precision='hessian'))
+    matched = np.asarray(posterior_covariance([lin], model))
+    _assert_close(matched, hessian, 1e-12)
+    np.testing.assert_allclose(_precision(model)[:P, :P], _precision(model, prior_precision='hessian')[:P, :P],
+                               rtol=1e-10)
+
+
+def test_moment_matching_needs_the_distribution_variance():
+    model = _Linear(theta=prf.random(dd.ImproperUniform(()), value=1.0))
+    with pytest.raises(NotImplementedError, match='variance'):
+        _precision(model)
+
+
+def test_unknown_prior_precision_raises():
+    model = _Linear(theta=prf.random(prf.stats.Normal(1.0, 0.25), value=1.0))
+    with pytest.raises(ValueError, match='prior_precision'):
+        _precision(model, prior_precision='laplace')
+
+
+def test_moment_matched_posterior_of_a_line_matches_the_reference():
+    import skrf as rf
+    import pmrf.models as prm
+
+    f = prf.Frequency(50, 200, 151, "MHz")
+    line = prm.LowLossLine(length=prf.normal(100.0, 5.0, value=100.0, scale=1e-3),
+                           zn=prf.normal(50.0, 2.0, value=50.0),
+                           ep_eff=prf.normal(2.0, 0.1, value=2.0), A=prf.normal(0.1, 0.05, value=0.1),
+                           tand=prf.uniform(0.0, 5.0, value=2.5, scale=1e-4), f_ref=100e6)
+    model = line ** prm.Load(0.2)
+    data = rf.Network(frequency=f.to_skrf(), s=np.asarray(model.s(f)), z0=50)
+    solver = prf.optimize.ScipyMinimize(method="trust-constr", show_progress=False)
+    r = prf.fitting.fit(model, data, solver=solver, inference="bayesian", noise=prf.fixed(1.0, scale=1e-8),
+                        max_iter=1)
+    lin = r.solution.objective[0].evaluator.evaluator.linearize(model, f)
+    sd = lambda C: np.sqrt(np.diag(np.asarray(C)))
+
+    # Reference values from 0.39.4, for length, zn, ep_eff, A and tand.
+    np.testing.assert_allclose(sd(posterior_covariance([lin], model, prior_precision='hessian')),
+                               [2.23560, 0.0166253, 0.0893582, 0.0167841, 16.6411], rtol=5e-5)
+    # inv(F_h + diag(1 / Var)). A's validity truncates its normal at zero, two
+    # standard deviations below the mean, which shrinks its variance from 0.05**2.
+    variance = [5.0**2, 2.0**2, 0.1**2, scipy.stats.truncnorm.var(-2.0, np.inf, loc=0.1, scale=0.05), 5.0**2 / 12]
+    expected = np.linalg.inv(np.asarray(lin.F_h) + np.diag(1.0 / np.asarray(variance)))
+    # Measured at 4e-9 relative to the largest entry.
+    _assert_close(posterior_covariance([lin], model), expected, 1e-7)
+    np.testing.assert_allclose(sd(expected), [2.23362, 0.00670282, 0.0893440, 0.00489536, 1.43791], rtol=5e-5)
