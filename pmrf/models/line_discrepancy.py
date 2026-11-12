@@ -259,11 +259,11 @@ def project_line_basis_joint(model, basis_discrepancy: BasisLineDiscrepancy,
     """
     from pmrf.parameters import values
 
-    names = linearization.names
+    names = linearization.theta_names
     if discrepancy_name not in names:
         raise ValueError(f'{discrepancy_name!r} is not in the linearisation.')
     coeff_index = names.index(discrepancy_name)
-    sizes = [int(np.prod(shape)) for shape in linearization.shapes]
+    sizes = [int(np.prod(shape)) for shape in linearization.theta_shapes]
     offsets = np.cumsum([0, *sizes])
     p = offsets[-1]
     covariance = jnp.asarray(covariance)

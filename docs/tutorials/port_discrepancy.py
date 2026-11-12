@@ -232,18 +232,18 @@ def run(n_frequency=1000, n_transfer=None, mc_samples=10000):
 
     (gradient,) = prf.derivative(qoi, transfer_map)
     gradient_values = prf.values(gradient)
-    J_q = jnp.concatenate([jnp.ravel(gradient_values[name]) for name in linearization.names])
+    J_q = jnp.concatenate([jnp.ravel(gradient_values[name]) for name in linearization.theta_names])
     q_variance = J_q @ covariance @ J_q
-    J = linearization.J.reshape(-1, covariance.shape[0])
-    # Independent real/imaginary reflection noise makes Sigma_D diagonal here.
-    G = covariance @ J.T / sigma**2
-    R = G @ J
+    J_h = linearization.J_h.reshape(-1, covariance.shape[0])
+    # Independent real/imaginary reflection noise makes Sigma_d diagonal here.
+    G = covariance @ J_h.T / sigma**2
+    R = G @ J_h
     P_q = J_q @ (jnp.eye(len(J_q)) - R)
     G_q = J_q @ G
     finish('QoI and gain diagnostics', (q_variance, P_q, G_q))
-    parameter_mean = jnp.concatenate([jnp.ravel(prf.values(transfer_map)[name]) for name in linearization.names])
+    parameter_mean = jnp.concatenate([jnp.ravel(prf.values(transfer_map)[name]) for name in linearization.theta_names])
     posterior_factor = jnp.linalg.cholesky(covariance)
-    evaluate = jax.jit(jax.vmap(lambda x: qoi(prf.update(transfer_map, linearization.unflatten(x)))))
+    evaluate = jax.jit(jax.vmap(lambda x: qoi(prf.update(transfer_map, linearization.unflatten_theta(x)))))
     # Batch both sampling and evaluation: 10^4 by 6002 need not stay resident.
     q_samples = []
     for start in range(0, mc_samples, 100):
@@ -340,7 +340,7 @@ def run_constrained_transfer():
     linearization_values = prf.values(transfer, free_only=True, space='declared')
     covariance_indices = []
     theta = []
-    for name, shape in zip(linearization.names, linearization.shapes):
+    for name, shape in zip(linearization.theta_names, linearization.theta_shapes):
         size = int(np.prod(shape))
         matches = [
             prior_name for prior_name in prior_names
@@ -352,7 +352,7 @@ def run_constrained_transfer():
         covariance_indices.extend(range(start, start + size))
         theta.extend(np.ravel(np.asarray(linearization_values[name])))
     covariance = np.asarray(covariance)[np.ix_(covariance_indices, covariance_indices)]
-    jacobian = np.asarray(linearization.J).reshape((-1, len(theta)))
+    jacobian = np.asarray(linearization.J_h).reshape((-1, len(theta)))
     measurement = np.eye(jacobian.shape[0]) * 1e-6
     expected_posterior = covariance - covariance @ jacobian.T @ np.linalg.solve(
         jacobian @ covariance @ jacobian.T + measurement,
@@ -363,13 +363,13 @@ def run_constrained_transfer():
     )
 
     theta = jnp.asarray(theta)
-    sizes = [int(np.prod(shape)) for shape in linearization.shapes]
+    sizes = [int(np.prod(shape)) for shape in linearization.theta_shapes]
     offsets = np.cumsum([0, *sizes])
 
     def values_from_vector(vector):
         return {
             name: vector[offsets[i]:offsets[i + 1]].reshape(shape)
-            for i, (name, shape) in enumerate(zip(linearization.names, linearization.shapes))
+            for i, (name, shape) in enumerate(zip(linearization.theta_names, linearization.theta_shapes))
         }
 
     prior_precision = -jax.hessian(
