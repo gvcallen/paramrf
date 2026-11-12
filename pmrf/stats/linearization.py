@@ -438,10 +438,11 @@ def hyperparameter_posterior_covariance(
     $$\Sigma_{\psi,\text{post}} = (F_\psi + \Sigma_{\psi,0}^{-1})^{-1},$$
 
     with the prior precision $\Sigma_{\psi,0}^{-1}$ taken from the evaluator's
-    hyperpriors by the `prior_precision` rule of :func:`posterior_covariance_factor`,
-    negative eigenvalues clipped to zero. Unlike $F_h$, $F_\psi$ of different fits does
-    not add, since the hyperparameters belong to one evaluator, so this takes one
-    linearisation.
+    hyperpriors by the `prior_precision` rule of :func:`posterior_covariance_factor`.
+    Both terms enter through symmetric square roots with negative eigenvalues clipped
+    to zero, so with ``prior_precision='hessian'`` a log-convex hyperprior adds none.
+    Unlike $F_h$, $F_\psi$ of different fits does not add, since the hyperparameters
+    belong to one evaluator, so this takes one linearisation.
 
     Parameters
     ----------
@@ -467,8 +468,9 @@ def hyperparameter_posterior_covariance(
         If the linearisation is in another space, has no hyperparameters, or is over
         hyperparameters other than `evaluator`'s, or `prior_precision` is unknown.
     NotImplementedError
-        With ``prior_precision='moment_matched'``, as for
-        :func:`posterior_covariance_factor`.
+        With ``prior_precision='moment_matched'``, if `space` is ``'raw'``, a hyperprior
+        is over raw space, a hyperprior has no ``variance()``, or a joint hyperprior is
+        not a multivariate normal.
     """
     if linearization.space != space:
         raise ValueError(f"The linearisation is in {linearization.space!r} space, not {space!r}.")
