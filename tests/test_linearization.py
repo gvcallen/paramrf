@@ -126,10 +126,10 @@ def test_linear_gaussian_posterior_covariance_is_exact():
     model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
     mll = _mll(A, _observed(A, 0))
     lin = mll.linearize(model, FREQ)
-    assert lin.J.shape == (2, N, P)
+    assert lin.J_h.shape == (2, N, P)
     assert lin.residual.shape == (2, N)
-    assert lin.names == ('theta',) and lin.shapes == ((P,),)
-    np.testing.assert_allclose(lin.J, A, rtol=0.0, atol=1e-14)
+    assert lin.theta_names == ('theta',) and lin.theta_shapes == ((P,),)
+    np.testing.assert_allclose(lin.J_h, A, rtol=0.0, atol=1e-14)
 
     expected = _mp_posterior(A, _sigma_d(), np.linalg.inv(SIGMA0))
     # Measured at 1.4e-13 relative to the largest entry.
@@ -155,7 +155,7 @@ def _map_by_newton(mll, model):
     lin = mll.linearize(model, FREQ)
 
     def log_posterior(x):
-        candidate = prf.update(model, lin.unflatten(x))
+        candidate = prf.update(model, lin.unflatten_theta(x))
         return mll(candidate, FREQ) + prf.log_prior(candidate)
 
     x0 = jnp.concatenate([jnp.ravel(prf.values(model)[name]) for name in names])
@@ -213,7 +213,7 @@ def test_jacobian_through_conditional_event_transform_matches_finite_differences
     def prediction_event(theta):
         y = predictor(prf.update(model, {'theta': theta}), FREQ)
         return conditional(y).forward(y)
-    assert not np.allclose(lin.J, jax.jacfwd(prediction_event)(model.theta.value), atol=1e-3)
+    assert not np.allclose(lin.J_h, jax.jacfwd(prediction_event)(model.theta.value), atol=1e-3)
 
     step = 1e-6
     finite_difference = np.stack([
@@ -223,7 +223,7 @@ def test_jacobian_through_conditional_event_transform_matches_finite_differences
         for e in np.eye(P)
     ], axis=-1)
     # Measured at 1.9e-10 relative to the largest entry with this step.
-    _assert_close(lin.J, finite_difference, 1e-7)
+    _assert_close(lin.J_h, finite_difference, 1e-7)
 
 
 def test_parameter_without_prior_adds_no_prior_precision():
@@ -244,9 +244,9 @@ def test_parameter_without_prior_adds_no_prior_precision():
         likelihood=GaussianLikelihood(noise=1e-2),
     )
     lin = mll.linearize(model, FREQ)
-    assert lin.names == ('theta', 'beta', 'gamma')
-    precision = np.linalg.inv(np.asarray(posterior_covariance([lin], model))) - np.asarray(lin.F)
-    scale = np.abs(np.asarray(lin.F)).max()
+    assert lin.theta_names == ('theta', 'beta', 'gamma')
+    precision = np.linalg.inv(np.asarray(posterior_covariance([lin], model))) - np.asarray(lin.F_h)
+    scale = np.abs(np.asarray(lin.F_h)).max()
     # Measured at 3e-16 relative to the largest Fisher entry.
     np.testing.assert_allclose(precision[P:, :], 0.0, atol=1e-10 * scale)
     np.testing.assert_allclose(precision[:, P:], 0.0, atol=1e-10 * scale)
@@ -264,7 +264,7 @@ def test_without_discrepancy_sigma_d_is_the_noise(noise):
     np.testing.assert_allclose(lin.chol, np.sqrt(noise)[..., None] * np.eye(N), rtol=1e-14)
     noise = np.broadcast_to(noise, (2, N))
     expected = sum(A[b].T @ np.diag(1 / noise[b]) @ A[b] for b in range(2))
-    np.testing.assert_allclose(lin.F, expected, rtol=1e-12)
+    np.testing.assert_allclose(lin.F_h, expected, rtol=1e-12)
 
 
 def test_orthogonal_linearization_matches_projected_covariance_and_fisher():
@@ -279,7 +279,7 @@ def test_orthogonal_linearization_matches_projected_covariance_and_fisher():
         projected = projection @ K @ projection.T
         _assert_close(lin.chol[block] @ lin.chol[block].T,
                       projected + NOISE * np.eye(N), 1e-12)
-    _assert_close(lin.F, np.einsum('bnp,bnq->pq', A, A) / NOISE, 1e-8)
+    _assert_close(lin.F_h, np.einsum('bnp,bnq->pq', A, A) / NOISE, 1e-8)
     recomputed = _mll(A, _observed(A, 0), use_orthogonal_discrepancy=True,
                       orthogonal_rcond=1e-10, orthogonal_recompute=True)
     _assert_close(recomputed.linearize(model, FREQ).chol, lin.chol, 1e-10)
@@ -361,10 +361,10 @@ def test_circuit_covariance_matches_high_precision_reference(open_load):
     # Form the reference from the saved float64 Jacobian and covariance factor,
     # accumulating their normal product at high precision rather than in float64.
     with mpmath.workdps(60):
-        p = lin.J.shape[-1]
+        p = lin.J_h.shape[-1]
         precision = mpmath.zeros(p)
-        for J, L in zip(np.asarray(lin.J).reshape(-1, lin.J.shape[-2], p),
-                        np.broadcast_to(np.asarray(lin.chol), lin.J.shape[:-2] + lin.chol.shape[-2:]).reshape(-1, lin.J.shape[-2], lin.J.shape[-2])):
+        for J, L in zip(np.asarray(lin.J_h).reshape(-1, lin.J_h.shape[-2], p),
+                        np.broadcast_to(np.asarray(lin.chol), lin.J_h.shape[:-2] + lin.chol.shape[-2:]).reshape(-1, lin.J_h.shape[-2], lin.J_h.shape[-2])):
             lower = mpmath.matrix(L.tolist())
             W = mpmath.matrix(J.tolist())
             for row in range(W.rows):

@@ -678,8 +678,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
         is $K_P = P K P^\top$ on the fit grid, where $P$ uses the fixed tangent
         basis at ``model`` (or a recomputed basis held fixed for this prediction).
         In that case ``new_frequency`` must select fit frequencies; its order is
-        preserved. The conditional mean is $S K_P \Sigma_D^{-1}r$ and covariance
-        is $S(K_P - K_P\Sigma_D^{-1}K_P)S^\top$, excluding noise.
+        preserved. The conditional mean is $S K_P \Sigma_d^{-1}r$ and covariance
+        is $S(K_P - K_P\Sigma_d^{-1}K_P)S^\top$, excluding noise.
 
         Parameters
         ----------
@@ -755,15 +755,17 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
         **Mathematical Formulation**
 
-        At the fitted model, let $A = K_{*h}\Sigma_D^{-1}$ and let
+        At the fitted model, with the data covariance $\Sigma_d = K + \Sigma_n$ and
+        the observation Jacobian $J_h = \partial h / \partial \theta$ of
+        :meth:`linearize`, let $A = K_{*h}\Sigma_d^{-1}$ and let
         $W W^\top = \Sigma_\text{post}$ factor the linearised parameter
         covariance. Then
 
         $$\hat\delta = A r, \qquad
         \Sigma_\delta = K_{**} - A K_{*h}^\top
-            + (AJW)(AJW)^\top$$
+            + (AJ_hW)(AJ_hW)^\top$$
 
-        $$\Sigma_{\delta\theta} = -(AJW)W^\top$$
+        $$\Sigma_{\delta\theta} = -(AJ_hW)W^\top$$
 
         The parameter term couples event blocks, giving one dense Gaussian over
         $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
@@ -826,7 +828,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError("Joint prediction requires a `GaussianProcess` discrepancy.")
         linearization = self.linearize(model, frequency, **kwargs)
-        p = linearization.J.shape[-1]
+        p = linearization.J_h.shape[-1]
         if covariance is not None and covariance_factor is not None:
             raise ValueError("Supply either covariance or covariance_factor, not both.")
         if covariance_factor is None:
@@ -881,15 +883,15 @@ class MarginalLogLikelihood(AbstractEvaluator):
         conditional_scale = jnp.einsum(
             'bij,bc->bicj', conditional_scale, jnp.eye(blocks)
         ).reshape((blocks * n_new, blocks * n_new))
-        AJ = (A @ linearization.J).reshape((-1, p))
+        AJ = (A @ linearization.J_h).reshape((-1, p))
         joint_scale = jnp.block([
             [parameter_scale, jnp.zeros((p, blocks * n_new))],
             [-AJ @ parameter_scale, conditional_scale],
         ])
         named_values = _values(model, free_only=True, space='declared')
-        theta = jnp.concatenate([jnp.ravel(named_values[name]) for name in linearization.names])
+        theta = jnp.concatenate([jnp.ravel(named_values[name]) for name in linearization.theta_names])
         mean = jnp.concatenate([theta, mean_delta])
-        return linearization.names, dist.MultivariateNormalTri(mean, joint_scale)
+        return linearization.theta_names, dist.MultivariateNormalTri(mean, joint_scale)
 
     @unwrap_self
     def linearize(
@@ -902,19 +904,20 @@ class MarginalLogLikelihood(AbstractEvaluator):
         r"""Linearise the fit at ``model``.
 
         The residual $r = \tilde h - h(\theta)$ is formed in event space as in
-        :meth:`predict_discrepancy`, and differentiated with respect to the model's
-        free parameters, giving $J = -\partial r / \partial \theta$. With a conditional
-        event transform the observation's event depends on the model too, and $J$
-        includes that dependence. Only the model is differentiated: the kernel's
+        :meth:`predict_discrepancy`, and differentiated with respect to the model
+        parameters, giving the observation Jacobian
+        $J_h = \partial h / \partial \theta = -\partial r / \partial \theta$. With a
+        conditional event transform the observation's event depends on the model too,
+        and $J_h$ includes that dependence. Only the model is differentiated: the kernel's
         hyperparameters and the noise are held at their values in this evaluator.
 
-        $\Sigma_D = K + \Sigma_n$ is factorized per event block, with the noise
+        The data covariance $\Sigma_d = K + \Sigma_n$ is factorized per event block, with the noise
         variance read from the :class:`~pmrf.stats.likelihoods.GaussianLikelihood` at
         ``model``'s prediction. It may vary along frequency for an ordinary
         discrepancy; orthogonal discrepancy requires event-constant noise.
         Without a discrepancy,
-        $\Sigma_D = \Sigma_n$. With orthogonal discrepancy it is
-        $\Sigma_D = P K P^\top + \Sigma_n$, using the fixed tangent basis at
+        $\Sigma_d = \Sigma_n$. With orthogonal discrepancy it is
+        $\Sigma_d = P K P^\top + \Sigma_n$, using the fixed tangent basis at
         ``model`` (or a recomputed basis held fixed during linearisation).
 
         Parameters
@@ -932,7 +935,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
         Returns
         -------
         pmrf.stats.linearization.Linearization
-            The Jacobian, residual, factor of $\Sigma_D$ and Fisher matrix. Pass it to
+            The observation Jacobian $J_h$, residual, factor of $\Sigma_d$ and
+            model-parameter Fisher matrix $F_h$. Pass it to
             :func:`pmrf.stats.linearization.posterior_covariance`.
 
         Raises
@@ -964,7 +968,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         self, model: PyTree, frequency: Frequency, **kwargs
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
         r"""Return the event-space residual and the lower Cholesky factor of
-        $\Sigma_D = K + \Sigma_n$ per event block, as :meth:`linearize` uses them."""
+        $\Sigma_d = K + \Sigma_n$ per event block, as :meth:`linearize` uses them."""
         pred_event, residual, variance, _ = self.event_data(model, frequency, **kwargs)
         n = pred_event.shape[-1]
         if self.use_orthogonal_discrepancy:
@@ -983,17 +987,17 @@ class MarginalLogLikelihood(AbstractEvaluator):
 
         **Mathematical Formulation**
 
-        With the residual $r = \tilde h - h(\theta)$ in event space and
-        $\Sigma_D = K + \Sigma_n = L L^\top$ per event block, factorised as in
-        :meth:`linearize`,
+        With the residual $r = \tilde h - h(\theta)$ in event space and the data
+        covariance $\Sigma_d = K + \Sigma_n = L L^\top$ per event block, factorised
+        as in :meth:`linearize`,
 
         $$w = L^{-1} r, \qquad
         \tfrac{1}{2}\lVert w \rVert^2 = -\log p(\tilde h \mid \theta)
-        - \tfrac{1}{2}\ln|2\pi\Sigma_D|,$$
+        - \tfrac{1}{2}\ln|2\pi\Sigma_d|,$$
 
-        stacked over event blocks. Its Jacobian is the whitened Jacobian
-        $L^{-1} J$ of the linearisation, up to sign. The hyperparameters, held here,
-        enter only through $\Sigma_D$.
+        stacked over event blocks. Its Jacobian is $-L^{-1} J_h$, minus the whitened
+        observation Jacobian $J_h = \partial h / \partial \theta$ of the
+        linearisation. The hyperparameters, held here, enter only through $\Sigma_d$.
 
         Raises
         ------

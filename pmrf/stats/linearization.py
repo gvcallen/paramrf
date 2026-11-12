@@ -1,11 +1,12 @@
 r"""
 The linearisation of a fit at its MAP, and the linearised posterior covariance.
 
-A linearisation is a Gauss–Newton approximation of a fit: the Jacobian
-$J = -\partial r / \partial \theta$ of the event-space residual with respect to the
-model's free parameters, with the discrepancy's hyperparameters held fixed, and the
-Fisher matrix $F = \sum_b J_b^\top \Sigma_{D,b}^{-1} J_b$ with
-$\Sigma_D = K + \Sigma_n$ per event block. Build one with
+A linearisation is a Gauss–Newton approximation of a fit: the observation Jacobian
+$J_h = \partial h / \partial \theta = -\partial r / \partial \theta$ in event space
+with respect to the model parameters $\theta$, with the discrepancy's hyperparameters
+held fixed, and the model-parameter Fisher matrix
+$F_h = \sum_b J_{h,b}^\top \Sigma_{d,b}^{-1} J_{h,b}$, where the data covariance is
+$\Sigma_d = K + \Sigma_n$ per event block. Build one with
 :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, and combine one or more with
 the prior in :func:`posterior_covariance`.
 """
@@ -29,36 +30,39 @@ class Linearization(eqx.Module):
     r"""The linearisation of one fit at a model.
 
     Built by :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`. Columns of
-    :attr:`J`, and rows and columns of :attr:`F`, follow the free parameters in
-    :attr:`names` order, each flattened in C order to its size in :attr:`shapes`.
+    :attr:`J_h`, and rows and columns of :attr:`F_h`, follow the model parameters in
+    :attr:`theta_names` order, each flattened in C order to its size in
+    :attr:`theta_shapes`.
     """
 
-    #: The Jacobian $J = -\partial r / \partial \theta$ of the residual, with shape
-    #: ``(*batch, N, p)``.
-    J: Array
+    #: The observation Jacobian $J_h = \partial h / \partial \theta
+    #: = -\partial r / \partial \theta$ in event space, with shape ``(*batch, N, p)``.
+    J_h: Array
 
     #: The residual $r$ in event space, with shape ``(*batch, N)``.
     residual: Array
 
-    #: The lower Cholesky factor of $\Sigma_D = K + \Sigma_n$, at its own batch shape,
+    #: The lower Cholesky factor of the data covariance $\Sigma_d = K + \Sigma_n$, at its own batch shape,
     #: which broadcasts to ``batch``.
     chol: Array
 
-    #: The Fisher matrix $F = \sum_b J_b^\top \Sigma_{D,b}^{-1} J_b$, with shape ``(p, p)``.
-    F: Array
+    #: The model-parameter Fisher matrix
+    #: $F_h = \sum_b J_{h,b}^\top \Sigma_{d,b}^{-1} J_{h,b}$, with shape ``(p, p)``.
+    F_h: Array
 
-    #: The names of the free parameters, in column order.
-    names: tuple[str, ...] = field(static=True)
+    #: The names of the model parameters, in column order.
+    theta_names: tuple[str, ...] = field(static=True)
 
-    #: The shape of each free parameter's value, in :attr:`names` order.
-    shapes: tuple[tuple[int, ...], ...] = field(static=True)
+    #: The shape of each model parameter's value, in :attr:`theta_names` order.
+    theta_shapes: tuple[tuple[int, ...], ...] = field(static=True)
 
-    #: The space the parameter values, and so :attr:`J` and :attr:`F`, are in.
+    #: The space the parameter values, and so :attr:`J_h` and :attr:`F_h`, are in.
     space: Space = field(static=True)
 
-    def unflatten(self, vector: Array) -> dict[str, Array]:
-        """Map a flat vector over the parameters, such as a row of :attr:`F`, back to names."""
-        return _unflatten(self.names, self.shapes, vector)
+    def unflatten_theta(self, vector: Array) -> dict[str, Array]:
+        """Map a flat vector over the model parameters, such as a row of :attr:`F_h`,
+        back to names."""
+        return _unflatten(self.theta_names, self.theta_shapes, vector)
 
 
 def _unflatten(names, shapes, vector) -> dict[str, Array]:
@@ -109,7 +113,7 @@ def _linearize(
     model : PyTree
         The model to linearise at. Must still be wrapped.
     chol : jax.Array
-        The lower Cholesky factor of $\\Sigma_D$, with shape ``(*chol_batch, N, N)``
+        The lower Cholesky factor of $\\Sigma_d$, with shape ``(*chol_batch, N, N)``
         broadcasting to ``batch``.
     space : {'declared', 'physical', 'raw'}
         The space of the parameter values differentiated with respect to.
@@ -120,20 +124,20 @@ def _linearize(
     """
     names, shapes, x0, rebuild = _flat(model, space)
     residual = residual_fn(model)
-    J = -jax.jacfwd(lambda x: residual_fn(rebuild(x)))(x0)
+    J_h = -jax.jacfwd(lambda x: residual_fn(rebuild(x)))(x0)
 
-    W = _whitened_jacobian(J, chol)
-    F = jnp.einsum('...nps,...nqs->pq', W, W)
-    return Linearization(J, residual, chol, F, names, shapes, space)
+    W = _whitened_jacobian(J_h, chol)
+    F_h = jnp.einsum('...nps,...nqs->pq', W, W)
+    return Linearization(J_h, residual, chol, F_h, names, shapes, space)
 
 
-def _whitened_jacobian(J: Array, chol: Array) -> Array:
-    """Return $L^{-1}J$ grouped by shared covariance factors."""
+def _whitened_jacobian(J_h: Array, chol: Array) -> Array:
+    """Return $L^{-1}J_h$ grouped by shared covariance factors."""
 
     # Event blocks sharing a factor are solved together, with the parameter axis
     # carried as one more batch axis the factor is shared along.
-    n, p = J.shape[-2], J.shape[-1]
-    matrix_shape, R, _ = _group_by_matrix(chol.shape[:-2], jnp.moveaxis(J, -1, 0))
+    n, p = J_h.shape[-2], J_h.shape[-1]
+    matrix_shape, R, _ = _group_by_matrix(chol.shape[:-2], jnp.moveaxis(J_h, -1, 0))
     L = jnp.broadcast_to(chol, chol.shape[:-2] + (n, n)).reshape(matrix_shape + (n, n))
     W = jsp.linalg.solve_triangular(L, R, lower=True)
     return W.reshape(W.shape[:-1] + (p, -1))
@@ -151,7 +155,7 @@ def posterior_covariance_factor(
     Stack the whitened Jacobians of independent fits with a square root of the
     prior precision, then use the singular values of that stack:
 
-    $$A = \begin{bmatrix}L_1^{-1}J_1 \\ \cdots \\ L_k^{-1}J_k \\
+    $$A = \begin{bmatrix}L_1^{-1}J_{h,1} \\ \cdots \\ L_k^{-1}J_{h,k} \\
     \Sigma_0^{-1/2}\end{bmatrix}, \qquad
     A = U S V^\top, \qquad W = V S^{-1}, \qquad
     \Sigma_\text{post} = W W^\top,$$
@@ -176,7 +180,7 @@ def posterior_covariance_factor(
     -------
     jax.Array
         A factor ``W`` with shape ``(p, p)`` such that ``W @ W.T`` is the
-        covariance over free parameters in :attr:`~Linearization.names` order.
+        covariance over free parameters in :attr:`~Linearization.theta_names` order.
 
     Raises
     ------
@@ -191,17 +195,17 @@ def posterior_covariance_factor(
             raise ValueError(
                 f"A linearisation is in {linearization.space!r} space, not {space!r}."
             )
-        if linearization.names != names or linearization.shapes != shapes:
+        if linearization.theta_names != names or linearization.theta_shapes != shapes:
             raise ValueError(
                 "A linearisation is over different free parameters from the model: "
-                f"{linearization.names} rather than {names}."
+                f"{linearization.theta_names} rather than {names}."
             )
     prior_precision = -jax.hessian(lambda x: log_prior(rebuild(x), space=space))(x0)
     eigenvalues, eigenvectors = jnp.linalg.eigh(0.5 * (prior_precision + prior_precision.T))
     prior_root = jnp.sqrt(jnp.maximum(eigenvalues, 0.0))[:, None] * eigenvectors.T
     p = x0.size
     factors = [
-        jnp.moveaxis(_whitened_jacobian(lin.J, lin.chol), -2, -1).reshape(-1, p)
+        jnp.moveaxis(_whitened_jacobian(lin.J_h, lin.chol), -2, -1).reshape(-1, p)
         for lin in linearizations
     ]
     A = jnp.concatenate([*factors, prior_root], axis=0)
@@ -224,7 +228,7 @@ def posterior_covariance(
 
     See :func:`posterior_covariance_factor` for the factorisation and its
     assumptions. The result has shape ``(p, p)`` in the linearisations'
-    :attr:`~Linearization.names` order.
+    :attr:`~Linearization.theta_names` order.
     """
     W = posterior_covariance_factor(linearizations, model, space)
     return W @ W.T

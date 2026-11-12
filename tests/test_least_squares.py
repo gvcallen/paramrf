@@ -508,11 +508,11 @@ def test_sequential_fit_with_a_linearised_posterior_prior_matches_scipy_minimize
 
     first = minimize(_map_problem(start, first_data, freq), solver=solver).problem
     lin = first.problem.terms[0].evaluator.evaluator.linearize(first.model, freq)
-    mean = jnp.asarray([prf.values(first.model)[name] for name in lin.names])
+    mean = jnp.asarray([prf.values(first.model)[name] for name in lin.theta_names])
     posterior = dd.MultivariateNormalFullCovariance(mean, posterior_covariance([lin], first.model))
     # The Gaussian leaves u's validity, so it is attached unnormalised.
     second = _map_problem(
-        prf.prior(first.model, list(lin.names), posterior, truncate="unnormalised"),
+        prf.prior(first.model, list(lin.theta_names), posterior, truncate="unnormalised"),
         second_data, freq, discrepancy=_gp(),
     )
 
