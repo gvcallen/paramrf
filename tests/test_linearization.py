@@ -876,30 +876,28 @@ def _conditional(y_pred):
 def test_unsupported_cases_raise_only_with_free_hyperparameters(case):
     model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
 
-    def build(fixed):
-        noise = prf.unconstrained(NOISE, fixed=fixed)
+    def build(hyperparameter):
+        """The case's evaluator, with its one hyperparameter's value passed through
+        `hyperparameter`."""
         if case == 'callable_noise':
-            # The free hyperparameter is the kernel's scale; the noise is a callable.
-            kernel = Matern52Kernel(1.5) * prf.unconstrained(1e-2, fixed=fixed)
+            # The hyperparameter is the kernel's scale; the noise is a callable.
             return MarginalLogLikelihood(
                 predictor=_linear_predictor(A), observed=_observed(A, 0),
                 likelihood=GaussianLikelihood(lambda y: jnp.full(y.shape, NOISE)),
-                discrepancy=GaussianProcess(kernel, jitter=JITTER),
+                discrepancy=GaussianProcess(Matern52Kernel(1.5) * hyperparameter(1e-2), jitter=JITTER),
             )
         if case == 'conditional_transform':
-            return _mll(A, _observed(A, 0), noise=noise, event_transform=_conditional)
-        return _mll(A, _observed(A, 0), noise=noise, use_orthogonal_discrepancy=True,
+            return _mll(A, _observed(A, 0), noise=hyperparameter(NOISE), event_transform=_conditional)
+        return _mll(A, _observed(A, 0), noise=hyperparameter(NOISE), use_orthogonal_discrepancy=True,
                     orthogonal_rcond=1e-10).with_orthogonal_reference(model, FREQ)
 
     with pytest.raises(NotImplementedError, match='Fix the hyperparameters'):
-        build(fixed=False).linearize(model, FREQ)
-    lin = build(fixed=True).linearize(model, FREQ)
+        build(prf.unconstrained).linearize(model, FREQ)
+    lin = build(prf.fixed).linearize(model, FREQ)
     assert lin.F_psi.shape == (0, 0) and lin.psi_names == ()
-    reference = _mll(A, _observed(A, 0), event_transform=_conditional if case == 'conditional_transform' else None,
-                     **({'use_orthogonal_discrepancy': True, 'orthogonal_rcond': 1e-10} if case == 'orthogonal' else {}))
-    if case == 'orthogonal':
-        reference = reference.with_orthogonal_reference(model, FREQ)
-    np.testing.assert_allclose(lin.F_h, reference.linearize(model, FREQ).F_h, rtol=1e-10)
+    # As with a plain value in place of the parameter; the two agree exactly.
+    reference = build(lambda value: value).linearize(model, FREQ)
+    np.testing.assert_array_equal(lin.F_h, reference.F_h)
 
 
 def test_without_free_hyperparameters_f_psi_is_empty():

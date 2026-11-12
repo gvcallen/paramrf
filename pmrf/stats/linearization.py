@@ -138,7 +138,8 @@ def _linearize(
 
     The evaluator-facing entry point is
     :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, which supplies
-    `residual_fn`, `covariance_fn` and itself as `hyperparameters`.
+    `residual_fn`, `covariance_fn`, and itself as `hyperparameters` with any fixed
+    tangent basis frozen.
 
     Parameters
     ----------
