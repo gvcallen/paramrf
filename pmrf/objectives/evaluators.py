@@ -25,7 +25,7 @@ from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise, _group_by
 from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance_factor
 from pmrf.modules.base import Module
 from pmrf.parameters import Space, values as _values, update
-from pmrf.utils import derivative, field, unwrap, unwrap_self
+from pmrf.utils import derivative, field, freeze, unwrap, unwrap_self
 
 
 class OrthogonalBasis(eqx.Module):
@@ -493,12 +493,19 @@ class MarginalLogLikelihood(AbstractEvaluator):
             raise TypeError("Event data requires a `GaussianLikelihood`.")
         prediction, transform = self._event(model, frequency, **kwargs)
         residual = transform.forward(self.observed) - prediction
-        variance = (self.likelihood.variance(prediction)[..., None]
-                    if self.use_orthogonal_discrepancy
-                    else self.likelihood._event_variance(prediction))
+        variance = self._noise_variance(prediction)
         logdet = (jnp.sum(transform.forward_log_det_jacobian(self.observed))
                   if self.has_conditional_event_transform else jnp.asarray(0.0))
         return prediction, residual, variance, logdet
+
+    def _noise_variance(self, prediction: jnp.ndarray) -> jnp.ndarray:
+        """The noise variance at an event-space prediction, with the event as its last axis.
+
+        Orthogonal discrepancy requires it to be constant along the event axis.
+        """
+        if self.use_orthogonal_discrepancy:
+            return self.likelihood.variance(prediction)[..., None]
+        return self.likelihood._event_variance(prediction)
 
     def __call__(self, model: PyTree, frequency: Frequency, **kwargs) -> jnp.ndarray:
         observed = self.observed
@@ -768,8 +775,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
         $$\Sigma_{\delta\theta} = -(AJ_hW)W^\top$$
 
         The parameter term couples event blocks, giving one dense Gaussian over
-        $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
-        :meth:`linearize`. New frequencies are converted to the fit's unit.
+        $[\theta;\delta]$. The hyperparameters, the noise and the kernel's
+        parameters, are held at their values in this evaluator, free or not. New
+        frequencies are converted to the fit's unit.
         With orthogonal discrepancy, $K_{*h}=S K_P$ and
         $K_{**}=S K_P S^\top$, where the tangent projection is fixed at the
         fitted model. Prediction is limited to subsets of the fit frequencies.
@@ -827,7 +835,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         """
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError("Joint prediction requires a `GaussianProcess` discrepancy.")
-        linearization = self.linearize(model, frequency, **kwargs)
+        linearization = self._linearize_with(model, frequency, freeze(self), 'declared', **kwargs)
         p = linearization.J_h.shape[-1]
         if covariance is not None and covariance_factor is not None:
             raise ValueError("Supply either covariance or covariance_factor, not both.")
@@ -893,7 +901,6 @@ class MarginalLogLikelihood(AbstractEvaluator):
         mean = jnp.concatenate([theta, mean_delta])
         return linearization.theta_names, dist.MultivariateNormalTri(mean, joint_scale)
 
-    @unwrap_self
     def linearize(
         self,
         model: PyTree,
@@ -908,8 +915,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         parameters, giving the observation Jacobian
         $J_h = \partial h / \partial \theta = -\partial r / \partial \theta$. With a
         conditional event transform the observation's event depends on the model too,
-        and $J_h$ includes that dependence. Only the model is differentiated: the kernel's
-        hyperparameters and the noise are held at their values in this evaluator.
+        and $J_h$ includes that dependence.
 
         The data covariance $\Sigma_d = K + \Sigma_n$ is factorized per event block,
         with the noise variance read from the
@@ -919,6 +925,21 @@ class MarginalLogLikelihood(AbstractEvaluator):
         $\Sigma_d = \Sigma_n$. With orthogonal discrepancy it is
         $\Sigma_d = P K P^\top + \Sigma_n$, using the fixed tangent basis at
         ``model`` (or a recomputed basis held fixed during linearisation).
+
+        **Mathematical Formulation**
+
+        The hyperparameters $\psi$ are this evaluator's free parameters, its noise and
+        its discrepancy kernel's parameters (ADR-0009). The Hessian of the negative
+        log-likelihood is replaced by its expectation, the Fisher matrix. With
+        $\Sigma_d(\psi)$ independent of $\theta$ the $\theta$–$\psi$ cross block
+        vanishes, $F_h$ is as with $\psi$ held, and
+
+        $$[F_\psi]_{ij} = \tfrac{1}{2} \sum_b \operatorname{tr}\big(\Sigma_{d,b}^{-1}
+        J_{\Sigma,i}\, \Sigma_{d,b}^{-1} J_{\Sigma,j}\big), \qquad
+        J_{\Sigma,i} = \partial \Sigma_{d,b} / \partial \psi_i,$$
+
+        summed over the independent event blocks $b$, with $\psi$ in `space`. A factor
+        shared by several event blocks counts once per block.
 
         Parameters
         ----------
@@ -935,9 +956,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
         Returns
         -------
         pmrf.stats.linearization.Linearization
-            The observation Jacobian $J_h$, residual, factor of $\Sigma_d$ and
-            model-parameter Fisher matrix $F_h$. Pass it to
-            :func:`pmrf.stats.linearization.posterior_covariance`.
+            The observation Jacobian $J_h$, residual, factor of $\Sigma_d$,
+            model-parameter Fisher matrix $F_h$ and hyperparameter Fisher matrix
+            $F_\psi$. Pass it to :func:`pmrf.stats.linearization.posterior_covariance`.
 
         Raises
         ------
@@ -947,7 +968,36 @@ class MarginalLogLikelihood(AbstractEvaluator):
             not a :class:`~pmrf.stats.likelihoods.GaussianLikelihood`.
         ValueError
             If orthogonal discrepancy has no fixed reference and recomputation is disabled.
+        NotImplementedError
+            With free hyperparameters, if the noise is a callable of the prediction, the
+            event transform is conditional, or the discrepancy is orthogonal. $\Sigma_d$
+            then depends on $\theta$; fix the hyperparameters to linearise with them
+            held.
         """
+        evaluator = unwrap(self)
+        evaluator._check_linearizable()
+        # A fixed tangent basis is data, not a hyperparameter.
+        hyperparameters = self if self.orthogonal_basis is None else eqx.tree_at(
+            lambda e: e.orthogonal_basis, self, freeze(self.orthogonal_basis),
+        )
+        if _values(hyperparameters, free_only=True):
+            if callable(evaluator.likelihood.noise):
+                unsupported = "noise given as a callable of the prediction"
+            elif evaluator.has_conditional_event_transform:
+                unsupported = "a conditional event transform"
+            elif evaluator.use_orthogonal_discrepancy:
+                unsupported = "orthogonal discrepancy"
+            else:
+                unsupported = None
+            if unsupported is not None:
+                raise NotImplementedError(
+                    f"Linearising with free hyperparameters is not supported with {unsupported}, "
+                    "since the data covariance then depends on the model parameters. Fix the "
+                    "hyperparameters to linearise with them held."
+                )
+        return self._linearize_with(model, frequency, hyperparameters, space, **kwargs)
+
+    def _check_linearizable(self):
         if self.discrepancy is not None and not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError(
                 "Linearisation requires no discrepancy or a `GaussianProcess` "
@@ -958,26 +1008,45 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 "Linearisation requires a `GaussianLikelihood`. "
                 f"Got {type(self.likelihood).__name__}."
             )
-        def residual_fn(candidate):
-            return self.event_data(candidate, frequency, **kwargs)[1]
 
-        _, chol = self._residual_and_factor(model, frequency, **kwargs)
-        return _linearize(residual_fn, model, chol, space)
+    def _linearize_with(
+        self, model: PyTree, frequency: Frequency, hyperparameters: PyTree, space: Space, **kwargs
+    ) -> Linearization:
+        """Linearise at ``model``, with $F_\psi$ over the free parameters of
+        ``hyperparameters``, a copy of this evaluator. Frozen, it holds them."""
+        evaluator = unwrap(self)
+        evaluator._check_linearizable()
+        prediction = evaluator._event(model, frequency, **kwargs)[0]
+
+        def residual_fn(candidate):
+            return evaluator.event_data(candidate, frequency, **kwargs)[1]
+
+        def covariance_fn(hyperparameters):
+            return unwrap(hyperparameters)._data_covariance(model, frequency, prediction, **kwargs)
+
+        return _linearize(residual_fn, model, covariance_fn, hyperparameters, space)
+
+    def _data_covariance(
+        self, model: PyTree, frequency: Frequency, prediction: jnp.ndarray, **kwargs
+    ) -> jnp.ndarray:
+        r"""Return $\Sigma_d = K + \Sigma_n$ per event block at an event-space prediction,
+        from this evaluator's hyperparameters."""
+        n = prediction.shape[-1]
+        if self.use_orthogonal_discrepancy:
+            K = self._projected_kernel(model, frequency, **kwargs)
+        elif self.discrepancy is None:
+            K = jnp.zeros((n, n), dtype=prediction.dtype)
+        else:
+            K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
+        return _add_noise(K, self._noise_variance(prediction), prediction.shape[:-1])
 
     def _residual_and_factor(
         self, model: PyTree, frequency: Frequency, **kwargs
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
         r"""Return the event-space residual and the lower Cholesky factor of
-        $\Sigma_d = K + \Sigma_n$ per event block, as :meth:`linearize` uses them."""
-        pred_event, residual, variance, _ = self.event_data(model, frequency, **kwargs)
-        n = pred_event.shape[-1]
-        if self.use_orthogonal_discrepancy:
-            K = self._projected_kernel(model, frequency, **kwargs)
-        elif self.discrepancy is None:
-            K = jnp.zeros((n, n), dtype=pred_event.dtype)
-        else:
-            K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
-        chol = jnp.linalg.cholesky(_add_noise(K, variance, pred_event.shape[:-1]))
+        $\Sigma_d = K + \Sigma_n$ per event block, as :meth:`whitened_residual` uses them."""
+        prediction, residual, _, _ = self.event_data(model, frequency, **kwargs)
+        chol = jnp.linalg.cholesky(self._data_covariance(model, frequency, prediction, **kwargs))
         return residual, chol
 
     @unwrap_self

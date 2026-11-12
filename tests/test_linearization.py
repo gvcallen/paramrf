@@ -311,8 +311,8 @@ def test_posterior_covariance_rejects_another_space():
 def test_ill_conditioned_covariance_uses_whitened_jacobian():
     model = _Linear(theta=prf.unconstrained(jnp.zeros(2)))
     J = jnp.array([[1.0, 1.0], [0.0, 1e-8]])
-    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
-                        ('theta',), ((2,),), 'declared')
+    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J, jnp.zeros((0, 0)),
+                        ('theta',), ((2,),), (), (), 'declared')
     with mpmath.workdps(60):
         matrix = mpmath.matrix([[1, 1], [0, mpmath.mpf('1e-8')]])
         exact = mpmath.inverse(matrix.T * matrix)
@@ -329,8 +329,8 @@ def test_ill_conditioned_covariance_uses_whitened_jacobian():
 def test_uninformed_parameter_direction_raises_eager_and_jit():
     model = _Linear(theta=prf.unconstrained(jnp.zeros(2)))
     J = jnp.array([[1.0, 0.0], [2.0, 0.0]])
-    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J,
-                        ('theta',), ((2,),), 'declared')
+    lin = Linearization(J, jnp.zeros(2), jnp.eye(2), J.T @ J, jnp.zeros((0, 0)),
+                        ('theta',), ((2,),), (), (), 'declared')
     for covariance in (lambda: posterior_covariance([lin], model),
                        jax.jit(lambda: posterior_covariance([lin], model))):
         with pytest.raises(Exception, match='neither data nor prior information'):
@@ -631,8 +631,8 @@ def _prior_only(model, space='declared'):
     covariance is the inverse prior precision."""
     names, shapes, x0, _ = prf.stats.linearization._flat(model, space)
     p = x0.size
-    return Linearization(jnp.zeros((1, p)), jnp.zeros(1), jnp.eye(1), jnp.zeros((p, p)),
-                         names, shapes, space)
+    return Linearization(jnp.zeros((1, p)), jnp.zeros(1), jnp.eye(1), jnp.zeros((p, p)), jnp.zeros((0, 0)),
+                         names, shapes, (), (), space)
 
 
 def _precision(model, space='declared', **kwargs):
@@ -780,3 +780,143 @@ def test_moment_matched_posterior_of_a_line_matches_the_reference():
     # Measured at 4e-9 relative to the largest entry.
     _assert_close(posterior_covariance([lin], model), expected, 1e-7)
     np.testing.assert_allclose(sd(expected), [2.23362, 0.00670282, 0.0893440, 0.00489536, 1.43791], rtol=5e-5)
+
+
+# The hyperparameter Fisher matrix F_ψ (#360).
+
+def _sigma(value, name):
+    """A variance σ² with the standard deviation σ free, under `name`."""
+    return prx.Parameterize(jnp.square, prf.unconstrained(value, name=name))
+
+
+def _ramp_mll(n, noise, complex_data=False, discrepancy=None):
+    """h = θ x on n points, real or with equal Re and Im parts."""
+    x = jnp.linspace(0.0, 1.0, n)
+    unit = (1.0 + 1.0j) if complex_data else 1.0
+
+    def predictor(model, frequency):
+        return _inner(model).theta[0] * x * unit
+
+    observed = np.asarray(0.5 * x * unit + 1e-3 * np.random.default_rng(360).normal(size=n))
+    return MarginalLogLikelihood(
+        predictor=predictor, observed=observed, likelihood=GaussianLikelihood(noise),
+        discrepancy=discrepancy,
+    )
+
+
+@pytest.mark.parametrize('complex_data, expected', [(False, 2e8), (True, 4e8)], ids=['real', 're_im'])
+def test_noise_fisher_is_analytic(complex_data, expected):
+    # Σ_d = σ² I, so F_σ = ½ tr((2/σ) I)² per block = 2N/σ², twice for Re and Im sharing one factor.
+    n = 100
+    mll = _ramp_mll(n, _sigma(1e-3, 'sigma_n'), complex_data)
+    model = _Linear(theta=prf.unconstrained(jnp.array([0.5])))
+    lin = mll.linearize(model, prf.Frequency(1.0, 5.0, n, 'GHz'), space='physical')
+    assert lin.chol.shape == (n, n)
+    assert lin.psi_names == ('sigma_n',) and lin.psi_shapes == ((),)
+    np.testing.assert_allclose(lin.F_psi, [[expected]], rtol=1e-12)
+    np.testing.assert_allclose(lin.unflatten_psi(lin.F_psi[0])['sigma_n'], expected, rtol=1e-12)
+
+
+def test_rbf_fisher_matches_monte_carlo_expected_hessian():
+    n, samples = 50, 2000
+    frequency = prf.Frequency(1.0, 5.0, n, 'GHz')
+    discrepancy = GaussianProcess(
+        prf.stats.covariance_kernels.RBFKernel(prf.unconstrained(0.8, name='ell_k'))
+        * _sigma(0.05, 'sigma_k'),
+        jitter=JITTER,
+    )
+    mll = _ramp_mll(n, _sigma(0.01, 'sigma_n'), discrepancy=discrepancy)
+    model = _Linear(theta=prf.unconstrained(jnp.array([0.5])))
+    lin = mll.linearize(model, frequency)
+    assert set(lin.psi_names) == {'sigma_n', 'sigma_k', 'ell_k'}
+    assert lin.F_psi.shape == (3, 3)
+    psi0 = jnp.concatenate([jnp.ravel(prf.values(mll)[name]) for name in lin.psi_names])
+
+    x = jnp.asarray(frequency.f_scaled)
+    def sigma_d(psi):
+        v = lin.unflatten_psi(psi)
+        K = v['sigma_k'] ** 2 * jnp.exp(-0.5 * ((x[:, None] - x[None, :]) / v['ell_k']) ** 2)
+        return K + (JITTER + v['sigma_n'] ** 2) * jnp.eye(n)
+
+    def nll(psi, r):
+        L = jnp.linalg.cholesky(sigma_d(psi))
+        w = jax.scipy.linalg.solve_triangular(L, r, lower=True)
+        return 0.5 * w @ w + jnp.sum(jnp.log(jnp.diag(L)))
+
+    L0 = np.linalg.cholesky(np.asarray(sigma_d(psi0)))
+    residuals = np.random.default_rng(3600).normal(size=(samples, n)) @ L0.T
+    hessians = np.asarray(jax.vmap(jax.hessian(nll), in_axes=(None, 0))(psi0, jnp.asarray(residuals)))
+    mean = hessians.mean(axis=0)
+    standard_error = hessians.std(axis=0, ddof=1) / np.sqrt(samples)
+    F_psi = np.asarray(lin.F_psi)
+    np.testing.assert_allclose(F_psi, F_psi.T, rtol=1e-12)
+    # Within four Monte Carlo standard errors per element, each a few percent of the
+    # element's scale sqrt(F_ii F_jj).
+    scale = np.sqrt(np.outer(np.diag(F_psi), np.diag(F_psi)))
+    assert (standard_error < 0.05 * scale).all()
+    assert (np.abs(mean - F_psi) < 4 * standard_error).all()
+
+
+def test_hyperparameter_block_leaves_the_model_fisher_and_posterior_unchanged():
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
+    free = _mll(A, _observed(A, 0), noise=_sigma(1e-3, 'sigma_n'))
+    held = _mll(A, _observed(A, 0))
+    lin_free, lin_held = free.linearize(model, FREQ), held.linearize(model, FREQ)
+    assert lin_free.F_psi.shape == (1, 1) and lin_held.F_psi.shape == (0, 0)
+    np.testing.assert_allclose(lin_free.F_h, lin_held.F_h, rtol=1e-12)
+    np.testing.assert_allclose(posterior_covariance([lin_free], model),
+                               posterior_covariance([lin_held], model), rtol=1e-12)
+
+
+def _conditional(y_pred):
+    return bij.Chain([bij.ScalarAffine(jnp.mean(y_pred), 1.0), bij.Transpose((1, 0))])
+
+
+@pytest.mark.parametrize('case', ['callable_noise', 'conditional_transform', 'orthogonal'])
+def test_unsupported_cases_raise_only_with_free_hyperparameters(case):
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
+
+    def build(hyperparameter):
+        """The case's evaluator, with its one hyperparameter's value passed through
+        `hyperparameter`."""
+        if case == 'callable_noise':
+            # The hyperparameter is the kernel's scale; the noise is a callable.
+            return MarginalLogLikelihood(
+                predictor=_linear_predictor(A), observed=_observed(A, 0),
+                likelihood=GaussianLikelihood(lambda y: jnp.full(y.shape, NOISE)),
+                discrepancy=GaussianProcess(Matern52Kernel(1.5) * hyperparameter(1e-2), jitter=JITTER),
+            )
+        if case == 'conditional_transform':
+            return _mll(A, _observed(A, 0), noise=hyperparameter(NOISE), event_transform=_conditional)
+        return _mll(A, _observed(A, 0), noise=hyperparameter(NOISE), use_orthogonal_discrepancy=True,
+                    orthogonal_rcond=1e-10).with_orthogonal_reference(model, FREQ)
+
+    with pytest.raises(NotImplementedError, match='Fix the hyperparameters'):
+        build(prf.unconstrained).linearize(model, FREQ)
+    lin = build(prf.fixed).linearize(model, FREQ)
+    assert lin.F_psi.shape == (0, 0) and lin.psi_names == ()
+    # As with a plain value in place of the parameter; the two agree exactly.
+    reference = build(lambda value: value).linearize(model, FREQ)
+    np.testing.assert_array_equal(lin.F_h, reference.F_h)
+
+
+def test_without_free_hyperparameters_f_psi_is_empty():
+    model = _Linear(theta=prf.unconstrained(jnp.zeros(P)))
+    lin = _mll(A, _observed(A, 0)).linearize(model, FREQ)
+    assert lin.F_psi.shape == (0, 0)
+    assert lin.psi_names == () and lin.psi_shapes == ()
+
+
+def test_joint_prediction_holds_free_hyperparameters():
+    # A conditional transform with free noise cannot be linearised with the noise free,
+    # but joint prediction holds the hyperparameters.
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
+
+    def build(hyperparameter):
+        return _mll(A, _observed(A, 0), noise=hyperparameter(NOISE), event_transform=_conditional)
+
+    names, free = build(prf.unconstrained).predict_joint(model, FREQ, FREQ)
+    _, held = build(lambda value: value).predict_joint(model, FREQ, FREQ)
+    assert names == ('theta',)
+    np.testing.assert_array_equal(free.mean(), held.mean())
+    np.testing.assert_array_equal(free.covariance(), held.covariance())
