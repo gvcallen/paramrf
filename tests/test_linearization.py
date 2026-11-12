@@ -15,7 +15,9 @@ from pmrf.stats.covariance_kernels import Matern52Kernel, cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess
 from pmrf.objectives.evaluators import MarginalLogLikelihood
 from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.linearization import Linearization, posterior_covariance, posterior_covariance_factor
+from pmrf.stats.linearization import (
+    Linearization, hyperparameter_posterior_covariance, posterior_covariance, posterior_covariance_factor,
+)
 from pmrf.models import Wrapped
 from pmrf.models import EquivalentLine, PiSectionCLC, Resistor
 from pmrf.models.base import Model
@@ -920,3 +922,66 @@ def test_joint_prediction_holds_free_hyperparameters():
     assert names == ('theta',)
     np.testing.assert_array_equal(free.mean(), held.mean())
     np.testing.assert_array_equal(free.covariance(), held.covariance())
+
+
+# The linearised posterior covariance of the hyperparameters (#361).
+
+def _log_uniform_sigma():
+    """σ² with σ ~ LU(1e-5, 1e-3) free at σ = 1e-3, in unit scale.
+
+    σ sits a relative 1e-9 inside the upper bound: at the bound itself the map from a
+    declared value back to the parameter clips, and the clip's tie halves ∂σ/∂σ.
+    """
+    value = 1e-3 * (1 - 1e-9)
+    sigma = prf.random(prf.stats.LogUniform(1e-5, 1e-3), value=value, name='sigma_n')
+    return prx.Parameterize(jnp.square, sigma)
+
+
+def _log_uniform_linearization(complex_data=False, space='declared', noise=None):
+    n = 100
+    mll = _ramp_mll(n, _log_uniform_sigma() if noise is None else noise, complex_data)
+    model = _Linear(theta=prf.unconstrained(jnp.array([0.5])))
+    return mll, mll.linearize(model, prf.Frequency(1.0, 5.0, n, 'GHz'), space=space)
+
+
+@pytest.mark.parametrize('complex_data, variance, sd', [
+    (False, 4.628795e-9, 6.803525e-5),
+    (True, 1 / (4e8 + 1.603896e7), 4.902674e-5),
+], ids=['real', 're_im'])
+def test_log_uniform_hyperprior_is_moment_matched(complex_data, variance, sd):
+    # F_ψ = 2N/σ² (twice that for Re and Im sharing one factor) plus the inverse of the
+    # hyperprior variance 6.234818e-8. The tolerance is that of the seven-figure values.
+    mll, lin = _log_uniform_linearization(complex_data)
+    covariance = hyperparameter_posterior_covariance(lin, mll)
+    assert covariance.shape == (1, 1)
+    np.testing.assert_allclose(covariance, [[variance]], rtol=1e-6)
+    np.testing.assert_allclose(np.sqrt(covariance[0, 0]), sd, rtol=1e-6)
+
+
+@pytest.mark.parametrize('free', ['sigma', 'variance'])
+def test_hessian_hyperprior_precision_clips_the_log_uniform_curvature(free):
+    # -∂²log p/∂x² = -1/x² < 0 is clipped to zero, leaving the data alone. The issue's
+    # case frees σ under a Parameterize, through which log_prior does not yet reach the
+    # prior, so its Hessian is zero outright; a log-uniform prior on the variance itself
+    # has the negative curvature to clip.
+    noise = None if free == 'sigma' else prf.random(
+        prf.stats.LogUniform(1e-10, 1e-6), value=0.5e-6, name='sigma_n',
+    )
+    mll, lin = _log_uniform_linearization(noise=noise)
+    covariance = hyperparameter_posterior_covariance(lin, mll, prior_precision='hessian')
+    np.testing.assert_allclose(covariance, 1 / lin.F_psi, rtol=1e-12)
+
+
+@pytest.mark.parametrize('case, match', [
+    ('space', 'physical'), ('evaluator', 'different hyperparameters'), ('no_hyperparameters', 'no hyperparameters'),
+])
+def test_hyperparameter_posterior_covariance_rejects_a_mismatch(case, match):
+    mll, lin = _log_uniform_linearization(space='physical' if case == 'space' else 'declared')
+    if case == 'evaluator':
+        mll = _ramp_mll(100, _sigma(1e-3, 'sigma_other'))
+    if case == 'no_hyperparameters':
+        model = _Linear(theta=prf.unconstrained(jnp.array([0.5])))
+        mll = _ramp_mll(100, 1e-6)
+        lin = mll.linearize(model, prf.Frequency(1.0, 5.0, 100, 'GHz'))
+    with pytest.raises(ValueError, match=match):
+        hyperparameter_posterior_covariance(lin, mll)

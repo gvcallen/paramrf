@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     )
     from .linearization import (
         Linearization as Linearization,
+        hyperparameter_posterior_covariance as hyperparameter_posterior_covariance,
         posterior_covariance as posterior_covariance,
         posterior_covariance_factor as posterior_covariance_factor,
     )
@@ -136,6 +137,7 @@ _EXPORTS = {
     'ZeroKernel': 'covariance_kernels',
     'cross_gram': 'covariance_kernels',
     'gram': 'covariance_kernels',
+    'hyperparameter_posterior_covariance': 'linearization',
     'posterior_covariance': 'linearization',
     'posterior_covariance_factor': 'linearization',
     'truncate': 'distributions',

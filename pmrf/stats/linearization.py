@@ -9,12 +9,13 @@ $\Sigma_d = K + \Sigma_n$ per event block. It also carries the Fisher matrix $F_
 of the hyperparameters $\psi$, the evaluator's free parameters, on which
 $\Sigma_d$ depends. Build one with
 :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`, and combine one or more with
-the prior in :func:`posterior_covariance`.
+the prior in :func:`posterior_covariance`; the hyperparameters' covariance is
+:func:`hyperparameter_posterior_covariance`.
 """
 from __future__ import annotations
 
 import math
-from typing import Callable, Literal, Sequence
+from typing import TYPE_CHECKING, Callable, Literal, Sequence
 
 import equinox as eqx
 import jax
@@ -34,6 +35,9 @@ from pmrf.parameters import (
     tree_param_paths, update, values as _values,
 )
 from pmrf.utils import field
+
+if TYPE_CHECKING:
+    from pmrf.objectives.evaluators import MarginalLogLikelihood
 
 
 class Linearization(eqx.Module):
@@ -373,14 +377,23 @@ def posterior_covariance_factor(
                 f"{linearization.theta_names} rather than {names}."
             )
     precision = _prior_precision(model, space, names, shapes, x0, rebuild, prior_precision)
-    eigenvalues, eigenvectors = jnp.linalg.eigh(0.5 * (precision + precision.T))
-    prior_root = jnp.sqrt(jnp.maximum(eigenvalues, 0.0))[:, None] * eigenvectors.T
     p = x0.size
     factors = [
         jnp.moveaxis(_whitened_jacobian(lin.J_h, lin.chol), -2, -1).reshape(-1, p)
         for lin in linearizations
     ]
-    A = jnp.concatenate([*factors, prior_root], axis=0)
+    return _covariance_factor(jnp.concatenate([*factors, _psd_root(precision)], axis=0))
+
+
+def _psd_root(matrix: Array) -> Array:
+    r"""A square root $R$ with $R^\top R$ the symmetric part of `matrix`, its negative
+    eigenvalues clipped to zero."""
+    eigenvalues, eigenvectors = jnp.linalg.eigh(0.5 * (matrix + matrix.T))
+    return jnp.sqrt(jnp.maximum(eigenvalues, 0.0))[:, None] * eigenvectors.T
+
+
+def _covariance_factor(A: Array) -> Array:
+    r"""$W = V S^{-1}$ from $A = U S V^\top$, so that $W W^\top = (A^\top A)^{-1}$."""
     _, singular_values, vt = jnp.linalg.svd(A, full_matrices=False)
     threshold = singular_values[0] * max(A.shape) * jnp.finfo(A.dtype).eps
     singular_values = eqx.error_if(
@@ -407,8 +420,75 @@ def posterior_covariance(
     return W @ W.T
 
 
+def hyperparameter_posterior_covariance(
+    linearization: Linearization,
+    evaluator: MarginalLogLikelihood,
+    space: Space = 'declared',
+    prior_precision: Literal['moment_matched', 'hessian'] = 'moment_matched',
+) -> Array:
+    r"""The linearised posterior covariance of an evaluator's hyperparameters.
+
+    **Mathematical Formulation**
+
+    The linearised posterior over $[\theta; \psi]$ is block diagonal, since the
+    $\theta$–$\psi$ block of the Fisher matrix vanishes (see
+    :meth:`pmrf.objectives.evaluators.MarginalLogLikelihood.linearize`). Its
+    hyperparameter block is
+
+    $$\Sigma_{\psi,\text{post}} = (F_\psi + \Sigma_{\psi,0}^{-1})^{-1},$$
+
+    with the prior precision $\Sigma_{\psi,0}^{-1}$ taken from the evaluator's
+    hyperpriors by the `prior_precision` rule of :func:`posterior_covariance_factor`,
+    negative eigenvalues clipped to zero. Unlike $F_h$, $F_\psi$ of different fits does
+    not add, since the hyperparameters belong to one evaluator, so this takes one
+    linearisation.
+
+    Parameters
+    ----------
+    linearization : Linearization
+        The linearisation of `evaluator`'s fit, in `space`.
+    evaluator : MarginalLogLikelihood
+        The evaluator linearised, carrying the hyperpriors. Must still be wrapped.
+    space : {'declared', 'physical', 'raw'}, default='declared'
+        The space of the parameter values. See :class:`pmrf.Param`.
+    prior_precision : {'moment_matched', 'hessian'}, default='moment_matched'
+        How the hyperpriors' precision is taken, as for
+        :func:`posterior_covariance_factor`.
+
+    Returns
+    -------
+    jax.Array
+        The covariance with shape ``(q, q)`` over the hyperparameters in
+        :attr:`~Linearization.psi_names` order.
+
+    Raises
+    ------
+    ValueError
+        If the linearisation is in another space, has no hyperparameters, or is over
+        hyperparameters other than `evaluator`'s, or `prior_precision` is unknown.
+    NotImplementedError
+        With ``prior_precision='moment_matched'``, as for
+        :func:`posterior_covariance_factor`.
+    """
+    if linearization.space != space:
+        raise ValueError(f"The linearisation is in {linearization.space!r} space, not {space!r}.")
+    if not linearization.psi_names:
+        raise ValueError("The linearisation has no hyperparameters.")
+    names, shapes, x0, rebuild = _flat(evaluator, space, allow_empty=True)
+    if linearization.psi_names != names or linearization.psi_shapes != shapes:
+        raise ValueError(
+            "The linearisation is over different hyperparameters from the evaluator: "
+            f"{linearization.psi_names} rather than {names}."
+        )
+    precision = _prior_precision(evaluator, space, names, shapes, x0, rebuild, prior_precision)
+    A = jnp.concatenate([_psd_root(linearization.F_psi), _psd_root(precision)], axis=0)
+    W = _covariance_factor(A)
+    return W @ W.T
+
+
 __all__ = [
     'Linearization',
+    'hyperparameter_posterior_covariance',
     'posterior_covariance',
     'posterior_covariance_factor',
 ]
