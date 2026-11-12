@@ -775,8 +775,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
         $$\Sigma_{\delta\theta} = -(AJ_hW)W^\top$$
 
         The parameter term couples event blocks, giving one dense Gaussian over
-        $[\theta;\delta]$. Kernel hyperparameters are held fixed, as in
-        :meth:`linearize`. New frequencies are converted to the fit's unit.
+        $[\theta;\delta]$. The hyperparameters, the noise and the kernel's
+        parameters, are held at their values in this evaluator, free or not. New
+        frequencies are converted to the fit's unit.
         With orthogonal discrepancy, $K_{*h}=S K_P$ and
         $K_{**}=S K_P S^\top$, where the tangent projection is fixed at the
         fitted model. Prediction is limited to subsets of the fit frequencies.
@@ -834,7 +835,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         """
         if not isinstance(self.discrepancy, GaussianProcess):
             raise TypeError("Joint prediction requires a `GaussianProcess` discrepancy.")
-        linearization = self.linearize(model, frequency, **kwargs)
+        linearization = self._linearize_with(model, frequency, freeze(self), 'declared', **kwargs)
         p = linearization.J_h.shape[-1]
         if covariance is not None and covariance_factor is not None:
             raise ValueError("Supply either covariance or covariance_factor, not both.")
@@ -974,16 +975,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
             held.
         """
         evaluator = unwrap(self)
-        if evaluator.discrepancy is not None and not isinstance(evaluator.discrepancy, GaussianProcess):
-            raise TypeError(
-                "Linearisation requires no discrepancy or a `GaussianProcess` "
-                f"discrepancy. Got {type(evaluator.discrepancy).__name__}."
-            )
-        if not isinstance(evaluator.likelihood, GaussianLikelihood):
-            raise TypeError(
-                "Linearisation requires a `GaussianLikelihood`. "
-                f"Got {type(evaluator.likelihood).__name__}."
-            )
+        evaluator._check_linearizable()
         # A fixed tangent basis is data, not a hyperparameter.
         hyperparameters = self if self.orthogonal_basis is None else eqx.tree_at(
             lambda e: e.orthogonal_basis, self, freeze(self.orthogonal_basis),
@@ -1003,7 +995,27 @@ class MarginalLogLikelihood(AbstractEvaluator):
                     "since the data covariance then depends on the model parameters. Fix the "
                     "hyperparameters to linearise with them held."
                 )
+        return self._linearize_with(model, frequency, hyperparameters, space, **kwargs)
 
+    def _check_linearizable(self):
+        if self.discrepancy is not None and not isinstance(self.discrepancy, GaussianProcess):
+            raise TypeError(
+                "Linearisation requires no discrepancy or a `GaussianProcess` "
+                f"discrepancy. Got {type(self.discrepancy).__name__}."
+            )
+        if not isinstance(self.likelihood, GaussianLikelihood):
+            raise TypeError(
+                "Linearisation requires a `GaussianLikelihood`. "
+                f"Got {type(self.likelihood).__name__}."
+            )
+
+    def _linearize_with(
+        self, model: PyTree, frequency: Frequency, hyperparameters: PyTree, space: Space, **kwargs
+    ) -> Linearization:
+        """Linearise at ``model``, with $F_\psi$ over the free parameters of
+        ``hyperparameters``, a copy of this evaluator. Frozen, it holds them."""
+        evaluator = unwrap(self)
+        evaluator._check_linearizable()
         prediction = evaluator._event(model, frequency, **kwargs)[0]
 
         def residual_fn(candidate):

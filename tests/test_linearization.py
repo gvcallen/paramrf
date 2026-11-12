@@ -905,3 +905,18 @@ def test_without_free_hyperparameters_f_psi_is_empty():
     lin = _mll(A, _observed(A, 0)).linearize(model, FREQ)
     assert lin.F_psi.shape == (0, 0)
     assert lin.psi_names == () and lin.psi_shapes == ()
+
+
+def test_joint_prediction_holds_free_hyperparameters():
+    # A conditional transform with free noise cannot be linearised with the noise free,
+    # but joint prediction holds the hyperparameters.
+    model = _theta_prior(_Linear(theta=prf.unconstrained(jnp.zeros(P))))
+
+    def build(hyperparameter):
+        return _mll(A, _observed(A, 0), noise=hyperparameter(NOISE), event_transform=_conditional)
+
+    names, free = build(prf.unconstrained).predict_joint(model, FREQ, FREQ)
+    _, held = build(lambda value: value).predict_joint(model, FREQ, FREQ)
+    assert names == ('theta',)
+    np.testing.assert_array_equal(free.mean(), held.mean())
+    np.testing.assert_array_equal(free.covariance(), held.covariance())
