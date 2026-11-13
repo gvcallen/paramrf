@@ -25,7 +25,7 @@ linearisation drops. Far from the solution it hurts rather than helps.
 Under a Gaussian likelihood with fixed noise and discrepancy hyperparameters, the negative
 log posterior is half the squared norm of a residual vector, up to a constant, whenever
 each prior is Gaussian, truncated Gaussian or uniform. Noise and kernel hyperparameters
-are usually fitted too, and they enter through $\tfrac{1}{2}\ln|\Sigma_D|$, which is not a
+are usually fitted too, and they enter through $\tfrac{1}{2}\ln|\Sigma_d|$, which is not a
 square.
 
 ## Decision
@@ -42,7 +42,7 @@ The vector stacks the **whitened residual** of each term and the **prior residua
 free parameter.
 
 - **Whitened residual.** For a `MarginalLogLikelihood`, $L^{-1} r$ per event block, with
-  $L$ the lower Cholesky factor of $\Sigma_D = K + \Sigma_n$: the same factor
+  $L$ the lower Cholesky factor of $\Sigma_d = \Sigma_n + K$: the same factor
   `linearize` uses. For a `TargetLoss` with `MSELoss`, the prediction error scaled so
   that half its squared norm is the loss.
 - **Prior residual.** Computed from the distribution, in the space it is over. It is not
@@ -76,7 +76,7 @@ it is a single least-squares solve.
 
 Each of these raises an error saying it is not yet supported:
 
-- noise given as a callable of the prediction, since $\Sigma_D$ then depends on the
+- noise given as a callable of the prediction, since $\Sigma_d$ then depends on the
   model parameters;
 - a mixing that depends on the prediction, for the same reason;
 - orthogonal discrepancy without a fixed reference basis;
