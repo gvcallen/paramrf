@@ -88,14 +88,14 @@ def _mll(matrix, observed, noise=NOISE, discrepancy=True, jitter=JITTER, **kwarg
 
 
 def _sigma_d(noise=NOISE):
-    """Σ_D = K + Σ_n per block, as float64, shape (2, N, N)."""
+    """Σ_d = Σ_n + K per block, as float64, shape (2, N, N)."""
     K = np.asarray(gram(_kernel(), FREQ.f_scaled, jitter=JITTER))
     noise = np.broadcast_to(np.asarray(noise, dtype=float), (2, N))
     return np.stack([K + np.diag(noise[b]) for b in range(2)])
 
 
 def _mp_posterior(jacobians, sigma_ds, prior_precision):
-    """(Σ_b J_bᵀ Σ_D,b⁻¹ J_b + Σ₀⁻¹)⁻¹ at 50 digits."""
+    """(Σ_b J_h,bᵀ Σ_d,b⁻¹ J_h,b + Σ₀⁻¹)⁻¹ at 50 digits."""
     with mpmath.workdps(50):
         total = mpmath.matrix(prior_precision.tolist())
         for J, M in zip(jacobians, sigma_ds):
@@ -106,7 +106,7 @@ def _mp_posterior(jacobians, sigma_ds, prior_precision):
 
 
 def _mp_map(jacobians, sigma_ds, observed):
-    """(Σ_b J_bᵀ Σ_D,b⁻¹ J_b + Σ₀⁻¹)⁻¹ (Σ_b J_bᵀ Σ_D,b⁻¹ h̃_b + Σ₀⁻¹ μ₀) at 50 digits."""
+    """(Σ_b J_h,bᵀ Σ_d,b⁻¹ J_h,b + Σ₀⁻¹)⁻¹ (Σ_b J_h,bᵀ Σ_d,b⁻¹ h̃_b + Σ₀⁻¹ μ₀) at 50 digits."""
     with mpmath.workdps(50):
         prior_precision = mpmath.inverse(mpmath.matrix(SIGMA0.tolist()))
         total = prior_precision
