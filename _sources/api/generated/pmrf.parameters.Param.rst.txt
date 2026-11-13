@@ -1,0 +1,12 @@
+
+
+
+Param
+=====
+
+.. currentmodule:: pmrf.parameters
+
+.. autoclass:: Param
+   :members:
+   :show-inheritance:
+   :inherited-members:

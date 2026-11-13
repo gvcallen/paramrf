@@ -1,0 +1,12 @@
+
+
+
+AbstractHost
+============
+
+.. currentmodule:: pmrf.models.adapters.bridge
+
+.. autoclass:: AbstractHost
+   :members:
+   :show-inheritance:
+   :inherited-members:

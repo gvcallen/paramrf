@@ -1,0 +1,12 @@
+
+
+
+GaussianProcess
+===============
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: GaussianProcess
+   :members:
+   :show-inheritance:
+   :inherited-members:

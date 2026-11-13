@@ -1,0 +1,9 @@
+
+
+
+mag_2_db
+========
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: mag_2_db

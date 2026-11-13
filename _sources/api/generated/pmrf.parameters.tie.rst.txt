@@ -1,0 +1,9 @@
+
+
+
+tie
+===
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: tie

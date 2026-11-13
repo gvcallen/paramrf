@@ -1,0 +1,12 @@
+
+
+
+Tied
+====
+
+.. currentmodule:: pmrf.modules
+
+.. autoclass:: Tied
+   :members:
+   :show-inheritance:
+   :inherited-members:

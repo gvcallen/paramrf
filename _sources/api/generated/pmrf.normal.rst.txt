@@ -1,0 +1,9 @@
+﻿
+
+
+**normal** (pmrf.normal)
+========================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: normal

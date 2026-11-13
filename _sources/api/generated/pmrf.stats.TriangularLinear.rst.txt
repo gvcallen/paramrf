@@ -1,0 +1,12 @@
+
+
+
+TriangularLinear
+================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: TriangularLinear
+   :members:
+   :show-inheritance:
+   :inherited-members:

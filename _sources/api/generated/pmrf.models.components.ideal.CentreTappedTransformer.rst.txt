@@ -1,0 +1,12 @@
+
+
+
+CentreTappedTransformer
+=======================
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: CentreTappedTransformer
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+ComplexGaussianProcess
+======================
+
+.. currentmodule:: pmrf.stats.discrepancy_models
+
+.. autoclass:: ComplexGaussianProcess
+   :members:
+   :show-inheritance:
+   :inherited-members:

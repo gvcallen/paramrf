@@ -1,0 +1,12 @@
+
+
+
+AbstractSingleDiscreteDomain
+============================
+
+.. currentmodule:: pmrf.models.adapters.base
+
+.. autoclass:: AbstractSingleDiscreteDomain
+   :members:
+   :show-inheritance:
+   :inherited-members:

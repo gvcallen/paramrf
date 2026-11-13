@@ -1,0 +1,12 @@
+
+
+
+MicrostripCrossSection
+======================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: MicrostripCrossSection
+   :members:
+   :show-inheritance:
+   :inherited-members:

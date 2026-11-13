@@ -1,0 +1,12 @@
+
+
+
+Tee
+===
+
+.. currentmodule:: pmrf.models.components.ideal
+
+.. autoclass:: Tee
+   :members:
+   :show-inheritance:
+   :inherited-members:

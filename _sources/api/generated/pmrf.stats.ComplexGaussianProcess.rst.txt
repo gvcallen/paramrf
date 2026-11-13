@@ -1,0 +1,12 @@
+
+
+
+ComplexGaussianProcess
+======================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: ComplexGaussianProcess
+   :members:
+   :show-inheritance:
+   :inherited-members:

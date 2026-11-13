@@ -1,0 +1,12 @@
+
+
+
+DiagLinear
+==========
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: DiagLinear
+   :members:
+   :show-inheritance:
+   :inherited-members:

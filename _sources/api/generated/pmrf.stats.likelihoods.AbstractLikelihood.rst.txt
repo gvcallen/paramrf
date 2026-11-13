@@ -1,0 +1,12 @@
+
+
+
+AbstractLikelihood
+==================
+
+.. currentmodule:: pmrf.stats.likelihoods
+
+.. autoclass:: AbstractLikelihood
+   :members:
+   :show-inheritance:
+   :inherited-members:

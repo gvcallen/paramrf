@@ -1,0 +1,12 @@
+
+
+
+WheelerMicrostripFormulation
+============================
+
+.. currentmodule:: pmrf.models.components.lines.microstrip
+
+.. autoclass:: WheelerMicrostripFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

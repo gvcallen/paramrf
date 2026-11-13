@@ -1,0 +1,12 @@
+
+
+
+DelayKernel
+===========
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: DelayKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

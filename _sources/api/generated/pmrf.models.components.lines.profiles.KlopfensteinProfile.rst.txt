@@ -1,0 +1,12 @@
+
+
+
+KlopfensteinProfile
+===================
+
+.. currentmodule:: pmrf.models.components.lines.profiles
+
+.. autoclass:: KlopfensteinProfile
+   :members:
+   :show-inheritance:
+   :inherited-members:

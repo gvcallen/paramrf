@@ -1,0 +1,12 @@
+
+
+
+GeneralizedEffectiveLineFormulation
+===================================
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: GeneralizedEffectiveLineFormulation
+   :members:
+   :show-inheritance:
+   :inherited-members:

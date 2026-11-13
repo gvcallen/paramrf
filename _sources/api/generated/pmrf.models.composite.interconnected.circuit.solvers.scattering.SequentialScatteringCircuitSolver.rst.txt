@@ -1,0 +1,12 @@
+
+
+
+SequentialScatteringCircuitSolver
+=================================
+
+.. currentmodule:: pmrf.models.composite.interconnected.circuit.solvers.scattering
+
+.. autoclass:: SequentialScatteringCircuitSolver
+   :members:
+   :show-inheritance:
+   :inherited-members:

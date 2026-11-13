@@ -1,0 +1,12 @@
+
+
+
+Joint
+=====
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Joint
+   :members:
+   :show-inheritance:
+   :inherited-members:

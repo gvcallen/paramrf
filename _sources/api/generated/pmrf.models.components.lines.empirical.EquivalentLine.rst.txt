@@ -1,0 +1,12 @@
+
+
+
+EquivalentLine
+==============
+
+.. currentmodule:: pmrf.models.components.lines.empirical
+
+.. autoclass:: EquivalentLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

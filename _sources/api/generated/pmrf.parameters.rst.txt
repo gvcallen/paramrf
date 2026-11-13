@@ -1,0 +1,76 @@
+﻿
+
+
+**parameters** (pmrf.parameters)
+================================
+
+.. automodule:: pmrf.parameters
+   :no-members:
+   :no-inherited-members:
+
+
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/class.rst
+
+
+   Param
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   is_param
+
+   as_param
+
+   param
+
+   fixed
+
+   unconstrained
+
+   bounded
+
+   constrained
+
+   random
+
+   uniform
+
+   normal
+
+   lognormal
+
+   truncated_normal
+
+   params
+
+   values
+
+   log_prior
+
+   update
+
+   tie
+
+   resolve
+
+   prior
+
+

@@ -1,0 +1,9 @@
+
+
+
+degree_2_radian
+===============
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: degree_2_radian

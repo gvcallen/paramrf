@@ -1,0 +1,12 @@
+
+
+
+Exp
+===
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: Exp
+   :members:
+   :show-inheritance:
+   :inherited-members:

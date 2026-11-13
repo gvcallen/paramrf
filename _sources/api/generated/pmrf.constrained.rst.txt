@@ -1,0 +1,9 @@
+﻿
+
+
+**constrained** (pmrf.constrained)
+==================================
+
+.. currentmodule:: pmrf
+
+.. autofunction:: constrained

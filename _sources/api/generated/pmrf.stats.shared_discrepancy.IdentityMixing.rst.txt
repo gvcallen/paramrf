@@ -1,0 +1,12 @@
+
+
+
+IdentityMixing
+==============
+
+.. currentmodule:: pmrf.stats.shared_discrepancy
+
+.. autoclass:: IdentityMixing
+   :members:
+   :show-inheritance:
+   :inherited-members:

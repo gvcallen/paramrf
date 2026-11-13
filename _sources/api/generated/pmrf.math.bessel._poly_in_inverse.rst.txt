@@ -1,0 +1,9 @@
+
+
+
+_poly_in_inverse
+================
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: _poly_in_inverse

@@ -1,0 +1,9 @@
+
+
+
+magdeg_2_reim
+=============
+
+.. currentmodule:: pmrf.math
+
+.. autofunction:: magdeg_2_reim

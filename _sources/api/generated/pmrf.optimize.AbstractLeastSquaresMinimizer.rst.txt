@@ -1,0 +1,12 @@
+
+
+
+AbstractLeastSquaresMinimizer
+=============================
+
+.. currentmodule:: pmrf.optimize
+
+.. autoclass:: AbstractLeastSquaresMinimizer
+   :members:
+   :show-inheritance:
+   :inherited-members:

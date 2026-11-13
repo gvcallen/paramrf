@@ -1,0 +1,9 @@
+
+
+
+uniform
+=======
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: uniform

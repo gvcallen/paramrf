@@ -1,0 +1,12 @@
+
+
+
+LogFrequencyKernel
+==================
+
+.. currentmodule:: pmrf.stats
+
+.. autoclass:: LogFrequencyKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

@@ -1,0 +1,12 @@
+
+
+
+Inverse
+=======
+
+.. currentmodule:: pmrf.stats.bijectors
+
+.. autoclass:: Inverse
+   :members:
+   :show-inheritance:
+   :inherited-members:

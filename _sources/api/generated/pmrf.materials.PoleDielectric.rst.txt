@@ -1,0 +1,12 @@
+
+
+
+PoleDielectric
+==============
+
+.. currentmodule:: pmrf.materials
+
+.. autoclass:: PoleDielectric
+   :members:
+   :show-inheritance:
+   :inherited-members:

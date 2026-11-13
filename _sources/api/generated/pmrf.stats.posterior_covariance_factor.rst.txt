@@ -1,0 +1,9 @@
+
+
+
+posterior_covariance_factor
+===========================
+
+.. currentmodule:: pmrf.stats
+
+.. autofunction:: posterior_covariance_factor

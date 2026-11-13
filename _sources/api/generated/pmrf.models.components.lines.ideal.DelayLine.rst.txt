@@ -1,0 +1,12 @@
+
+
+
+DelayLine
+=========
+
+.. currentmodule:: pmrf.models.components.lines.ideal
+
+.. autoclass:: DelayLine
+   :members:
+   :show-inheritance:
+   :inherited-members:

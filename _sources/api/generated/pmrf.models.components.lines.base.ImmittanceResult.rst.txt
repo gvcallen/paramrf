@@ -1,0 +1,12 @@
+
+
+
+ImmittanceResult
+================
+
+.. currentmodule:: pmrf.models.components.lines.base
+
+.. autoclass:: ImmittanceResult
+   :members:
+   :show-inheritance:
+   :inherited-members:

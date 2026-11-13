@@ -1,0 +1,9 @@
+
+
+
+random
+======
+
+.. currentmodule:: pmrf.parameters
+
+.. autofunction:: random

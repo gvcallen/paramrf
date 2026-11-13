@@ -1,0 +1,9 @@
+
+
+
+hyperparameter_posterior_covariance
+===================================
+
+.. currentmodule:: pmrf.stats.linearization
+
+.. autofunction:: hyperparameter_posterior_covariance

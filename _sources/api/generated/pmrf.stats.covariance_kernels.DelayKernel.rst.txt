@@ -1,0 +1,12 @@
+
+
+
+DelayKernel
+===========
+
+.. currentmodule:: pmrf.stats.covariance_kernels
+
+.. autoclass:: DelayKernel
+   :members:
+   :show-inheritance:
+   :inherited-members:

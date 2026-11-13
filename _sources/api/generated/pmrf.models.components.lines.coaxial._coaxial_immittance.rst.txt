@@ -1,0 +1,9 @@
+
+
+
+_coaxial_immittance
+===================
+
+.. currentmodule:: pmrf.models.components.lines.coaxial
+
+.. autofunction:: _coaxial_immittance

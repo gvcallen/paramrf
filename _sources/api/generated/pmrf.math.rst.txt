@@ -1,0 +1,101 @@
+﻿
+
+
+**math** (pmrf.math)
+====================
+
+.. automodule:: pmrf.math
+   :no-members:
+   :no-inherited-members:
+
+
+
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/module.rst
+   :recursive:
+
+
+   aggregations
+
+   bessel
+
+   losses
+
+
+
+
+
+
+
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :toctree:
+   :template: autosummary/function.rst
+
+
+   i0_over_i1
+
+   k0_over_k1
+
+   complex_2_magnitude
+
+   complex_2_db
+
+   complex_2_db10
+
+   complex_2_radian
+
+   complex_2_degree
+
+   complex_2_quadrature
+
+   complex_2_reim
+
+   complex_components
+
+   magnitude_2_db
+
+   mag_2_db
+
+   mag_2_db10
+
+   db_2_magnitude
+
+   db_2_mag
+
+   db10_2_mag
+
+   magdeg_2_reim
+
+   dbdeg_2_reim
+
+   db_2_np
+
+   np_2_db
+
+   radian_2_degree
+
+   degree_2_radian
+
+   feet_2_meter
+
+   meter_2_feet
+
+   db_per_100feet_2_db_per_100meter
+
+   polar_2_rect
+
+   rect_2_polar
+
+   sqrt_phase_unwrap
+
+   complexify
+
+

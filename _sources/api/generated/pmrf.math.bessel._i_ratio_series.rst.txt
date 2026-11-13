@@ -1,0 +1,9 @@
+
+
+
+_i_ratio_series
+===============
+
+.. currentmodule:: pmrf.math.bessel
+
+.. autofunction:: _i_ratio_series
