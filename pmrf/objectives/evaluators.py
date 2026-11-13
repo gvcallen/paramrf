@@ -20,7 +20,9 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.frequency import Frequency
 from pmrf.objectives.losses import HingeLoss, MSELoss, RMSELoss
 from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise, _group_by_matrix
+from pmrf.stats.discrepancy_models import (
+    ComplexGaussianProcess, GaussianProcess, _add_noise, _group_by_matrix,
+)
 from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance_factor
 from pmrf.modules.base import Module
 from pmrf.parameters import Space, values as _values, update
@@ -339,7 +341,10 @@ class MarginalLogLikelihood(AbstractEvaluator):
         A bijective transform that maps from "observation space" (predicted features) to "event space" (probability).
         Can be:
 
-        * ``None``, to use the default mapping (frequency as the event axis and independant real/imag);
+        * ``None``, to use the default mapping (frequency as the event axis and independant real/imag).
+          With a :class:`~pmrf.stats.discrepancy_models.ComplexGaussianProcess` the observation
+          must be complex, and the real and imaginary parts are concatenated along the event
+          axis instead, so each entry is one event block of length ``2 * nfreq``;
         * an :class:`distreqx.bijectors.AbstractBijector`, applied as a fixed ("static")
           transform to both the prediction and the observation;
         * a callable taking the prediction in observation space and returning an
@@ -405,7 +410,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
     
     def __post_init__(self):
         # Default mapping takes y_pred of shape e.g. (nfreq, nports, nports)
-        # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex.
+        # and maps to (nports, nports, nfreq) or (nports, nports, 2, nfreq) for complex,
+        # or (nports, nports, 2 * nfreq) for complex under a complex discrepancy.
         if self.event_ndims != 1:
             raise Exception("MarginalLogLikelihood currently only supports a single dependent event dimension")
         if self.use_orthogonal_discrepancy and self.orthogonal_rcond is None:
@@ -413,13 +419,31 @@ class MarginalLogLikelihood(AbstractEvaluator):
                 "`orthogonal_rcond` must be chosen explicitly when enabling "
                 "orthogonal discrepancy."
             )
+        complex_discrepancy = isinstance(self.discrepancy, ComplexGaussianProcess)
+        if self.use_orthogonal_discrepancy and complex_discrepancy:
+            raise NotImplementedError(
+                "Orthogonal discrepancy is not supported with a `ComplexGaussianProcess`."
+            )
         
         observed = unwrap(self.observed)
         if self.event_transform is None:
             ndims = observed.ndim
+            if complex_discrepancy and not jnp.iscomplexobj(observed):
+                raise ValueError(
+                    "A `ComplexGaussianProcess` discrepancy requires a complex observation "
+                    "for the default event transform."
+                )
             if jnp.iscomplexobj(observed):
                 perm = tuple(range(1, ndims + 1)) + (0,)
-                self.event_transform = bij.Chain([bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())])
+                transforms = [bij.Transpose(perm), bij.Inverse(bij.R2ToComplex())]
+                if complex_discrepancy:
+                    # Concatenate Re and Im along the event axis, so each S-parameter is
+                    # one event block of length 2 * nfreq.
+                    nfreq, batch_shape = observed.shape[0], observed.shape[1:]
+                    transforms.insert(
+                        0, bij.Reshape(batch_shape + (2, nfreq), batch_shape + (2 * nfreq,))
+                    )
+                self.event_transform = bij.Chain(transforms)
             else:
                 perm = tuple(range(1, ndims)) + (0,)
                 self.event_transform = bij.Chain([bij.Transpose(perm)])
@@ -703,7 +727,9 @@ class MarginalLogLikelihood(AbstractEvaluator):
         dist.AbstractDistribution
             The distribution of the discrepancy $\delta$ at ``new_frequency`` in event
             space, batched over the event blocks, with event shape
-            ``(len(new_frequency),)``. It excludes measurement noise.
+            ``(len(new_frequency),)``, or ``(2 * len(new_frequency),)`` for a
+            :class:`~pmrf.stats.discrepancy_models.ComplexGaussianProcess`. It excludes
+            measurement noise.
 
         Raises
         ------

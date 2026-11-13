@@ -10,11 +10,11 @@ import pmrf as prf
 from pmrf.frequency import Frequency
 from pmrf.models.base import Model
 from pmrf.stats.covariance_kernels import (
-    AutoCrossKernel, Matern52Kernel, PeriodicKernel, RBFKernel, SharedIndependentKernel,
-    cross_gram, gram,
+    AutoCrossKernel, DelayKernel, Matern52Kernel, PeriodicKernel, RBFKernel,
+    SharedIndependentKernel, cross_gram, gram,
 )
 from pmrf.stats.distributions import RelativeTruncatedNormal, Uniform
-from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.stats.discrepancy_models import ComplexGaussianProcess, GaussianProcess
 from pmrf.stats.likelihoods import GaussianLikelihood
 from pmrf.objectives.evaluators import (
     Feature, GibbsMarginalLogLikelihood, Goal, MarginalLogLikelihood, Negated,
@@ -1173,3 +1173,158 @@ def test_discrepancy_prediction_rejects_off_grid_orthogonal_discrepancy(gp_freq,
     )
     with pytest.raises(ValueError, match="not on the fit frequencies"):
         mll.predict_discrepancy(_sloped_two_port(), gp_freq, new_freq)
+
+
+# ---------------------------------------------------------
+# Complex discrepancy: Re and Im of each S-parameter in one event block
+# ---------------------------------------------------------
+
+_SIGMA, _ELL, _TAU, _NOISE_VARIANCE = 0.05, 0.3, 2.0, 1e-6
+
+
+@pytest.fixture
+def complex_freq():
+    return Frequency(start=1.0, stop=3.0, npoints=101, unit='GHz')
+
+
+def _complex_mll(frequency, observed, delay, noise=_NOISE_VARIANCE, **kwargs):
+    return MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=noise),
+        discrepancy=ComplexGaussianProcess(RBFKernel(_ELL) * _SIGMA**2 * DelayKernel(delay)),
+        **kwargs,
+    )
+
+
+def _np_delay_covariance(x, delay):
+    """The 2N x 2N covariance of [Re..., Im...] under σ² RBF(ℓ) times the delay kernel,
+    and its derivative with respect to the delay."""
+    dx = x[:, None] - x[None, :]
+    envelope = _SIGMA**2 * np.exp(-0.5 * (dx / _ELL) ** 2)
+    phase = 2 * np.pi * delay * dx
+    same, re_im = envelope * np.cos(phase), envelope * np.sin(phase)
+    d_same = -envelope * 2 * np.pi * dx * np.sin(phase)
+    d_re_im = envelope * 2 * np.pi * dx * np.cos(phase)
+    return (np.block([[same, re_im], [re_im.T, same]]),
+            np.block([[d_same, d_re_im], [d_re_im.T, d_same]]))
+
+
+def _prior_draw(frequency, seed=370):
+    """The sloped two-port plus a discrepancy drawn from the prior at delay _TAU, and noise."""
+    x = np.asarray(frequency.f_scaled)
+    n = len(x)
+    rng = np.random.default_rng(seed)
+    K, _ = _np_delay_covariance(x, _TAU)
+    draws = rng.multivariate_normal(np.zeros(2 * n), K, size=(2, 2), method='eigh')
+    delta = np.moveaxis(draws[..., :n] + 1j * draws[..., n:], -1, 0)
+    noise = np.sqrt(_NOISE_VARIANCE) * (rng.normal(size=(n, 2, 2)) + 1j * rng.normal(size=(n, 2, 2)))
+    return np.asarray(_sloped_two_port().s(frequency)) + delta + noise
+
+
+def _shared_independent_mll(frequency, observed):
+    """Today's model of independent Re and Im parts sharing σ² RBF(ℓ)."""
+    return MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=observed,
+        likelihood=GaussianLikelihood(noise=_NOISE_VARIANCE),
+        discrepancy=GaussianProcess(SharedIndependentKernel(RBFKernel(_ELL) * _SIGMA**2)),
+    )
+
+
+def test_complex_discrepancy_at_zero_delay_is_the_shared_independent_model(complex_freq):
+    """At τ = 0 the complex discrepancy gives the log-likelihood of independent parts."""
+    observed = _observed_two_port(complex_freq)
+    model = _sloped_two_port()
+    complex_value = _complex_mll(complex_freq, observed, 0.0)(model, complex_freq)
+    independent = _shared_independent_mll(complex_freq, observed)(model, complex_freq)
+    # One 2N x 2N factorization against two N x N ones; measured at 1.4e-15 relative.
+    np.testing.assert_allclose(complex_value, independent, rtol=1e-12, atol=0.0)
+
+
+def test_complex_discrepancy_identifies_the_delay(complex_freq):
+    """On data drawn from the prior at τ = 2, the log-likelihood peaks at τ = 2."""
+    observed = _prior_draw(complex_freq)
+    model = _sloped_two_port()
+    value = eqx.filter_jit(lambda delay: _complex_mll(complex_freq, observed, delay)(model, complex_freq))
+    delays = [0.0, 1.0, 1.5, 2.0, 2.5, 3.0]
+    values = [value(jnp.asarray(delay)) for delay in delays]
+    assert delays[int(np.argmax(values))] == _TAU
+    assert jnp.isfinite(jax.grad(value)(jnp.asarray(_TAU)))
+
+
+def test_complex_discrepancy_prediction_has_both_parts_in_one_event(complex_freq):
+    """The prediction's event holds Re then Im; at τ = 0 each part is today's prediction."""
+    new_freq = Frequency(start=0.8, stop=3.2, npoints=13, unit='GHz')
+    observed = _observed_two_port(complex_freq)
+    model = _sloped_two_port()
+    prediction = _complex_mll(complex_freq, observed, 0.0).predict_discrepancy(
+        model, complex_freq, new_freq,
+    )
+    n_b = len(new_freq)
+    assert prediction.mean().shape == (2, 2, 2 * n_b)
+    assert prediction.covariance().shape == (2, 2, 2 * n_b, 2 * n_b)
+
+    independent = _shared_independent_mll(complex_freq, observed).predict_discrepancy(
+        model, complex_freq, new_freq,
+    )
+    mean, covariance = prediction.mean(), prediction.covariance()
+    expected_mean = independent.mean().reshape((2, 2, 2 * n_b))
+    expected_covariance = np.zeros((2, 2, 2 * n_b, 2 * n_b))
+    expected_covariance[..., :n_b, :n_b] = independent.covariance()[..., 0, :, :]
+    expected_covariance[..., n_b:, n_b:] = independent.covariance()[..., 1, :, :]
+    # Measured at 9e-15 (mean) and 1.9e-13 (covariance) relative to their largest entry.
+    np.testing.assert_allclose(mean, expected_mean, rtol=0.0, atol=1e-11 * np.abs(mean).max())
+    np.testing.assert_allclose(
+        covariance, expected_covariance, rtol=0.0, atol=1e-11 * np.abs(covariance).max(),
+    )
+
+
+def test_complex_discrepancy_linearises_with_a_free_delay(complex_freq):
+    """The Fisher matrix of a free delay is ½ Σ_b tr((Σ_d⁻¹ ∂Σ_d/∂τ)²) over the 2N blocks."""
+    mll = MarginalLogLikelihood(
+        predictor=Feature('s'),
+        observed=_prior_draw(complex_freq),
+        likelihood=GaussianLikelihood(noise=_NOISE_VARIANCE),
+        discrepancy=ComplexGaussianProcess(
+            RBFKernel(_ELL) * _SIGMA**2 * DelayKernel(prf.unconstrained(_TAU, name='tau')),
+        ),
+    )
+    model = _SlopedTwoPort(gain=prf.unconstrained(1.0), delay=prf.unconstrained(0.3))
+    lin = mll.linearize(model, complex_freq)
+    n = len(complex_freq)
+    assert lin.J_h.shape == (2, 2, 2 * n, 2)
+    assert lin.residual.shape == (2, 2, 2 * n)
+    assert lin.psi_names == ('tau',)
+
+    K, dK = _np_delay_covariance(np.asarray(complex_freq.f_scaled), _TAU)
+    sigma_d = K + (1e-10 + _NOISE_VARIANCE) * np.eye(2 * n)
+    solved = np.linalg.solve(sigma_d, dK)
+    # The four S-parameters share one Σ_d, each counting once.
+    expected = 4 * 0.5 * np.trace(solved @ solved)
+    # Measured at 6e-14 relative.
+    np.testing.assert_allclose(lin.F_psi, [[expected]], rtol=1e-10)
+
+
+def test_complex_discrepancy_requires_complex_observations(complex_freq):
+    with pytest.raises(ValueError, match="complex observation"):
+        _complex_mll(complex_freq, np.abs(_observed_two_port(complex_freq)), 0.0)
+
+
+def test_orthogonal_discrepancy_rejects_complex_discrepancy(complex_freq):
+    with pytest.raises(NotImplementedError, match="ComplexGaussianProcess"):
+        _complex_mll(
+            complex_freq, _observed_two_port(complex_freq), 0.0,
+            use_orthogonal_discrepancy=True, orthogonal_rcond=1e-10,
+        )
+
+
+def test_shared_discrepancy_rejects_complex_discrepancy(complex_freq):
+    from pmrf.objectives.shared import SharedMarginalLogLikelihood
+    from pmrf.stats.shared_discrepancy import IdentityMixing, SharedLatent
+
+    mll = _complex_mll(complex_freq, _observed_two_port(complex_freq), 0.0)
+    with pytest.raises(ValueError, match="local or orthogonal discrepancy"):
+        SharedMarginalLogLikelihood(
+            ((mll, complex_freq),), (SharedLatent(RBFKernel(_ELL), IdentityMixing()),),
+        )

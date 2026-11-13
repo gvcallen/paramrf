@@ -15,6 +15,7 @@ from pmrf.stats.covariance_kernels import (
     Matern52Kernel,
     ConstantKernel,
     CosineKernel,
+    DelayKernel,
     LogFrequencyKernel,
     PowerEnvelopeKernel,
     AutoCrossKernel,
@@ -470,3 +471,25 @@ def test_cross_gram_keeps_block_layout(x):
         cross_gram(_AUTO, x_new, x), jnp.exp(-0.5 * ((x_new[:, None] - x[None, :]) / 0.3) ** 2),
         rtol=1e-14, atol=0.0,
     )
+
+
+def test_delay_kernel_values():
+    """The delay kernel is exp(-j 2π τ Δx): a quarter turn per 1/(4τ) of separation."""
+    kernel = DelayKernel(delay=0.25)
+    values = jnp.array([kernel(jnp.array([0.0]), jnp.array([x])) for x in [0.0, 1.0, 2.0, -1.0]])
+    assert jnp.allclose(values, jnp.array([1.0, 1j, -1.0, -1j]), atol=1e-12)
+
+
+def test_delay_kernel_composes_with_real_kernels(x):
+    """RBF(ℓ) σ² times the delay kernel is σ² exp(-Δx²/2ℓ²) exp(-j 2π τ Δx), and Hermitian."""
+    lengthscale, variance, delay = 0.3, 2.5e-3, 2.0
+    K = (RBFKernel(lengthscale) * variance * DelayKernel(delay)).gram(x)
+    dx = x[:, None] - x[None, :]
+    expected = variance * jnp.exp(-0.5 * (dx / lengthscale) ** 2) * jnp.exp(-2j * jnp.pi * delay * dx)
+    assert jnp.allclose(K, expected, rtol=1e-14, atol=0.0)
+    assert jnp.array_equal(K, jnp.conj(K.T))
+
+
+def test_delay_kernel_is_exported():
+    import pmrf.stats as stats
+    assert stats.DelayKernel is DelayKernel

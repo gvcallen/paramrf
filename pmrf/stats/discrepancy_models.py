@@ -442,8 +442,108 @@ class GaussianProcess(AbstractDiscrepancyModel):
             init_fn = eqx.filter_vmap(init_fn)
             
         return init_fn(y_event, K)
+
+
+def _real_representation(C: jnp.ndarray) -> jnp.ndarray:
+    """Map a complex covariance ``C`` of shape ``(..., N1, N2)`` to
+    ``[[Re C, -Im C], [Im C, Re C]]`` of shape ``(..., 2 N1, 2 N2)``."""
+    A, B = jnp.real(C), jnp.imag(C)
+    return jnp.concatenate([
+        jnp.concatenate([A, -B], axis=-1),
+        jnp.concatenate([B, A], axis=-1),
+    ], axis=-2)
+
+
+class ComplexGaussianProcess(GaussianProcess):
+    r"""
+    Complex discrepancy: a Gaussian process on each complex S-parameter.
+
+    The discrepancy $\delta = \delta^{(\mathrm{Re})} + j\,\delta^{(\mathrm{Im})}$ of
+    one S-parameter has a circularly symmetric complex Gaussian-process prior with a
+    Hermitian kernel $k_c$, which may be complex (e.g. with a
+    :class:`~pmrf.stats.covariance_kernels.DelayKernel`). Its real and imaginary parts
+    form one event block of length $2N$, ordered $[\mathrm{Re}\ldots,
+    \mathrm{Im}\ldots]$, so the kernel's imaginary part correlates the two parts.
+
+    :class:`~pmrf.objectives.evaluators.MarginalLogLikelihood` builds this event
+    block by default when the observation is complex. Noise varying along frequency
+    must then be given in the $2N$ layout. Orthogonal and shared discrepancy are not
+    supported.
+
+    **Mathematical Formulation**
+
+    With $C_{mm'} = k_c(f_m, f_{m'})$, the event block has covariance
+
+    $$K = \begin{bmatrix}\mathrm{Re}\,C & -\mathrm{Im}\,C \\
+    \mathrm{Im}\,C & \mathrm{Re}\,C\end{bmatrix},$$
+
+    so $k_c$ is the covariance of each part, half of $\mathbb{E}[\delta\delta^*]$:
+
+    $$\mathrm{Cov}[\delta^{(\mathrm{Re})}(f), \delta^{(\mathrm{Re})}(f')]
+    = \mathrm{Cov}[\delta^{(\mathrm{Im})}(f), \delta^{(\mathrm{Im})}(f')]
+    = \mathrm{Re}\,k_c(f, f'),$$
+
+    $$\mathrm{Cov}[\delta^{(\mathrm{Re})}(f), \delta^{(\mathrm{Im})}(f')]
+    = -\mathrm{Im}\,k_c(f, f').$$
+
+    A real kernel gives independent parts sharing it, as a
+    :class:`GaussianProcess` with a
+    :class:`~pmrf.stats.covariance_kernels.SharedIndependentKernel` does.
+
+    Parameters
+    ----------
+    kernel : Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+        The Hermitian kernel $k_c$, real or complex. A batched kernel gives one
+        covariance per event block, as for :class:`GaussianProcess`.
+    jitter : float, default=1e-10
+        A small scalar added to the diagonal of the $2N \times 2N$ covariance.
+
+    References
+    ----------
+    Neeser, F. D. and Massey, J. L. (1993). Proper complex random processes with
+    applications to information theory. IEEE Transactions on Information Theory,
+    39(4), 1293–1302.
+    """
+
+    def gram(self, x: jnp.ndarray) -> jnp.ndarray:
+        r"""
+        Build the prior covariance $K$ of each event block at ``x``.
+
+        Parameters
+        ----------
+        x : jnp.ndarray
+            The frequency points, with shape ``(N,)``.
+
+        Returns
+        -------
+        jnp.ndarray
+            The real covariance, of shape ``(*batch_shape, 2N, 2N)``, with the jitter
+            added to the diagonal.
+        """
+        K = self.cross_gram(x, x)
+        return K + self.jitter * jnp.eye(K.shape[-1], dtype=K.dtype)
+
+    def cross_gram(self, x1: jnp.ndarray, x2: jnp.ndarray) -> jnp.ndarray:
+        r"""
+        Build the prior cross-covariance of each event block between ``x1`` and ``x2``.
+
+        Parameters
+        ----------
+        x1 : jnp.ndarray
+            The row frequency points, with shape ``(N1,)``.
+        x2 : jnp.ndarray
+            The column frequency points, with shape ``(N2,)``.
+
+        Returns
+        -------
+        jnp.ndarray
+            The real cross-covariance, of shape ``(*batch_shape, 2 N1, 2 N2)``,
+            without jitter.
+        """
+        return _real_representation(cross_gram(self.kernel, x1, x2))
     
 __all__ = [
     'AbstractDiscrepancyModel',
+    'ComplexGaussianProcess',
     'GaussianProcess',
 ]
