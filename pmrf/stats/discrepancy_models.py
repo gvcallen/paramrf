@@ -177,6 +177,44 @@ class GaussianProcess(AbstractDiscrepancyModel):
     #: The added jitter.
     jitter: float = field(default=1e-10, static=True)
 
+    def gram(self, x: jnp.ndarray) -> jnp.ndarray:
+        """
+        Build the prior covariance of each event block at ``x``.
+
+        Every covariance this discrepancy forms on one set of points is built here,
+        with the jitter added to the diagonal.
+
+        Parameters
+        ----------
+        x : jnp.ndarray
+            The frequency points, with shape ``(N,)``.
+
+        Returns
+        -------
+        jnp.ndarray
+            The covariance, of shape ``(*batch_shape, N, N)``, where ``batch_shape``
+            is the kernel's batch shape.
+        """
+        return gram(self.kernel, x, jitter=self.jitter)
+
+    def cross_gram(self, x1: jnp.ndarray, x2: jnp.ndarray) -> jnp.ndarray:
+        """
+        Build the prior cross-covariance of each event block between ``x1`` and ``x2``.
+
+        Parameters
+        ----------
+        x1 : jnp.ndarray
+            The row frequency points, with shape ``(N1,)``.
+        x2 : jnp.ndarray
+            The column frequency points, with shape ``(N2,)``.
+
+        Returns
+        -------
+        jnp.ndarray
+            The cross-covariance, of shape ``(*batch_shape, N1, N2)``, without jitter.
+        """
+        return cross_gram(self.kernel, x1, x2)
+
     def log_prob(
         self,
         y_event: jnp.ndarray,
@@ -216,7 +254,7 @@ class GaussianProcess(AbstractDiscrepancyModel):
         # Materialize K before forming M. Otherwise XLA on CPU fuses the Gram
         # construction into the transpose to LAPACK's column-major layout, and that
         # strided build nearly doubles the value's cost at N = 1000.
-        K = jax.lax.optimization_barrier(gram(self.kernel, x, jitter=self.jitter))
+        K = jax.lax.optimization_barrier(self.gram(x))
         n = y_event.shape[-1]
         M = _add_noise(K, noise_variance, y_event.shape[:-1])
         residual = jnp.broadcast_to(observed - y_event, y_event.shape)
@@ -272,10 +310,10 @@ class GaussianProcess(AbstractDiscrepancyModel):
         """
         residual = jnp.asarray(residual)
         batch_shape = residual.shape[:-1]
-        M = _add_noise(gram(self.kernel, x, jitter=self.jitter), noise_variance, batch_shape)
+        M = _add_noise(self.gram(x), noise_variance, batch_shape)
         M_batch = M.shape[:-2]
-        K_BA = cross_gram(self.kernel, x_new, x)
-        K_BB = gram(self.kernel, x_new, jitter=self.jitter)
+        K_BA = self.cross_gram(x_new, x)
+        K_BB = self.gram(x_new)
         n_a, n_b = M.shape[-1], K_BB.shape[-1]
         K_AB = jnp.broadcast_to(jnp.swapaxes(K_BA, -1, -2), M_batch + (n_a, n_b))
 
@@ -311,7 +349,7 @@ class GaussianProcess(AbstractDiscrepancyModel):
         Unlike :meth:`log_prob`, ``noise_variance`` must be constant along the event
         axis, so it has no event axis: it broadcasts to the event batch shape.
         """
-        K = gram(self.kernel, x, jitter=self.jitter)
+        K = self.gram(x)
         variance = jnp.asarray(noise_variance)
         n = y_event.shape[-1]
         # Keep M at the smallest broadcast batch shape. Its Cholesky is then shared
@@ -388,9 +426,9 @@ class GaussianProcess(AbstractDiscrepancyModel):
             
         See Also
         --------
-        pmrf.stats.covariance_kernels.gram : Builds the covariance matrix used here.
+        gram : Builds the covariance matrix used here.
         """
-        K = gram(self.kernel, x, jitter=self.jitter)
+        K = self.gram(x)
         
         if orthogonal_projection is not None:
             projection_T = jnp.swapaxes(orthogonal_projection, -1, -2)

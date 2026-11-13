@@ -20,7 +20,6 @@ from eqxpress import AbstractExpression, Stack, Method, Sum, Diagonal, Map, Inde
 from pmrf.frequency import Frequency
 from pmrf.objectives.losses import HingeLoss, MSELoss, RMSELoss
 from pmrf.stats.likelihoods import GaussianLikelihood
-from pmrf.stats.covariance_kernels import cross_gram, gram
 from pmrf.stats.discrepancy_models import GaussianProcess, _add_noise, _group_by_matrix
 from pmrf.stats.linearization import Linearization, _linearize, posterior_covariance_factor
 from pmrf.modules.base import Module
@@ -647,7 +646,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         Q1 = jax.lax.stop_gradient(basis.vectors)
         n = Q1.shape[-2]
         P = jnp.eye(n, dtype=Q1.dtype) - Q1 @ jnp.swapaxes(Q1, -1, -2)
-        K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
+        K = self.discrepancy.gram(frequency.f_scaled)
         return P @ K @ jnp.swapaxes(P, -1, -2)
 
     @staticmethod
@@ -863,8 +862,8 @@ class MarginalLogLikelihood(AbstractEvaluator):
             conditional = jnp.take(K_cross, indices, axis=-1)
         else:
             x_new = new_frequency.f / frequency.multiplier
-            K_cross = cross_gram(self.discrepancy.kernel, x_new, frequency.f_scaled)
-            conditional = gram(self.discrepancy.kernel, x_new, jitter=self.discrepancy.jitter)
+            K_cross = self.discrepancy.cross_gram(x_new, frequency.f_scaled)
+            conditional = self.discrepancy.gram(x_new)
         n_new = K_cross.shape[-2]
         L = jnp.broadcast_to(linearization.chol, batch_shape + (n, n))
         K_cross = jnp.broadcast_to(K_cross, batch_shape + (n_new, n))
@@ -1037,7 +1036,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
         elif self.discrepancy is None:
             K = jnp.zeros((n, n), dtype=prediction.dtype)
         else:
-            K = gram(self.discrepancy.kernel, frequency.f_scaled, jitter=self.discrepancy.jitter)
+            K = self.discrepancy.gram(frequency.f_scaled)
         return _add_noise(K, self._noise_variance(prediction), prediction.shape[:-1])
 
     def _residual_and_factor(
