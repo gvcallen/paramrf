@@ -184,7 +184,10 @@ noise. `pmrf.objectives.MarginalLogLikelihood` scores it; see
 The space in which probability is defined: the prediction after the event
 transform, with frequency as the last (event) axis. Every other axis is a batch
 axis. One entry of that batch, for example the real part of S21, is an **event
-block**. Under a `GaussianProcess` discrepancy, blocks are independent: a kernel
+block**. Under a complex discrepancy, the real and imaginary parts of one
+S-parameter are concatenated along the event axis, $[\mathrm{Re}\ldots,
+\mathrm{Im}\ldots]$, so all of S21 is one block of length $2N$. Under a
+`GaussianProcess` discrepancy, blocks are independent: a kernel
 chooses the covariance *within* each block (`AutoCrossKernel` routes by block,
 `SharedIndependentKernel` shares hyperparameters across blocks) and never couples
 two blocks. A **shared discrepancy** couples blocks, and datasets.
@@ -198,6 +201,23 @@ $\delta$, the systematic misfit between model and reality, as opposed to noise
 $\varepsilon$. Either deterministic, a `GaussianProcess` over each event block, or
 a shared discrepancy. It is on the observable unless it is a port or internal
 discrepancy.
+
+### Complex discrepancy
+
+A discrepancy on one complex S-parameter, $\delta = \delta^{(\mathrm{Re})} +
+j\,\delta^{(\mathrm{Im})}$, with a circularly symmetric complex Gaussian-process
+prior: a Hermitian kernel $k_c(f, f')$ and zero pseudo-covariance. Its event block
+holds both parts, with covariance
+$K = \begin{bmatrix}\mathrm{Re}\,C & -\mathrm{Im}\,C \\ \mathrm{Im}\,C & \mathrm{Re}\,C\end{bmatrix}$,
+$C_{mm'} = k_c(f_m, f_{m'})$. The kernel is the covariance of each part,
+$k_c(f, f') = \tfrac{1}{2}\mathbb{E}[\delta(f)\,\delta^*(f')]$, and its imaginary part
+correlates the real part with the imaginary part. A **delay kernel**,
+$e^{-j2\pi\tau(f - f')}$, multiplied by a real kernel $\sigma^2 k(f, f')$,
+concentrates the discrepancy around a delay $\tau$. At $\tau = 0$ the product is the
+independent model with $\sigma^2 k$ shared by both parts. See `pmrf.stats.ComplexGaussianProcess` and `pmrf.stats.DelayKernel`.
+
+*Avoid:* "correlated" or "joint" real/imaginary kernel (the kernel is complex;
+the correlation between the parts is its imaginary part).
 
 ### Shared latent
 
