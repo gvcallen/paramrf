@@ -8,12 +8,13 @@ import pytest
 import pmrf  # noqa: F401  (enables jax_enable_x64)
 from pmrf.stats.covariance_kernels import (
     AutoCrossKernel,
+    DelayKernel,
     Matern52Kernel,
     RBFKernel,
     SharedIndependentKernel,
     gram,
 )
-from pmrf.stats.discrepancy_models import GaussianProcess
+from pmrf.stats.discrepancy_models import ComplexGaussianProcess, GaussianProcess
 
 #: Event batch: (port i, port j, Re/Im).
 BATCH = (2, 2, 2)
@@ -246,3 +247,59 @@ def test_prediction_rejects_noise_not_matching_frequency_count(x_a, x_b, residua
     gp = GaussianProcess(_kernel(), jitter=1e-10)
     with pytest.raises(ValueError, match="event points"):
         gp.predict(residual, x_a, x_b, np.full(len(x_a) - 1, 1e-3))
+
+
+# ---------------------------------------------------------
+# Complex discrepancy
+# ---------------------------------------------------------
+
+SIGMA, LENGTHSCALE, DELAY = 0.05, 0.3, 2.0
+
+
+def _delay_kernel(delay=DELAY):
+    return RBFKernel(LENGTHSCALE) * SIGMA**2 * DelayKernel(delay)
+
+
+def _np_part_covariances(x1, x2):
+    """Cov[Re, Re] (= Cov[Im, Im]) and Cov[Re(x1), Im(x2)] of the RBF delay kernel."""
+    dx = x1[:, None] - x2[None, :]
+    envelope = SIGMA**2 * np.exp(-0.5 * (dx / LENGTHSCALE) ** 2)
+    return envelope * np.cos(2 * np.pi * DELAY * dx), envelope * np.sin(2 * np.pi * DELAY * dx)
+
+
+def test_complex_gram_holds_the_part_covariances(x_a):
+    """The 2N x 2N event-block covariance, ordered [Re..., Im...], has the cos/sin entries."""
+    jitter = 1e-10
+    K = ComplexGaussianProcess(_delay_kernel(), jitter=jitter).gram(x_a)
+    n = len(x_a)
+    same, re_im = _np_part_covariances(x_a, x_a)
+    assert K.shape == (2 * n, 2 * n)
+    assert not jnp.iscomplexobj(K)
+    # Measured at 3e-20 absolute, against entries of up to 2.5e-3.
+    np.testing.assert_allclose(K[:n, :n], same + jitter * np.eye(n), rtol=0.0, atol=1e-16)
+    np.testing.assert_allclose(K[n:, n:], same + jitter * np.eye(n), rtol=0.0, atol=1e-16)
+    np.testing.assert_allclose(K[:n, n:], re_im, rtol=0.0, atol=1e-16)
+    np.testing.assert_allclose(K[n:, :n], re_im.T, rtol=0.0, atol=1e-16)
+
+
+def test_complex_gram_is_positive_semidefinite():
+    """No eigenvalue of the raw 2N x 2N covariance is negative beyond round-off."""
+    x = np.linspace(1.0, 3.0, 101)
+    K = ComplexGaussianProcess(_delay_kernel(), jitter=0.0).gram(x)
+    eigenvalues = np.linalg.eigvalsh(K)
+    # Measured at -3e-16 relative to the largest eigenvalue.
+    assert eigenvalues.min() >= -1e-12 * eigenvalues.max()
+
+
+def test_complex_cross_gram_holds_the_part_covariances(x_a, x_b):
+    """Between two grids, the 2N_B x 2N_A cross-covariance has the cos/sin entries, without jitter."""
+    K = ComplexGaussianProcess(_delay_kernel(), jitter=1e-6).cross_gram(x_b, x_a)
+    n_b, n_a = len(x_b), len(x_a)
+    same, re_im = _np_part_covariances(x_b, x_a)
+    _, im_re = _np_part_covariances(x_a, x_b)
+    assert K.shape == (2 * n_b, 2 * n_a)
+    # Measured at 5e-20 absolute, against entries of up to 2.5e-3.
+    np.testing.assert_allclose(K[:n_b, :n_a], same, rtol=0.0, atol=1e-16)
+    np.testing.assert_allclose(K[n_b:, n_a:], same, rtol=0.0, atol=1e-16)
+    np.testing.assert_allclose(K[:n_b, n_a:], re_im, rtol=0.0, atol=1e-16)
+    np.testing.assert_allclose(K[n_b:, :n_a], im_re.T, rtol=0.0, atol=1e-16)

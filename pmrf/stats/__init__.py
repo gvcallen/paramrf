@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         AutoCrossKernel as AutoCrossKernel,
         ConstantKernel as ConstantKernel,
         CosineKernel as CosineKernel,
+        DelayKernel as DelayKernel,
         LogFrequencyKernel as LogFrequencyKernel,
         Matern32Kernel as Matern32Kernel,
         Matern52Kernel as Matern52Kernel,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
     )
     from .discrepancy_models import (
         AbstractDiscrepancyModel as AbstractDiscrepancyModel,
+        ComplexGaussianProcess as ComplexGaussianProcess,
         GaussianProcess as GaussianProcess,
     )
     from .distributions import (
@@ -92,8 +94,10 @@ _EXPORTS = {
     'AutoCrossNoise': 'noise_models',
     'CenteredUniform': 'distributions',
     'Chain': 'bijectors',
+    'ComplexGaussianProcess': 'discrepancy_models',
     'ConstantKernel': 'covariance_kernels',
     'CosineKernel': 'covariance_kernels',
+    'DelayKernel': 'covariance_kernels',
     'DiagLinear': 'bijectors',
     'Exp': 'bijectors',
     'Gamma': 'distributions',

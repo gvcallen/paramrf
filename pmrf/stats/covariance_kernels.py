@@ -304,6 +304,42 @@ class CosineKernel(AbstractCovarianceKernel):
         return jnp.cos(2 * jnp.pi * jnp.sum(x1 - x2) / self.period)
 
 
+class DelayKernel(AbstractCovarianceKernel):
+    r"""
+    Complex delay kernel.
+
+    Concentrates a complex discrepancy around a delay, for use with
+    :class:`pmrf.stats.discrepancy_models.ComplexGaussianProcess`. The kernel is
+    complex-valued, so it is only a covariance there; multiply it by a real kernel
+    and a float for the variance.
+
+    **Mathematical Formulation**
+
+    $$k(x_1, x_2) = e^{-j 2\pi \tau\, \mathbf{1}^\top (x_1 - x_2)}$$
+
+    where $\tau$ is the ``delay``. It is Hermitian and positive semi-definite, of rank
+    one. Multiplied by a real kernel $\sigma^2 k_r$, the real part of the product,
+    $\sigma^2 k_r(x_1, x_2) \cos(2\pi\tau(x_1 - x_2))$, is the covariance of each of
+    the real and imaginary parts of the discrepancy, and
+    $\sigma^2 k_r(x_1, x_2) \sin(2\pi\tau(x_1 - x_2))$ is the covariance of the real
+    part at $x_1$ with the imaginary part at $x_2$. At $\tau = 0$ the two parts are
+    independent.
+
+    As for :class:`CosineKernel`, $d$-dimensional differences are summed.
+
+    Parameters
+    ----------
+    delay : ArrayLike
+        The delay, in the reciprocal of the input unit (nanoseconds for inputs in
+        GHz). A delay of shape ``(D,)`` gives ``D`` batched kernels.
+    """
+    #: The delay.
+    delay: ArrayLike
+
+    def __call__(self, x1, x2, key=None):
+        return jnp.exp(-2j * jnp.pi * self.delay * jnp.sum(x1 - x2))
+
+
 class LogFrequencyKernel(AbstractCovarianceKernel):
     r"""
     Evaluate a kernel on log frequency.
