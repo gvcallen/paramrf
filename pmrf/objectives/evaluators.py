@@ -1012,7 +1012,7 @@ class MarginalLogLikelihood(AbstractEvaluator):
     def _linearize_with(
         self, model: PyTree, frequency: Frequency, hyperparameters: PyTree, space: Space, **kwargs
     ) -> Linearization:
-        """Linearise at ``model``, with $F_\psi$ over the free parameters of
+        r"""Linearise at ``model``, with $F_\psi$ over the free parameters of
         ``hyperparameters``, a copy of this evaluator. Frozen, it holds them."""
         evaluator = unwrap(self)
         evaluator._check_linearizable()
